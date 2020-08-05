@@ -16,7 +16,6 @@ def timer(func):
 
     return wrapper_timer
 
-
 def load_csv(csv_fn='BTC_HISTORY.csv'):
     '''Load a csv file and return dates and prices lists.'''
     df = pd.read_csv(csv_fn)
