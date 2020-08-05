@@ -7,6 +7,8 @@ from typing import List, Any
 
 class MATrader:
 
+    '''Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages.'''
+
     def __init__(self, name: str, init_amount: float, tol_pct: float, ma_lengths: List[int],
             buy_pct: float, sell_pct: float, cur_coin: float=0.0,
             buy_stas: List[str]=['by_percentage'], sell_stas: List[str]=['by_percentage'],

@@ -6,6 +6,8 @@ from ma_trader import MATrader
 
 class TraderDriver:
 
+    '''A wrapper class on top of any of trader classes.'''
+
     def __init__(self, name: str, init_amount: int, cur_coin: float,
             tol_pcts: List[float], ma_lengths: List[int],
             buy_pcts: List[float], sell_pcts: List[float],
