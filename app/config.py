@@ -1,7 +1,3 @@
-# credentials
-CB_API_KEY = 'ldfBPBLzLYSPqzDO'
-CB_API_SECRET = 'hxpSLKW6yLvJ7isya3AfAMMHmcBKjQgK'
-
 # constants
 SECONDS_IN_ONE_DAY = 86400
 

@@ -5,6 +5,7 @@ import os
 import pandas as pd
 
 from cbpro_client import CBProClient
+from credentials import (CB_API_KEY, CB_API_SECRET)
 from trader_driver import TraderDriver
 from config import *
 from util import (display_port_msg, load_csv)
