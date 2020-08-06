@@ -19,7 +19,7 @@ def main():
         secret=CB_API_SECRET
     )
 
-    fake_cur_coin, fake_cash = 5, 5000
+    fake_cur_coin, fake_cash = 5, 3000
     mode = 'normal'
 
     # before

@@ -15,12 +15,12 @@ class TestMADriver(unittest.TestCase):
     def test_regular_load_from_local(self):
         '''Test loading data stream from local file.'''
         name, l = load_csv(csv_fn='../fixtures/BTC_HISTORY.csv')
-        l = l[-300:]
+        l = l[-365:]
 
         #print('debug:', type(l[0][0]), type(l[0][1]), type(l[0]))
 
-        init_amount = 900
-        cur_coin = 0.05
+        init_amount = 3000
+        cur_coin = 5
         mode = 'normal'
 
         t_driver = TraderDriver(
@@ -55,8 +55,8 @@ class TestMADriver(unittest.TestCase):
             r1 = client.get_cur_rate(cur_name + '-USD')
             data_stream = client.get_historic_data(cur_name + '-USD', SECONDS_IN_ONE_DAY)
 
-            init_amount = 900
-            cur_coin = 0.05
+            init_amount = 3000
+            cur_coin = 5
             mode = 'normal'
 
             t_driver = TraderDriver(

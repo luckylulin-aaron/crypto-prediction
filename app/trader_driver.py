@@ -15,6 +15,7 @@ class TraderDriver:
             buy_stas: List[str] = ['by_percentage'], sell_stas: List[str] = ['by_percentage'],
             mode: str='normal'):
 
+        self.init_amount, self.init_coin = init_amount, cur_coin
         self.mode = mode
         self.traders = []
         for tol_pct in tol_pcts:
@@ -57,10 +58,17 @@ class TraderDriver:
             # compute gain
             self.trader_indNgain.append((index, t.portfolio_value - self.init_val))
 
+        # store some critical prices for later use
+        self.first_p, self.last_p = data_stream[0][0], data_stream[-1][0]
+
     @property
     def best_trader_info(self):
         '''Find the best trading strategy for a given crypto-currency.'''
         best_t_ind, max_gain = self.trader_indNgain[0]
+        # compute for baseline model (no transaction at all)
+        bsl_gain = self.last_p * self.init_coin
+        # sorely the currency's fluctuation
+        bsl_delta_coin_pct = (self.last_p - self.first_p) / self.first_p
 
         for i in range(1, len(self.trader_indNgain)):
             t_ind,g = self.trader_indNgain[i]
@@ -72,7 +80,9 @@ class TraderDriver:
         extra = {
             'init_value': np.round(self.init_val, precision),
             'max_final_value': np.round(max_gain + self.init_val, precision),
-            'gain_pct': str(np.round(max_gain / self.init_val * 100, precision) ) + '%'
+            'gain_pct': str(np.round(max_gain / self.init_val * 100, precision)) + '%',
+            'bsl_gain_pct': str(np.round(bsl_gain / self.init_val * 100, precision)) + '%',
+            'bsl_coin_pct': str(np.round(bsl_delta_coin_pct * 100, precision)) + '%'
         }
 
         return {**self.traders[best_t_ind].trading_strategy, **extra, 'trader_index': best_t_ind}
