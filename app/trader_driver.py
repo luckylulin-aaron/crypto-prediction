@@ -3,6 +3,7 @@ import numpy as np
 from typing import List, Any
 
 from ma_trader import MATrader
+from util import timer
 
 class TraderDriver:
 
@@ -14,6 +15,7 @@ class TraderDriver:
             buy_stas: List[str] = ['by_percentage'], sell_stas: List[str] = ['by_percentage'],
             mode: str='normal'):
 
+        self.mode = mode
         self.traders = []
         for tol_pct in tol_pcts:
             for buy_pct in buy_pcts:
@@ -36,8 +38,12 @@ class TraderDriver:
         if len(self.traders) != len(tol_pcts) * len(buy_pcts) * len(sell_pcts):
             raise ValueError('trader creation is wrong!')
 
+    @timer
     def feed_data(self, data_stream: List[tuple]):
         '''Feed in historic data, where data_stream consists of tuples of (price, date).'''
+        if self.mode == 'verbose':
+            print('running simulation...')
+
         self.trader_indNgain = []
 
         for index,t in enumerate(self.traders):

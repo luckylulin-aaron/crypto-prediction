@@ -1,4 +1,5 @@
 import functools
+import datetime
 import pandas as pd
 import time
 
@@ -26,3 +27,13 @@ def load_csv(csv_fn='../models/BTC_HISTORY.csv'):
         l.append([prices[ind], dates[ind]])
 
     return name, l
+
+def display_port_msg(v_c: float, v_f: float, before: bool=True):
+    '''Display portfolio message in certain format.'''
+    now = datetime.datetime.now()
+    stage = 'before' if before else 'after'
+    s = v_c + v_f
+
+    print('\n{} transaction, by {}, crypto_value={:.2f}, fiat_value={:.2f}, amount to {:.2f}'.format(
+        stage, now, v_c, v_f, s
+    ))

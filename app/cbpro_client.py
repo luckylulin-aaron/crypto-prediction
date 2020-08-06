@@ -56,13 +56,16 @@ class CBProClient:
         try:
             # each request can retrieve up to 300 data points
             res = self.public_client.get_product_historic_rates(name, granularity=grans)
+            assert len(res) == 300, 'Length error!'
         except Exception as e:
             raise ConnectionError(f'cannot get historic rates for {name}')
 
+        # WARNING: must flip order!
+        res = sorted(res, key=lambda x: x[0], reverse=False)
 
         # want formatted datetime for clearer presentation
         for index,item in enumerate(res):
-            '''[
+            '''Each item looks like: [
                 [ time, low, high, open, close, volume ],
                 [ 1415398768, 0.32, 4.2, 0.35, 4.2, 12.3 ], 
                     ...
@@ -79,8 +82,7 @@ class CBProClient:
 
         return res
 
-    @timer
-    def get_wallets(self, cur_names: List[str]):
+    def get_wallets(self, cur_names: List[str]=[*CURS, *FIAT]):
         '''Retrieve wallet information for pre-defined currency names.
         Those with type being vault will be dropped.
 
@@ -96,3 +98,82 @@ class CBProClient:
 
         return list(filter(lambda x: x['currency'] in cur_names and \
                                      x['type'] != 'vault', accts['data']))
+
+    def place_buy_order(self, wallet_id: str, amount: float, currency: str, commit: bool=False):
+        '''Place and (optionally) execute a buy order.
+
+        :argument
+            wallet_id (str):
+            amount (float):
+            currency (str):
+            commit (boolean): Whether to commit this transaction.
+
+        :return
+            order (dictionary):
+
+        :raise
+            (Exception):
+        '''
+        try:
+            order = self.auth_client.buy(wallet_id,
+                        amount=str(amount),
+                        currency=currency,
+                        commit=commit
+                    )
+        except Exception as e:
+            raise e
+
+        return order
+
+    def place_sell_order(self, wallet_id: str, amount: float, currency: str, commit: bool=False):
+        '''Place and (optionally) execute a sell order.
+
+        :argument
+            wallet_id (str):
+            amount (float):
+            currency (str):
+            commit (boolean): Whether to commit this transaction.
+
+        :return
+            order (dictionary):
+
+        :raise
+            (Exception):
+        '''
+        try:
+            order = self.auth_client.sell(wallet_id,
+                         amount=str(amount),
+                         currency=currency,
+                         commit=commit
+                )
+        except Exception as e:
+            raise e
+
+        return order
+
+    @property
+    def portfolio_value(self):
+        '''Computes portfolio value for an account.
+
+        :argument
+
+        :return
+            v_crypto (float): Value of all crypto-currencies in USD.
+            v_fiat (float): Value of fiat currency in USD.
+
+        :raise
+        '''
+        assert self.auth_client is not None, 'no authorized account to get information from!'
+        wallets = self.get_wallets()
+
+        v_crypto, v_fiat = 0, 0
+
+        for item in wallets:
+            delta_v = float(item['native_balance']['amount'])
+            # add to different variables
+            if item['type'] == 'wallet':
+                v_crypto += delta_v
+            elif item['type'] == 'fiat':
+                v_fiat += delta_v
+
+        return v_crypto, v_fiat

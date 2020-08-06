@@ -4,6 +4,8 @@ import numpy as np
 
 from typing import List, Any
 
+from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL)
+
 
 class MATrader:
 
@@ -56,12 +58,12 @@ class MATrader:
         if new_p >= (1 + self.tol_pct) * cur_avg:
             r = self._execute_one_sell('by_percentage', new_p)
             if r is True:
-                self._record_history(new_p, d, 'SELL')
+                self._record_history(new_p, d, SELL_SIGNAL)
         # (2) if too low, we do a buy
         if new_p <= (1 - self.tol_pct) * cur_avg:
             r = self._execute_one_buy('by_percentage', new_p)
             if r is True:
-                self._record_history(new_p, d, 'BUY')
+                self._record_history(new_p, d, BUY_SIGNAL)
         # add this new price
         self.moving_averages[queue_name].append(new_p)
         # chop from the left
@@ -117,9 +119,17 @@ class MATrader:
 
     @property
     def trade_signal(self):
-        '''Given a new day\'s price, determine if there\'s a suggested transaction.'''
+        '''Given a new day\'s price, determine if there\'s a suggested transaction.
+
+        :argument
+
+        :return
+            (str)
+
+        :raise
+        '''
         res = {
-            'action': 'NO ACTION',
+            'action': NO_ACTION_SIGNAL,
             'buy_percentage': self.buy_pct,
             'sell_percentage': self.sell_pct
         }

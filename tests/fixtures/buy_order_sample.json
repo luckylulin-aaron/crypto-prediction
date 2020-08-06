@@ -1,16 +1,16 @@
 {
-    "id": "b5b30e92-9884-5250-b3be-18b1f3ca6dbb",
+    "id": "7971a0a1-fb06-536a-a893-af00ffaac08e",
     "fee": {
         "amount": "0.99",
         "currency": "USD"
     },
     "status": "created",
-    "user_reference": "33NJVXHD",
+    "user_reference": "MMJFENCG",
     "transaction": null,
     "created_at": null,
     "updated_at": null,
     "resource": "buy",
-    "resource_path": "/v2/accounts/5beac516-8f09-5de4-937c-e497a74982ac/buys/b5b30e92-9884-5250-b3be-18b1f3ca6dbb",
+    "resource_path": "/v2/accounts/5beac516-8f09-5de4-937c-e497a74982ac/buys/7971a0a1-fb06-536a-a893-af00ffaac08e",
     "payment_method": {
         "id": "10b4e357-8f94-5458-ae08-c6a71d5883a1",
         "resource": "payment_method",
@@ -20,7 +20,7 @@
     "hold_days": 0,
     "is_first_buy": false,
     "amount": {
-        "amount": "0.17090774",
+        "amount": "0.17102524",
         "currency": "LTC"
     },
     "total": {
@@ -32,14 +32,14 @@
         "currency": "USD"
     },
     "unit_price": {
-        "amount": "58.51",
+        "amount": "58.47",
         "currency": "USD",
         "scale": 2
     },
     "requires_completion_step": false,
     "next_step": null,
-    "payout_at": "2020-08-06T07:54:14Z",
+    "payout_at": "2020-08-06T11:50:40Z",
     "committed": false,
     "instant": true,
-    "idem": "25ece3d5-859c-4925-88e4-60938d3bb204"
+    "idem": "6ec5d545-c99e-4f16-87bd-4f7acc9a3294"
 }
