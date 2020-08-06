@@ -1,4 +1,5 @@
 import datetime
+import json
 import numpy as np
 import os
 import pandas as pd
@@ -11,45 +12,33 @@ from util import load_csv
 
 def main():
     '''Test cbpro functionality.'''
-    client = CBProClient()
 
-    cur_name = 'ETH'
-    assert cur_name in CURS, 'undefined currency name!'
-
-    r1 = client.get_cur_rate(cur_name + '-USD')
-    data_stream = client.get_historic_data(cur_name + '-USD', SECONDS_IN_ONE_DAY)
-
-    init_amount = 900
-    cur_coin = 0.05
-    mode = 'normal'
-
-    t_driver = TraderDriver(
-        name=cur_name,
-        init_amount=init_amount,
-        cur_coin=cur_coin,
-        tol_pcts=TOL_PCTS,
-        ma_lengths=MA_LENGTHS,
-        buy_pcts=BUY_PCTS,
-        sell_pcts=SELL_PCTS,
-        buy_stas=BUY_STAS,
-        sell_stas=SELL_STAS,
-        mode=mode
+    client = CBProClient(
+        key=CB_API_KEY,
+        secret=CB_API_SECRET
     )
 
-    t_driver.feed_data(data_stream=data_stream)
+    wallets = client.get_wallets(cur_names=[*CURS, *REAL_CURS])
 
-    info = t_driver.best_trader_info
-    # best trader
-    best_t = t_driver.traders[info['trader_index']]
+    # place a sell order, not to commit nonetheless
+    '''
+    sell_order = client.auth_client.sell(
+        '5beac516-8f09-5de4-937c-e497a74982ac',
+        amount='1',
+        currency='LTC',
+        commit=False
+    )
+    '''
+    buy_order = client.auth_client.buy(
+        '5beac516-8f09-5de4-937c-e497a74982ac',
+        amount='10',
+        currency='USD',
+        commit=False
+    )
 
-    # for a new price, find the trade signal
-    new_p = client.get_cur_rate(cur_name + '-USD')
-    today = datetime.datetime.now().strftime('%m/%d/%Y')
-    # add it and compute
-    best_t.add_new_day(new_p, today)
-    signal = best_t.trade_signal
+    with open('../tests/fixtures/buy_order_sample.json', 'w') as outfile:
+        json.dump(buy_order, outfile, indent=4, ensure_ascii=False)
 
-    print('DONE:', best_t.crypto_name, signal)
 
 if __name__ == '__main__':
 

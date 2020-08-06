@@ -1,0 +1,41 @@
+{
+    "id": "3ae38601-589e-55be-80a8-119047c35190",
+    "fee": {
+        "amount": "2.99",
+        "currency": "USD"
+    },
+    "status": "created",
+    "user_reference": "GQ5S4BEP",
+    "transaction": null,
+    "created_at": null,
+    "updated_at": null,
+    "resource": "sell",
+    "resource_path": "/v2/accounts/5beac516-8f09-5de4-937c-e497a74982ac/sells/3ae38601-589e-55be-80a8-119047c35190",
+    "payment_method": {
+        "id": "10b4e357-8f94-5458-ae08-c6a71d5883a1",
+        "resource": "payment_method",
+        "resource_path": "/v2/payment-methods/10b4e357-8f94-5458-ae08-c6a71d5883a1"
+    },
+    "amount": {
+        "amount": "1.00000000",
+        "currency": "LTC"
+    },
+    "total": {
+        "amount": "55.05",
+        "currency": "USD"
+    },
+    "subtotal": {
+        "amount": "58.04",
+        "currency": "USD"
+    },
+    "unit_price": {
+        "amount": "58.04",
+        "currency": "USD",
+        "scale": 2
+    },
+    "next_step": null,
+    "payout_at": "2020-08-06T07:50:57Z",
+    "committed": false,
+    "instant": true,
+    "idem": "a6fa800e-005e-4bde-931e-a8dcadb97d2b"
+}

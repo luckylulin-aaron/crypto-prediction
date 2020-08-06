@@ -1,3 +1,6 @@
+# credentials
+CB_API_KEY = 'ldfBPBLzLYSPqzDO'
+CB_API_SECRET = 'hxpSLKW6yLvJ7isya3AfAMMHmcBKjQgK'
 
 # constants
 SECONDS_IN_ONE_DAY = 86400
@@ -10,5 +13,6 @@ MA_LENGTHS = [5, 10, 20]
 BUY_STAS = ('by_percentage')
 SELL_STAS = ('by_percentage')
 
-# currencies
-CURS = ['BTC', 'ETH']
+# currencies (digital + real-world)
+CURS = ['BTC', 'ETH', 'LTC', 'BCH', 'ETC']
+REAL_CURS = ['USD']

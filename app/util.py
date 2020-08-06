@@ -11,7 +11,7 @@ def timer(func):
         value = func(*args, **kwargs)
         end_time = time.perf_counter()
         run_time = end_time - start_time
-        print("--> executed={} using time={:.2f} seconds.\n".format(func.__name__, run_time))
+        print("--> executed={} using time={:.2f} seconds.".format(func.__name__, run_time))
         return value
 
     return wrapper_timer
