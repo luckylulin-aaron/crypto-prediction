@@ -122,7 +122,7 @@ class MATrader:
             'action': action,
             'price': new_p, 'date': d,
             'coin': self.cur_coin, 'cash': self.cash,
-            'porfolio': self.portfolio_value
+            'portfolio': self.portfolio_value
         }
         self.trade_history.append(item)
 
@@ -140,12 +140,46 @@ class MATrader:
         raise NotImplementedError('pending')
 
     @property
-    def history(self):
+    def all_history(self):
         '''Returns all histories in complete fashion.'''
-        tmp = copy.deepcopy(self.trade_history)
+        tmps = copy.deepcopy(self.trade_history)
+        # for logs on the same day, if all logs are 'no action' take only 1; o/w, return all actions
+        day_to_action = collections.defaultdict(list)
+        for t in tmps:
+            day_to_action[t['date']].append(t)
 
-        # for logs on the same day, take the last one
-        
+        all_hist = []
+        for d in day_to_action:
+            if all([x['action'] == NO_ACTION_SIGNAL for x in day_to_action[d]]):
+                all_hist.append(day_to_action[d][-1])
+            else:
+                today_trades = list(filter(lambda x: x['action'] != NO_ACTION_SIGNAL, day_to_action[d]))
+                all_hist.extend(today_trades)
+
+        return all_hist
+
+    @property
+    def all_history_trade_only(self):
+        all_hist = self.all_history
+        return list(filter(lambda x: x['action'] != NO_ACTION_SIGNAL, all_hist))
+
+    @property
+    def num_transaction(self):
+        return len(self.all_history_trade_only)
+
+    @property
+    def max_drawdown(self):
+        '''Utilizes history to compute max draw-down.'''
+        all_hist = self.all_history
+        value_cur, value_max_pre = all_hist[0]['portfolio'], all_hist[0]['portfolio']
+
+        l = []
+        for hist in all_hist[1:]:
+            value_max_pre = max(value_max_pre, hist['portfolio'])
+            value_cur = hist['portfolio']
+            l.append(1 - value_cur / value_max_pre)
+
+        return np.round(max(l), 4)
 
     @property
     def trade_signal(self):
