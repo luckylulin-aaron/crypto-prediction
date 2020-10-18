@@ -1,3 +1,4 @@
+import copy
 import collections
 import datetime
 import numpy as np
@@ -36,10 +37,6 @@ class MATrader:
         self.mode = mode # normal, verbose
         # brokerage percentage
         self.broker_pct = 0.02
-        # 4. Metrics
-        self.metrics = {
-            'max_drawdown': None
-        }
 
     def add_new_day(self, new_p: float, d: datetime.datetime):
         '''Add a new day\'s crypto-currency price, see what we should do.'''
@@ -54,25 +51,32 @@ class MATrader:
         cur_l = len(self.moving_averages[queue_name])
         if cur_l < max_l:
             self.moving_averages[queue_name].append(new_p)
+            self._record_history(new_p, d, NO_ACTION_SIGNAL)
             return
 
         # o/w, we can do sth
         cur_avg = np.mean(self.moving_averages[queue_name])
         # (1) if too high, we do a sell
+        r_sell = False
         if new_p >= (1 + self.tol_pct) * cur_avg:
-            r = self._execute_one_sell('by_percentage', new_p)
-            if r is True:
+            r_sell = self._execute_one_sell('by_percentage', new_p)
+            if r_sell is True:
                 self._record_history(new_p, d, SELL_SIGNAL)
         # (2) if too low, we do a buy
+        r_buy = False
         if new_p <= (1 - self.tol_pct) * cur_avg:
-            r = self._execute_one_buy('by_percentage', new_p)
-            if r is True:
+            r_buy = self._execute_one_buy('by_percentage', new_p)
+            if r_buy is True:
                 self._record_history(new_p, d, BUY_SIGNAL)
         # add this new price
         self.moving_averages[queue_name].append(new_p)
         # chop from the left
         if len(self.moving_averages[queue_name]) > max_l:
             self.moving_averages[queue_name].popleft()
+        # add history
+        if (r_buy is False and
+            r_sell is False):
+            self._record_history(new_p, d, NO_ACTION_SIGNAL)
 
     def _execute_one_buy(self, method: str, new_p: float):
         '''Execute a buy action via a specific method.
@@ -120,18 +124,28 @@ class MATrader:
             'coin': self.cur_coin, 'cash': self.cash,
             'porfolio': self.portfolio_value
         }
-        if self.mode == 'verbose':
-            print(item)
         self.trade_history.append(item)
 
-    def compute_max_drawdown(self):
-        '''Compute max draw-down of trader. This metric gives us insight on the risks.'''
-        raise NotImplementedError('pending')
+        if self.mode == 'verbose':
+            print(item)
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
         '''Deposit more cash to our wallet.'''
         self.cash += c
         self.record_history(new_p, d, 'deposit')
+
+    @property
+    def max_drawdown(self):
+        '''Compute max draw-down of trader. This metric gives us insight on the risks.'''
+        raise NotImplementedError('pending')
+
+    @property
+    def history(self):
+        '''Returns all histories in complete fashion.'''
+        tmp = copy.deepcopy(self.trade_history)
+
+        # for logs on the same day, take the last one
+        
 
     @property
     def trade_signal(self):
