@@ -36,6 +36,10 @@ class MATrader:
         self.mode = mode # normal, verbose
         # brokerage percentage
         self.broker_pct = 0.02
+        # 4. Metrics
+        self.metrics = {
+            'max_drawdown': None
+        }
 
     def add_new_day(self, new_p: float, d: datetime.datetime):
         '''Add a new day\'s crypto-currency price, see what we should do.'''
@@ -71,7 +75,15 @@ class MATrader:
             self.moving_averages[queue_name].popleft()
 
     def _execute_one_buy(self, method: str, new_p: float):
-        '''Execute a buy action via a specific method.'''
+        '''Execute a buy action via a specific method.
+
+        Args:
+            method (str): Which strategy to use.
+            new_p (float): Signals a new day's price of a currency.
+
+        Returns:
+            (bool): Whether a buy action is executed, given the
+        '''
         if method not in self.strategies['buy']:
             raise ValueError('unknown buy strategy!')
         if self.cash <= 0:
@@ -111,6 +123,10 @@ class MATrader:
         if self.mode == 'verbose':
             print(item)
         self.trade_history.append(item)
+
+    def compute_max_drawdown(self):
+        '''Compute max draw-down of trader. This metric gives us insight on the risks.'''
+        raise NotImplementedError('pending')
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
         '''Deposit more cash to our wallet.'''

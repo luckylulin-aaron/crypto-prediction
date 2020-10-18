@@ -10,9 +10,12 @@ class TraderDriver:
     '''A wrapper class on top of any of trader classes.'''
 
     def __init__(self, name: str, init_amount: int, cur_coin: float,
-            tol_pcts: List[float], ma_lengths: List[int],
-            buy_pcts: List[float], sell_pcts: List[float],
-            buy_stas: List[str] = ['by_percentage'], sell_stas: List[str] = ['by_percentage'],
+            tol_pcts: List[float],
+            ma_lengths: List[int],
+            buy_pcts: List[float],
+            sell_pcts: List[float],
+            buy_stas: List[str] = ['by_percentage'],
+            sell_stas: List[str] = ['by_percentage'],
             mode: str='normal'):
 
         self.init_amount, self.init_coin = init_amount, cur_coin
