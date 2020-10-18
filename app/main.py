@@ -3,6 +3,8 @@ import json
 import numpy as np
 import os
 import pandas as pd
+import schedule
+import time
 
 from cbpro_client import CBProClient
 from credentials import (CB_API_KEY, CB_API_SECRET)
@@ -13,6 +15,7 @@ from util import (display_port_msg, load_csv)
 
 def main():
     '''Run simulation and make trades.'''
+    log_file = './log.txt'
 
     # cbpro client to interact with coinbase
     client = CBProClient(
@@ -115,8 +118,20 @@ def main():
     v_c2, v_f2 = client.portfolio_value
     display_port_msg(v_c=v_c2, v_f=v_f2, before=False)
 
-
+    # write to log file
+    now = datetime.datetime.now()
+    with open(log_file, 'a') as outfile:
+        outfile.write('Finish job at time {}'.format(str(now)))
 
 if __name__ == '__main__':
 
-    main()
+    # Run one-time
+    #main()
+
+    # Run as a cron-job
+    print('\nI am awake...')
+
+    schedule.every().day.at('10:30').do(main)
+    while True:
+        schedule.run_pending()
+        time.sleep(1)

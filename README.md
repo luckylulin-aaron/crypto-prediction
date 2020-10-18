@@ -9,10 +9,7 @@ To perform actual transaction, you need to have an existing coinbase account and
 
 1) Clone this repository.
 2) In the repository, execute `pip install -r requirements.txt`
-3) Manually change your API key and API secret in ```app/credentials.py```, and tweak other parameters of your choice in the same file. Note: credentials.py should be in the following format:
-	# credentials
-	CB_API_KEY = '...'
-	CB_API_SECRET = '...' 
+3) Manually change your API key and API secret in ```app/credentials.py```, and tweak other parameters of your choice in the same file. Note: credentials.py should contain only two variables:  CB_API_KEY = '...'; CB_API_SECRET = '...'.
 
 ## Testing
 Navigate to ```tests/unit```, execute `python -m unittest` to launch unittest that reads sample data locally.
