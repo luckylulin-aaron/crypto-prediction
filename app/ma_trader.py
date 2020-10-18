@@ -2,10 +2,12 @@ import copy
 import collections
 import datetime
 import numpy as np
+import time
 
 from typing import List, Any
 
-from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL)
+from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
+    DEPOSIT_CST, WITHDRAW_CST)
 
 
 class MATrader:
@@ -39,21 +41,70 @@ class MATrader:
         self.broker_pct = 0.02
 
     def add_new_day(self, new_p: float, d: datetime.datetime):
-        '''Add a new day\'s crypto-currency price, see what we should do.'''
+        '''Add a new day\'s crypto-currency price, find out a computed transaction for today.'''
         self.crypto_prices.append((new_p, d))
-        for q in self.moving_averages:
-            self.process_queues(q, new_p, d)
 
-    def process_queues(self, queue_name: str, new_p: float, d: datetime.datetime):
-        '''For a new day\'s price, find if beyond tolerance level, execute a buy or sell action.'''
-        # if too short the queue, simply add the new price and leave
+        # add new moving averages
+        for queue_name in self.moving_averages:
+            self.compute_new_moving_averages(queue_name=queue_name, new_p=new_p, today=d)
+
+        # execute trading strategy
+        # [1] MA w/ itself
+        #'''
+        for queue_name in self.moving_averages:
+            ma_len = int(queue_name)
+            # if MA does not have enough length, skip
+            if len(self.moving_averages[queue_name]) < ma_len:
+                continue
+            self.strategy_moving_average_w_tolerance(
+                queue_name=queue_name,
+                new_p=new_p,
+                today=d,
+                max_l=ma_len
+            )
+        #'''
+
+        # [2] pair-wise MAs
+        #'''
+        mas = [int(x) for x in list(self.moving_averages.keys())]
+        mas = sorted(mas, reverse=False)
+
+        for i in range(0, len(mas)):
+            for j in range(i+1, len(mas)):
+                # if too close, skip
+                if j - i <= 2:
+                    continue
+                s_qn, l_qn = str(mas[i]), str(mas[j])
+                # if either of the two MAs does not have enough lengths, respectively, skip
+                if (len(self.moving_averages[s_qn]) < int(s_qn) or
+                    len(self.moving_averages[l_qn]) < int(l_qn)):
+                    continue
+                self.strategy_double_moving_averages(
+                    shorter_queue_name=s_qn,
+                    longer_queue_name=l_qn,
+                    new_p=new_p,
+                    today=d
+                )
+        #'''
+
+    def compute_new_moving_averages(self, queue_name: str, new_p: float, today: datetime.datetime):
         max_l = int(queue_name)
         cur_l = len(self.moving_averages[queue_name])
         if cur_l < max_l:
             self.moving_averages[queue_name].append(new_p)
-            self._record_history(new_p, d, NO_ACTION_SIGNAL)
             return
 
+    # Core Section: TRADING STRATEGY
+    def strategy_moving_average_w_tolerance(self, queue_name: str,
+            new_p: float, today: datetime.datetime, max_l: int):
+        '''For a new day's price, find if beyond tolerance level, execute a buy or sell action.
+
+        Args:
+            queue_name (str): The name of the queue.
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+            max_l (int): The length of the moving average. For example, for MA5, max_l = 5.
+        '''
         # o/w, we can do sth
         cur_avg = np.mean(self.moving_averages[queue_name])
         # (1) if too high, we do a sell
@@ -61,23 +112,55 @@ class MATrader:
         if new_p >= (1 + self.tol_pct) * cur_avg:
             r_sell = self._execute_one_sell('by_percentage', new_p)
             if r_sell is True:
-                self._record_history(new_p, d, SELL_SIGNAL)
+                self._record_history(new_p, today, SELL_SIGNAL)
         # (2) if too low, we do a buy
         r_buy = False
         if new_p <= (1 - self.tol_pct) * cur_avg:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
-                self._record_history(new_p, d, BUY_SIGNAL)
+                self._record_history(new_p, today, BUY_SIGNAL)
         # add this new price
         self.moving_averages[queue_name].append(new_p)
         # chop from the left
         if len(self.moving_averages[queue_name]) > max_l:
             self.moving_averages[queue_name].popleft()
-        # add history
+        # add history as well if nothing happens
         if (r_buy is False and
             r_sell is False):
-            self._record_history(new_p, d, NO_ACTION_SIGNAL)
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
 
+    def strategy_double_moving_averages(self, shorter_queue_name: str, longer_queue_name,
+            new_p: float, today: datetime.datetime):
+        '''For a new day's price, if the shorter MA is greater than the longer MA's, execute a buy;
+        otherwise, execute a sell.
+
+        Args:
+            shorter_queue_name (str): The name of the queue with shorter interval.
+            longer_queue_name (str): The name of the queue with longer interval.
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+        '''
+        shorter_p = self.moving_averages[shorter_queue_name][-1]
+        longer_p = self.moving_averages[longer_queue_name][-1]
+
+        # (1) if a 'death-cross', sell
+        r_sell = False
+        if longer_p > shorter_p:
+            r_sell = self._execute_one_sell('by_percentage', new_p)
+            if r_sell is True:
+                self._record_history(new_p, today, SELL_SIGNAL)
+        # (2) if a 'golden-cross', buy
+        r_buy = False
+        if shorter_p > longer_p:
+            r_buy = self._execute_one_buy('by_percentage', new_p)
+            if r_buy is True:
+                self._record_history(new_p, today, BUY_SIGNAL)
+        # add history as well if nothing happens
+        if (r_buy is False and
+            r_sell is False):
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
+
+    # basic functionality
     def _execute_one_buy(self, method: str, new_p: float):
         '''Execute a buy action via a specific method.
 
@@ -131,14 +214,21 @@ class MATrader:
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
         '''Deposit more cash to our wallet.'''
+        if c <= 0:
+            raise ValueError('Should deposit a positive amount!')
+
         self.cash += c
-        self.record_history(new_p, d, 'deposit')
+        self.record_history(new_p, d, DEPOSIT_CST)
 
-    @property
-    def max_drawdown(self):
-        '''Compute max draw-down of trader. This metric gives us insight on the risks.'''
-        raise NotImplementedError('pending')
+    def withdraw(self, c: float, new_p: float, d: datetime.datetime):
+        '''Withdraw some cash out of our wallet.'''
+        if c > self.cash:
+            raise ValueError('Not enough cash to withdraw!')
 
+        self.cash -= c
+        self._record_history(new_p, d, WITHDRAW_CST)
+
+    # properties, built upon functions defined above
     @property
     def all_history(self):
         '''Returns all histories in complete fashion.'''

@@ -1,4 +1,4 @@
-# constants
+# numerical constants
 SECONDS_IN_ONE_DAY = 86400
 
 # whether commit transaction
@@ -20,6 +20,10 @@ FIAT = ['USD']
 NO_ACTION_SIGNAL = 'NO ACTION'
 BUY_SIGNAL = 'BUY'
 SELL_SIGNAL = 'SELL'
+
+# constants
+DEPOSIT_CST = 'DEPOSIT'
+WITHDRAW_CST = 'WITHDRAWAL'
 
 # epilson
 EP_COIN = 10e-3
