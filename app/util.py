@@ -1,5 +1,7 @@
 import functools
 import datetime
+import math
+import numpy as np
 import pandas as pd
 import time
 
@@ -37,3 +39,14 @@ def display_port_msg(v_c: float, v_f: float, before: bool=True):
     print('\n{} transaction, by {}, crypto_value={:.2f}, fiat_value={:.2f}, amount to {:.2f}'.format(
         stage, now, v_c, v_f, s
     ))
+
+def max_drawdown_helper(hist_l):
+    '''Compute max drawdown for a given portfolio value history.'''
+    res = -math.inf
+    value_cur, value_max_pre = hist_l[0], hist_l[0]
+    for hist in hist_l[1:]:
+        value_max_pre = max(value_max_pre, hist)
+        value_cur = hist
+        res = max(res, 1 - value_cur / value_max_pre)
+
+    return np.round(res, 4)

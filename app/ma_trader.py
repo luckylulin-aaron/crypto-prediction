@@ -7,17 +7,27 @@ import time
 from typing import List, Any
 
 from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
-    DEPOSIT_CST, WITHDRAW_CST)
-
+    DEPOSIT_CST, WITHDRAW_CST, STRATEGIES)
+from util import (max_drawdown_helper)
 
 class MATrader:
 
     '''Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages.'''
 
-    def __init__(self, name: str, init_amount: float, tol_pct: float, ma_lengths: List[int],
-            buy_pct: float, sell_pct: float, cur_coin: float=0.0,
-            buy_stas: List[str]=['by_percentage'], sell_stas: List[str]=['by_percentage'],
+    def __init__(self, name: str,
+            init_amount: float,
+            stat: str,
+            tol_pct: float,
+            ma_lengths: List[int],
+            buy_pct: float,
+            sell_pct: float,
+            cur_coin: float=0.0,
+            buy_stas: List[str]=['by_percentage'],
+            sell_stas: List[str]=['by_percentage'],
             mode: str='normal'):
+        # check
+        if stat not in STRATEGIES:
+            raise ValueError('Unknown high-level trading strategy!')
         # 1. Basic
         # crypto-currency name, tolerance percentage
         self.crypto_name, self.tol_pct = name, tol_pct
@@ -35,6 +45,8 @@ class MATrader:
         # sell percentage (how much you want to sell off) from your coin
         self.buy_pct, self.sell_pct = buy_pct, sell_pct
         self.strategies = {'buy': buy_stas, 'sell': sell_stas}
+        # high-level strategy
+        self.high_strategy = stat
         # debug mode
         self.mode = mode # normal, verbose
         # brokerage percentage
@@ -50,42 +62,40 @@ class MATrader:
 
         # execute trading strategy
         # [1] MA w/ itself
-        #'''
-        for queue_name in self.moving_averages:
-            ma_len = int(queue_name)
-            # if MA does not have enough length, skip
-            if len(self.moving_averages[queue_name]) < ma_len:
-                continue
-            self.strategy_moving_average_w_tolerance(
-                queue_name=queue_name,
-                new_p=new_p,
-                today=d,
-                max_l=ma_len
-            )
-        #'''
+        if self.high_strategy == 'MA-SELVES':
+            for queue_name in self.moving_averages:
+                ma_len = int(queue_name)
+                # if MA does not have enough length, skip
+                if len(self.moving_averages[queue_name]) < ma_len:
+                    continue
+                self.strategy_moving_average_w_tolerance(
+                    queue_name=queue_name,
+                    new_p=new_p,
+                    today=d,
+                    max_l=ma_len
+                )
 
         # [2] pair-wise MAs
-        #'''
-        mas = [int(x) for x in list(self.moving_averages.keys())]
-        mas = sorted(mas, reverse=False)
+        elif self.high_strategy == 'DOUBLE-MA':
+            mas = [int(x) for x in list(self.moving_averages.keys())]
+            mas = sorted(mas, reverse=False)
 
-        for i in range(0, len(mas)):
-            for j in range(i+1, len(mas)):
-                # if too close, skip
-                if j - i <= 2:
-                    continue
-                s_qn, l_qn = str(mas[i]), str(mas[j])
-                # if either of the two MAs does not have enough lengths, respectively, skip
-                if (len(self.moving_averages[s_qn]) < int(s_qn) or
-                    len(self.moving_averages[l_qn]) < int(l_qn)):
-                    continue
-                self.strategy_double_moving_averages(
-                    shorter_queue_name=s_qn,
-                    longer_queue_name=l_qn,
-                    new_p=new_p,
-                    today=d
-                )
-        #'''
+            for i in range(0, len(mas)):
+                for j in range(i+1, len(mas)):
+                    # if too close, skip
+                    if j - i <= 2:
+                        continue
+                    s_qn, l_qn = str(mas[i]), str(mas[j])
+                    # if either of the two MAs does not have enough lengths, respectively, skip
+                    if (len(self.moving_averages[s_qn]) < int(s_qn) or
+                        len(self.moving_averages[l_qn]) < int(l_qn)):
+                        continue
+                    self.strategy_double_moving_averages(
+                        shorter_queue_name=s_qn,
+                        longer_queue_name=l_qn,
+                        new_p=new_p,
+                        today=d
+                    )
 
     def compute_new_moving_averages(self, queue_name: str, new_p: float, today: datetime.datetime):
         max_l = int(queue_name)
@@ -232,6 +242,9 @@ class MATrader:
     @property
     def all_history(self):
         '''Returns all histories in complete fashion.'''
+        if len(self.trade_history) == 0:
+            return []
+
         tmps = copy.deepcopy(self.trade_history)
         # for logs on the same day, if all logs are 'no action' take only 1; o/w, return all actions
         day_to_action = collections.defaultdict(list)
@@ -260,16 +273,16 @@ class MATrader:
     @property
     def max_drawdown(self):
         '''Utilizes history to compute max draw-down.'''
-        all_hist = self.all_history
-        value_cur, value_max_pre = all_hist[0]['portfolio'], all_hist[0]['portfolio']
+        all_hist = []
+        if len(self.all_history) > 0:
+            all_hist = list(map(lambda x: x['portfolio'], self.all_history))
+        else:
+            # need to grab crypto-currency historical data, re-compute
+            for (price, _) in self.crypto_prices:
+                port_value = self.cur_coin * price + self.cash
+                all_hist.append(port_value)
 
-        l = []
-        for hist in all_hist[1:]:
-            value_max_pre = max(value_max_pre, hist['portfolio'])
-            value_cur = hist['portfolio']
-            l.append(1 - value_cur / value_max_pre)
-
-        return np.round(max(l), 4)
+        return max_drawdown_helper(all_hist)
 
     @property
     def trade_signal(self):
@@ -289,7 +302,7 @@ class MATrader:
         }
         # find last date on which a transaction occurs
         last_evt = self.trade_history[-1] if len(self.trade_history) > 0 else {}
-        last_date_str = self.trade_history[-1].get('date', None)
+        last_date_str = last_evt.get('date', None)
         if last_date_str is None:
             return res
 
