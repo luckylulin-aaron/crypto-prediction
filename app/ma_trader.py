@@ -7,7 +7,7 @@ import time
 from typing import List, Any
 
 from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
-    DEPOSIT_CST, WITHDRAW_CST, STRATEGIES)
+    DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION)
 from util import (max_drawdown_helper)
 
 class MATrader:
@@ -31,7 +31,8 @@ class MATrader:
         # 1. Basic
         # crypto-currency name, tolerance percentage
         self.crypto_name, self.tol_pct = name, tol_pct
-        # current bitcoin at hand, and cash available
+        # initial and current bitcoin at hand, and cash available
+        self.init_coin, self.init_cash = cur_coin, init_amount
         self.cur_coin, self.cash = cur_coin, init_amount
         # 2. Transactions
         self.trade_history = []
@@ -213,8 +214,10 @@ class MATrader:
         '''Record an event into trade history.'''
         item = {
             'action': action,
-            'price': new_p, 'date': d,
-            'coin': self.cur_coin, 'cash': self.cash,
+            'price': new_p,
+            'date': d,
+            'coin': self.cur_coin,
+            'cash': self.cash,
             'portfolio': self.portfolio_value
         }
         self.trade_history.append(item)
@@ -263,6 +266,7 @@ class MATrader:
 
     @property
     def all_history_trade_only(self):
+        '''Returns all histories, filter out NO_ACTION items.'''
         all_hist = self.all_history
         return list(filter(lambda x: x['action'] != NO_ACTION_SIGNAL, all_hist))
 
@@ -277,12 +281,32 @@ class MATrader:
         if len(self.all_history) > 0:
             all_hist = list(map(lambda x: x['portfolio'], self.all_history))
         else:
-            # need to grab crypto-currency historical data, re-compute
+            # no transaction happened at all
+            # free to grab all this currency's data, re-compute
             for (price, _) in self.crypto_prices:
                 port_value = self.cur_coin * price + self.cash
                 all_hist.append(port_value)
 
         return max_drawdown_helper(all_hist)
+
+    @property
+    def baseline_rate_of_return(self):
+        '''Computes for baseline gain percentage (i.e. hold all coins, have 0 transaction).'''
+        init_p = self.all_history[0]['portfolio']
+        final_p = self.init_coin * self.all_history[-1]['price'] + self.init_cash
+        return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
+
+    @property
+    def rate_of_return(self):
+        '''Computes for the rate of return = (V_final - V_init) / V_init.'''
+        init_p, final_p = self.all_history[0]['portfolio'], self.all_history[-1]['portfolio']
+        return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
+
+    @property
+    def coin_rate_of_return(self):
+        '''How much the price of the currency has gone up.'''
+        init_price, final_price = self.all_history[0]['price'], self.all_history[-1]['price']
+        return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
 
     @property
     def trade_signal(self):
