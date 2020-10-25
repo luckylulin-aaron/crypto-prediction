@@ -8,7 +8,7 @@ from typing import List, Any
 
 from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
     DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION)
-from util import (max_drawdown_helper)
+from util import (max_drawdown_helper, ema_helper)
 
 class MATrader:
 
@@ -42,9 +42,8 @@ class MATrader:
         self.moving_averages = dict(zip([str(x) for x in ma_lengths],
                                         [[] for _ in range(len(ma_lengths))]))
         # exponential moving average queues
-        self.exp_moving_averages = dict()
-        for ema_l in ema_lengths:
-            self.exp_moving_averages[str(ema_l)] = collections.deque()
+        self.exp_moving_averages = dict(zip([str(x) for x in ema_lengths],
+                                            [[] for _ in range(len(ema_lengths))]))
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
@@ -61,9 +60,11 @@ class MATrader:
         '''Add a new day\'s crypto-currency price, find out a computed transaction for today.'''
         self.crypto_prices.append((new_p, d))
 
-        # add new moving averages and pop-out old ones
+        # add new moving averages and exponential moving averages, respectively
         for queue_name in self.moving_averages:
             self.add_new_moving_averages(queue_name=queue_name, new_p=new_p)
+        for queue_name in self.exp_moving_averages:
+            self.add_new_exponential_moving_averages(queue_name=queue_name, new_p=new_p)
 
         # Execute trading strategy
         # [1] MA w/ itself
@@ -101,15 +102,34 @@ class MATrader:
                     )
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
-        '''Compute and assign a new moving average price.'''
+        '''Compute and append a new moving average price.'''
         max_l = int(queue_name)
-        if len(self.crypto_prices) < max_l:
+        if len(self.crypto_prices) <= max_l:
             self.moving_averages[queue_name].append(None)
             return
-        # compute new moving averages, add it; note: only grab -max-1 because we already add today's price
+        # compute new moving average, add it
+        # note: grab -max because we already add today's price
         prices = [x[0] for x in self.crypto_prices[-max_l:]]
         new_ma = sum(prices) / max_l
         self.moving_averages[queue_name].append(new_ma)
+
+    def add_new_exponential_moving_averages(self, queue_name: str, new_p: float):
+        '''Compute and append a new exponential moving average price.'''
+        max_l = int(queue_name)
+        if len(self.crypto_prices) <= max_l:
+            self.exp_moving_averages[queue_name].append(None)
+            return
+
+        # when the lengths are just equal, EMA = MA
+        if len(self.exp_moving_averages[queue_name]) == max_l:
+            prices = [x[0] for x in self.crypto_prices[-max_l:]]
+            new_ema = sum(prices) / max_l
+            self.exp_moving_averages[queue_name].append(new_ema)
+        else:
+            # compute new exponential moving average, append it
+            old_ema = self.exp_moving_averages[queue_name][-1]
+            new_ema = ema_helper(new_price=new_p, old_ema=old_ema, num_of_days=max_l)
+            self.exp_moving_averages[queue_name].append(new_ema)
 
     # Core Section: TRADING STRATEGY
     def strategy_moving_average_w_tolerance(self, queue_name: str,
