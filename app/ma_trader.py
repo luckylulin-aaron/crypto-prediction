@@ -40,7 +40,7 @@ class MATrader:
         self.crypto_prices = []
         # moving average
         self.moving_averages = dict(zip([str(x) for x in ma_lengths],
-                                        [None for _ in range(len(ma_lengths))]))
+                                        [[] for _ in range(len(ma_lengths))]))
         # exponential moving average queues
         self.exp_moving_averages = dict()
         for ema_l in ema_lengths:
@@ -70,7 +70,7 @@ class MATrader:
         if self.high_strategy == 'MA-SELVES':
             for queue_name in self.moving_averages:
                 # if we don't have a moving average yet, skip
-                if self.moving_averages[queue_name] is None:
+                if self.moving_averages[queue_name][-1] is None:
                     continue
                 self.strategy_moving_average_w_tolerance(
                     queue_name=queue_name,
@@ -90,8 +90,8 @@ class MATrader:
                         continue
                     s_qn, l_qn = str(mas[i]), str(mas[j])
                     # if either of the two MAs does not have enough lengths, respectively, skip
-                    if (self.moving_averages[s_qn] is None or
-                        self.moving_averages[l_qn] is None):
+                    if (self.moving_averages[s_qn][-1] is None or
+                        self.moving_averages[l_qn][-1] is None):
                         continue
                     self.strategy_double_moving_averages(
                         shorter_queue_name=s_qn,
@@ -104,11 +104,12 @@ class MATrader:
         '''Compute and assign a new moving average price.'''
         max_l = int(queue_name)
         if len(self.crypto_prices) < max_l:
+            self.moving_averages[queue_name].append(None)
             return
         # compute new moving averages, add it; note: only grab -max-1 because we already add today's price
         prices = [x[0] for x in self.crypto_prices[-max_l:]]
         new_ma = sum(prices) / max_l
-        self.moving_averages[queue_name] = new_ma
+        self.moving_averages[queue_name].append(new_ma)
 
     # Core Section: TRADING STRATEGY
     def strategy_moving_average_w_tolerance(self, queue_name: str,
@@ -121,7 +122,7 @@ class MATrader:
             today (datetime.datetime):
         '''
         # retrieve the most recent moving average
-        last_ma = self.moving_averages[queue_name]
+        last_ma = self.moving_averages[queue_name][-1]
         # (1) if too high, we do a sell
         r_sell = False
         if new_p >= (1 + self.tol_pct) * last_ma:
@@ -151,8 +152,8 @@ class MATrader:
             today (datetime.datetime):
         '''
         # compute the moving averages for shorter queue and longer queue, respectively
-        shorter_p = self.moving_averages[shorter_queue_name]
-        longer_p = self.moving_averages[longer_queue_name]
+        shorter_p = self.moving_averages[shorter_queue_name][-1]
+        longer_p = self.moving_averages[longer_queue_name][-1]
 
         # (1) if a 'death-cross', sell
         r_sell = False
