@@ -7,7 +7,7 @@ import time
 from typing import List, Any
 
 from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
-    DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION)
+    DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION, DEA_NUM_OF_DAYS)
 from util import (max_drawdown_helper, ema_helper)
 
 class MATrader:
@@ -41,9 +41,11 @@ class MATrader:
         # moving average
         self.moving_averages = dict(zip([str(x) for x in ma_lengths],
                                         [[] for _ in range(len(ma_lengths))]))
-        # exponential moving average queues
+        # exponential moving average queues and related items
         self.exp_moving_averages = dict(zip([str(x) for x in ema_lengths],
                                             [[] for _ in range(len(ema_lengths))]))
+        # MACD_DIFF = EMA12- EMA26; MACD_DEA = 9_DAY_EMA_OF_MACD_DIFF
+        self.macd_diff, self.macd_dea = [], []
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
@@ -101,6 +103,11 @@ class MATrader:
                         today=d
                     )
 
+        # [3] MACD divergence/convergence approach
+        elif self.high_strategy == 'MACD':
+            self.compute_macd_related()
+            self.strategy_macd(new_p=new_p, today=d)
+
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         '''Compute and append a new moving average price.'''
         max_l = int(queue_name)
@@ -130,6 +137,33 @@ class MATrader:
             old_ema = self.exp_moving_averages[queue_name][-1]
             new_ema = ema_helper(new_price=new_p, old_ema=old_ema, num_of_days=max_l)
             self.exp_moving_averages[queue_name].append(new_ema)
+
+    def compute_macd_related(self):
+        # compute macd_diff: 差离值（DIF）的计算： DIF = EMA12 - EMA26
+        # and macd_dea: 差离值(above)的9日的EMA
+
+        # when shorter than required, simply add None
+        ema12, ema26 = self.exp_moving_averages['12'][-1], self.exp_moving_averages['26'][-1]
+        if (ema12 is None or
+            ema26 is None):
+            self.macd_diff.append(None)
+            self.macd_dea.append(None)
+            return
+
+        # now, self.macd_diff and self.macd_dea have at least 26 elements
+        macd_diff = ema12 - ema26
+        self.macd_diff.append(macd_diff)
+        # compute macd_dea case by case
+        non_empty_diff = list(filter(lambda x: x is not None, self.macd_diff))
+
+        if len(non_empty_diff) < DEA_NUM_OF_DAYS + 1:
+            self.macd_dea.append(None)
+        elif len(non_empty_diff) == DEA_NUM_OF_DAYS + 1:
+            self.macd_dea.append(self.macd_diff[-1])
+        else:
+            old_dea = self.macd_dea[-1]
+            new_dea = ema_helper(new_price=macd_diff, old_ema=old_dea, num_of_days=DEA_NUM_OF_DAYS)
+            self.macd_dea.append(new_dea)
 
     # Core Section: TRADING STRATEGY
     def strategy_moving_average_w_tolerance(self, queue_name: str,
@@ -184,6 +218,35 @@ class MATrader:
         # (2) if a 'golden-cross', buy
         r_buy = False
         if shorter_p > longer_p:
+            r_buy = self._execute_one_buy('by_percentage', new_p)
+            if r_buy is True:
+                self._record_history(new_p, today, BUY_SIGNAL)
+        # add history as well if nothing happens
+        if (r_buy is False and
+            r_sell is False):
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
+
+    def strategy_macd(self, new_p, today: datetime.datetime):
+        '''By default, only have 12 and 26 as keys in self.exp_moving_averages, and use 9 for computing
+         the EMA for MACD diff.
+
+         Args:
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+         '''
+        if self.macd_dea[-1] is None:
+            return
+
+        diff = self.macd_diff[-1] - self.macd_dea[-1]
+        # (1) if (MACD-DIFF - MACD-DEA) is negative, sell
+        r_sell = False
+        if diff < 0:
+            r_sell = self._execute_one_sell('by_percentage', new_p)
+            if r_sell is True:
+                self._record_history(new_p, today, SELL_SIGNAL)
+        # (2) if (MACD-DIFF - MACD-DEA) is, buy
+        r_buy = False
+        if diff > 0:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
                 self._record_history(new_p, today, BUY_SIGNAL)
@@ -294,6 +357,16 @@ class MATrader:
     @property
     def num_transaction(self):
         return len(self.all_history_trade_only)
+
+    @property
+    def num_buy_action(self):
+        trades_only = self.all_history_trade_only
+        return len([x for x in trades_only if x['action'] == BUY_SIGNAL])
+
+    @property
+    def num_sell_action(self):
+        trades_only = self.all_history_trade_only
+        return len([x for x in trades_only if x['action'] == SELL_SIGNAL])
 
     @property
     def max_drawdown(self):
