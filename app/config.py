@@ -13,7 +13,10 @@ STRATEGIES = ['MA-SELVES', 'DOUBLE-MA']
 TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
 BUY_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
 SELL_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
+
 MA_LENGTHS = [5, 10, 20, 30]
+EMA_LENGTHS = [10,26]
+
 BUY_STAS = ('by_percentage')
 SELL_STAS = ('by_percentage')
 
