@@ -20,6 +20,8 @@ class MATrader:
             tol_pct: float,
             ma_lengths: List[int],
             ema_lengths: List[int],
+            bollinger_mas: List[int],
+            bollinger_sigma: int,
             buy_pct: float,
             sell_pct: float,
             cur_coin: float=0.0,
@@ -29,6 +31,8 @@ class MATrader:
         # check
         if stat not in STRATEGIES:
             raise ValueError('Unknown high-level trading strategy!')
+        if not all([x in ma_lengths for x in bollinger_mas]):
+            raise ValueError('cannot initialize Bollinger Band strategy if some of moving averages are not available!')
         # 1. Basic
         # crypto-currency name, tolerance percentage
         self.crypto_name, self.tol_pct = name, tol_pct
@@ -38,14 +42,17 @@ class MATrader:
         # 2. Transactions
         self.trade_history = []
         self.crypto_prices = []
-        # moving average
+        # moving average (type: dictionary)
         self.moving_averages = dict(zip([str(x) for x in ma_lengths],
                                         [[] for _ in range(len(ma_lengths))]))
-        # exponential moving average queues and related items
+        # exponential moving average queues and related items (type: dictionary)
         self.exp_moving_averages = dict(zip([str(x) for x in ema_lengths],
                                             [[] for _ in range(len(ema_lengths))]))
         # MACD_DIFF = EMA12- EMA26; MACD_DEA = 9_DAY_EMA_OF_MACD_DIFF
         self.macd_diff, self.macd_dea = [], []
+        # number of MAs considered in Bollinger Band strategy
+        self.bollinger_mas = [str(x) for x in bollinger_mas]
+        self.bollinger_sigma = bollinger_sigma
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
@@ -107,6 +114,18 @@ class MATrader:
         elif self.high_strategy == 'MACD':
             self.compute_macd_related()
             self.strategy_macd(new_p=new_p, today=d)
+
+        # [4] Bollinger Band approach
+        elif self.high_strategy == 'BOLL-BANDS':
+            for queue_name in self.bollinger_mas:
+                # if we don't have a moving average yet, skip
+                if self.moving_averages[queue_name][-1] is None:
+                    continue
+                self.strategy_bollinger_bands(
+                    queue_name=queue_name,
+                    new_p=new_p,
+                    today=d
+                )
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         '''Compute and append a new moving average price.'''
@@ -228,12 +247,12 @@ class MATrader:
 
     def strategy_macd(self, new_p, today: datetime.datetime):
         '''By default, only have 12 and 26 as keys in self.exp_moving_averages, and use 9 for computing
-         the EMA for MACD diff.
+        the EMA for MACD diff.
 
-         Args:
+        Args:
             new_p (float): Today's new price of a currency.
             today (datetime.datetime):
-         '''
+        '''
         if self.macd_dea[-1] is None:
             return
 
@@ -247,6 +266,48 @@ class MATrader:
         # (2) if (MACD-DIFF - MACD-DEA) is, buy
         r_buy = False
         if diff > 0:
+            r_buy = self._execute_one_buy('by_percentage', new_p)
+            if r_buy is True:
+                self._record_history(new_p, today, BUY_SIGNAL)
+        # add history as well if nothing happens
+        if (r_buy is False and
+            r_sell is False):
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
+
+    def strategy_bollinger_bands(self, queue_name: str,
+            new_p, today: datetime.datetime):
+        '''Trading with Bollinger Band strategy.
+        Buy signal: if today's price <= X's MA - sigma * standard_deviation_of_the_X's_MA;
+        Sell signal: if today's price >= X's MA + sigma * standard_deviation_of_the_X's_MA.
+
+        Args:
+            queue_name (str): The name of the queue.
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+        '''
+        # if the moving average queue is not long enough to consider, skip
+        not_null_values = list(filter(lambda x: x is not None, self.moving_averages[queue_name]))
+        if len(not_null_values) < int(queue_name):
+            return
+
+        # want the last X number of items
+        mas = not_null_values[-int(queue_name):]
+        # compute mean and standard deviation
+        ma_mean, ma_std = np.mean(mas), np.std(mas)
+
+        # compute upper and lower bound
+        boll_upper = ma_mean + self.bollinger_sigma * ma_std
+        boll_lower = ma_mean - self.bollinger_sigma * ma_std
+
+        # (1) if the price exceeds the upper bound, sell
+        r_sell = False
+        if new_p >= boll_upper:
+            r_sell = self._execute_one_sell('by_percentage', new_p)
+            if r_sell is True:
+                self._record_history(new_p, today, SELL_SIGNAL)
+        # (2) if the price drops below the lower bound, buy
+        r_buy = False
+        if new_p <= boll_lower:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
                 self._record_history(new_p, today, BUY_SIGNAL)
@@ -460,6 +521,7 @@ class MATrader:
         basic = {
             'buy_pct': self.buy_pct,
             'sell_pct': self.sell_pct,
-            'tol_pct': self.tol_pct
+            'tol_pct': self.tol_pct,
+            'bollinger_sigma': self.bollinger_sigma
         }
         return {**basic, **self.strategies}
