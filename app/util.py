@@ -1,7 +1,11 @@
 import functools
 import datetime
+import math
+import numpy as np
 import pandas as pd
 import time
+
+from typing import List, Any
 
 def timer(func):
     """Print the runtime of the decorated function."""
@@ -37,3 +41,24 @@ def display_port_msg(v_c: float, v_f: float, before: bool=True):
     print('\n{} transaction, by {}, crypto_value={:.2f}, fiat_value={:.2f}, amount to {:.2f}'.format(
         stage, now, v_c, v_f, s
     ))
+
+def max_drawdown_helper(hist_l: List[float]):
+    '''Compute max drawdown for a given portfolio value history.'''
+    res = -math.inf
+    value_cur, value_max_pre = hist_l[0], hist_l[0]
+    for hist in hist_l[1:]:
+        value_max_pre = max(value_max_pre, hist)
+        value_cur = hist
+        res = max(res, 1 - value_cur / value_max_pre)
+
+    return np.round(res, 4)
+
+def ema_helper(new_price: float, old_ema: float, num_of_days: int):
+    '''Compute a new EMA. According to formula:
+        - EMA = (today’s closing price * K) + (Previous EMA * (1 – K));
+        - Smoothing Factor = 2/(N+1), N: number of days.
+    '''
+    smoothing_factor = 2.0 / (num_of_days + 1)
+    ema = new_price * smoothing_factor + old_ema * (1 - smoothing_factor)
+
+    return ema

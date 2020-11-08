@@ -38,6 +38,10 @@ def main():
         cur_rate = client.get_cur_rate(cur_name + '-USD')
         data_stream = client.get_historic_data(cur_name + '-USD', SECONDS_IN_ONE_DAY)
 
+        # cut-off, only want the last X days of data
+        data_stream = data_stream[-TIMESPAN:]
+        print('only want the latest {} days of data!'.format(TIMESPAN))
+
         # initial cash amount
         _, cash = client.portfolio_value
         # initial coin at hand
@@ -53,9 +57,13 @@ def main():
         t_driver = TraderDriver(
             name=cur_name,
             init_amount=fake_cash,
+            overall_stats=STRATEGIES,
             cur_coin=fake_cur_coin,
             tol_pcts=TOL_PCTS,
             ma_lengths=MA_LENGTHS,
+            ema_lengths=EMA_LENGTHS,
+            bollinger_mas=BOLLINGER_MAS,
+            bollinger_tols=BOLLINGER_TOLS,
             buy_pcts=BUY_PCTS,
             sell_pcts=SELL_PCTS,
             buy_stas=BUY_STAS,
@@ -76,8 +84,14 @@ def main():
         best_t.add_new_day(new_p, today)
         signal = best_t.trade_signal
 
-        print('examine best trader performance:', info)
-        print(f'for crypto={best_t.crypto_name}, today\'s signal={signal}')
+        print('\nexamine best trader performance:', info, '\n')
+        print('maximum drawdown / 最大回撤:', best_t.max_drawdown)
+        print('number of transaction / 总的交易数:', best_t.num_transaction)
+        print('high-level trading strategy / 高级交易策略:', best_t.high_strategy)
+        print('number of buy action / 买入次数:', best_t.num_buy_action)
+        print('number of sell action / 卖出次数:', best_t.num_sell_action)
+
+        print(f'\nfor crypto={best_t.crypto_name}, today\'s signal={signal}')
 
         # if too less, we leave
         if cash <= EP_CASH:
@@ -129,11 +143,13 @@ def main():
 if __name__ == '__main__':
 
     # Run one-time
-    #main()
+    main()
 
     # Run as a cron-job
+    '''
     schedule.every().day.at('22:53').do(main)
     while True:
         schedule.run_pending()
         time.sleep(1)
         sys.stdout.flush()
+    '''

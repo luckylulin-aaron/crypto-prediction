@@ -2,82 +2,321 @@ import copy
 import collections
 import datetime
 import numpy as np
+import time
 
 from typing import List, Any
 
-from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL)
-
+from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
+    DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION, DEA_NUM_OF_DAYS)
+from util import (max_drawdown_helper, ema_helper)
 
 class MATrader:
 
     '''Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages.'''
 
-    def __init__(self, name: str, init_amount: float, tol_pct: float, ma_lengths: List[int],
-            buy_pct: float, sell_pct: float, cur_coin: float=0.0,
-            buy_stas: List[str]=['by_percentage'], sell_stas: List[str]=['by_percentage'],
+    def __init__(self, name: str,
+            init_amount: float,
+            stat: str,
+            tol_pct: float,
+            ma_lengths: List[int],
+            ema_lengths: List[int],
+            bollinger_mas: List[int],
+            bollinger_sigma: int,
+            buy_pct: float,
+            sell_pct: float,
+            cur_coin: float=0.0,
+            buy_stas: List[str]=['by_percentage'],
+            sell_stas: List[str]=['by_percentage'],
             mode: str='normal'):
+        # check
+        if stat not in STRATEGIES:
+            raise ValueError('Unknown high-level trading strategy!')
+        if not all([x in ma_lengths for x in bollinger_mas]):
+            raise ValueError('cannot initialize Bollinger Band strategy if some of moving averages are not available!')
         # 1. Basic
         # crypto-currency name, tolerance percentage
         self.crypto_name, self.tol_pct = name, tol_pct
-        # current bitcoin at hand, and cash available
+        # initial and current bitcoin at hand, and cash available
+        self.init_coin, self.init_cash = cur_coin, init_amount
         self.cur_coin, self.cash = cur_coin, init_amount
         # 2. Transactions
         self.trade_history = []
-        self.crypto_prices = collections.deque()
-        # moving average queues
-        self.moving_averages = dict()
-        for ma_l in ma_lengths:
-            self.moving_averages[str(ma_l)] = collections.deque()
+        self.crypto_prices = []
+        # moving average (type: dictionary)
+        self.moving_averages = dict(zip([str(x) for x in ma_lengths],
+                                        [[] for _ in range(len(ma_lengths))]))
+        # exponential moving average queues and related items (type: dictionary)
+        self.exp_moving_averages = dict(zip([str(x) for x in ema_lengths],
+                                            [[] for _ in range(len(ema_lengths))]))
+        # MACD_DIFF = EMA12- EMA26; MACD_DEA = 9_DAY_EMA_OF_MACD_DIFF
+        self.macd_diff, self.macd_dea = [], []
+        # number of MAs considered in Bollinger Band strategy
+        self.bollinger_mas = [str(x) for x in bollinger_mas]
+        self.bollinger_sigma = bollinger_sigma
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
         self.buy_pct, self.sell_pct = buy_pct, sell_pct
         self.strategies = {'buy': buy_stas, 'sell': sell_stas}
+        # high-level strategy
+        self.high_strategy = stat
         # debug mode
         self.mode = mode # normal, verbose
         # brokerage percentage
         self.broker_pct = 0.02
 
     def add_new_day(self, new_p: float, d: datetime.datetime):
-        '''Add a new day\'s crypto-currency price, see what we should do.'''
+        '''Add a new day\'s crypto-currency price, find out a computed transaction for today.'''
         self.crypto_prices.append((new_p, d))
-        for q in self.moving_averages:
-            self.process_queues(q, new_p, d)
 
-    def process_queues(self, queue_name: str, new_p: float, d: datetime.datetime):
-        '''For a new day\'s price, find if beyond tolerance level, execute a buy or sell action.'''
-        # if too short the queue, simply add the new price and leave
+        # add new moving averages and exponential moving averages, respectively
+        for queue_name in self.moving_averages:
+            self.add_new_moving_averages(queue_name=queue_name, new_p=new_p)
+        for queue_name in self.exp_moving_averages:
+            self.add_new_exponential_moving_averages(queue_name=queue_name, new_p=new_p)
+
+        # Execute trading strategy
+        # [1] MA w/ itself
+        if self.high_strategy == 'MA-SELVES':
+            for queue_name in self.moving_averages:
+                # if we don't have a moving average yet, skip
+                if self.moving_averages[queue_name][-1] is None:
+                    continue
+                self.strategy_moving_average_w_tolerance(
+                    queue_name=queue_name,
+                    new_p=new_p,
+                    today=d
+                )
+
+        # [2] pair-wise MAs
+        elif self.high_strategy == 'DOUBLE-MA':
+            mas = [int(x) for x in list(self.moving_averages.keys())]
+            mas = sorted(mas, reverse=False)
+
+            for i in range(0, len(mas)):
+                for j in range(i+1, len(mas)):
+                    # if too close, skip
+                    if j - i <= 2:
+                        continue
+                    s_qn, l_qn = str(mas[i]), str(mas[j])
+                    # if either of the two MAs does not have enough lengths, respectively, skip
+                    if (self.moving_averages[s_qn][-1] is None or
+                        self.moving_averages[l_qn][-1] is None):
+                        continue
+                    self.strategy_double_moving_averages(
+                        shorter_queue_name=s_qn,
+                        longer_queue_name=l_qn,
+                        new_p=new_p,
+                        today=d
+                    )
+
+        # [3] MACD divergence/convergence approach
+        elif self.high_strategy == 'MACD':
+            self.compute_macd_related()
+            self.strategy_macd(new_p=new_p, today=d)
+
+        # [4] Bollinger Band approach
+        elif self.high_strategy == 'BOLL-BANDS':
+            for queue_name in self.bollinger_mas:
+                # if we don't have a moving average yet, skip
+                if self.moving_averages[queue_name][-1] is None:
+                    continue
+                self.strategy_bollinger_bands(
+                    queue_name=queue_name,
+                    new_p=new_p,
+                    today=d
+                )
+
+    def add_new_moving_averages(self, queue_name: str, new_p: float):
+        '''Compute and append a new moving average price.'''
         max_l = int(queue_name)
-        cur_l = len(self.moving_averages[queue_name])
-        if cur_l < max_l:
-            self.moving_averages[queue_name].append(new_p)
-            self._record_history(new_p, d, NO_ACTION_SIGNAL)
+        if len(self.crypto_prices) <= max_l:
+            self.moving_averages[queue_name].append(None)
+            return
+        # compute new moving average, add it
+        # note: grab -max because we already add today's price
+        prices = [x[0] for x in self.crypto_prices[-max_l:]]
+        new_ma = sum(prices) / max_l
+        self.moving_averages[queue_name].append(new_ma)
+
+    def add_new_exponential_moving_averages(self, queue_name: str, new_p: float):
+        '''Compute and append a new exponential moving average price.'''
+        max_l = int(queue_name)
+        if len(self.crypto_prices) <= max_l:
+            self.exp_moving_averages[queue_name].append(None)
             return
 
-        # o/w, we can do sth
-        cur_avg = np.mean(self.moving_averages[queue_name])
+        # when the lengths are just equal, EMA = MA
+        if len(self.exp_moving_averages[queue_name]) == max_l:
+            prices = [x[0] for x in self.crypto_prices[-max_l:]]
+            new_ema = sum(prices) / max_l
+            self.exp_moving_averages[queue_name].append(new_ema)
+        else:
+            # compute new exponential moving average, append it
+            old_ema = self.exp_moving_averages[queue_name][-1]
+            new_ema = ema_helper(new_price=new_p, old_ema=old_ema, num_of_days=max_l)
+            self.exp_moving_averages[queue_name].append(new_ema)
+
+    def compute_macd_related(self):
+        # compute macd_diff: 差离值（DIF）的计算： DIF = EMA12 - EMA26
+        # and macd_dea: 差离值(above)的9日的EMA
+
+        # when shorter than required, simply add None
+        ema12, ema26 = self.exp_moving_averages['12'][-1], self.exp_moving_averages['26'][-1]
+        if (ema12 is None or
+            ema26 is None):
+            self.macd_diff.append(None)
+            self.macd_dea.append(None)
+            return
+
+        # now, self.macd_diff and self.macd_dea have at least 26 elements
+        macd_diff = ema12 - ema26
+        self.macd_diff.append(macd_diff)
+        # compute macd_dea case by case
+        non_empty_diff = list(filter(lambda x: x is not None, self.macd_diff))
+
+        if len(non_empty_diff) < DEA_NUM_OF_DAYS + 1:
+            self.macd_dea.append(None)
+        elif len(non_empty_diff) == DEA_NUM_OF_DAYS + 1:
+            self.macd_dea.append(self.macd_diff[-1])
+        else:
+            old_dea = self.macd_dea[-1]
+            new_dea = ema_helper(new_price=macd_diff, old_ema=old_dea, num_of_days=DEA_NUM_OF_DAYS)
+            self.macd_dea.append(new_dea)
+
+    # Core Section: TRADING STRATEGY
+    def strategy_moving_average_w_tolerance(self, queue_name: str,
+            new_p: float, today: datetime.datetime):
+        '''For a new day's price, find if beyond tolerance level, execute a buy or sell action.
+
+        Args:
+            queue_name (str): The name of the queue.
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+        '''
+        # retrieve the most recent moving average
+        last_ma = self.moving_averages[queue_name][-1]
         # (1) if too high, we do a sell
         r_sell = False
-        if new_p >= (1 + self.tol_pct) * cur_avg:
+        if new_p >= (1 + self.tol_pct) * last_ma:
             r_sell = self._execute_one_sell('by_percentage', new_p)
             if r_sell is True:
-                self._record_history(new_p, d, SELL_SIGNAL)
+                self._record_history(new_p, today, SELL_SIGNAL)
         # (2) if too low, we do a buy
         r_buy = False
-        if new_p <= (1 - self.tol_pct) * cur_avg:
+        if new_p <= (1 - self.tol_pct) * last_ma:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
-                self._record_history(new_p, d, BUY_SIGNAL)
-        # add this new price
-        self.moving_averages[queue_name].append(new_p)
-        # chop from the left
-        if len(self.moving_averages[queue_name]) > max_l:
-            self.moving_averages[queue_name].popleft()
-        # add history
+                self._record_history(new_p, today, BUY_SIGNAL)
+        # add history as well if nothing happens
         if (r_buy is False and
             r_sell is False):
-            self._record_history(new_p, d, NO_ACTION_SIGNAL)
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
 
+    def strategy_double_moving_averages(self, shorter_queue_name: str, longer_queue_name,
+            new_p: float, today: datetime.datetime):
+        '''For a new day's price, if the shorter MA is greater than the longer MA's, execute a buy;
+        otherwise, execute a sell.
+
+        Args:
+            shorter_queue_name (str): The name of the queue with shorter interval.
+            longer_queue_name (str): The name of the queue with longer interval.
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+        '''
+        # compute the moving averages for shorter queue and longer queue, respectively
+        shorter_p = self.moving_averages[shorter_queue_name][-1]
+        longer_p = self.moving_averages[longer_queue_name][-1]
+
+        # (1) if a 'death-cross', sell
+        r_sell = False
+        if longer_p > shorter_p:
+            r_sell = self._execute_one_sell('by_percentage', new_p)
+            if r_sell is True:
+                self._record_history(new_p, today, SELL_SIGNAL)
+        # (2) if a 'golden-cross', buy
+        r_buy = False
+        if shorter_p > longer_p:
+            r_buy = self._execute_one_buy('by_percentage', new_p)
+            if r_buy is True:
+                self._record_history(new_p, today, BUY_SIGNAL)
+        # add history as well if nothing happens
+        if (r_buy is False and
+            r_sell is False):
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
+
+    def strategy_macd(self, new_p, today: datetime.datetime):
+        '''By default, only have 12 and 26 as keys in self.exp_moving_averages, and use 9 for computing
+        the EMA for MACD diff.
+
+        Args:
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+        '''
+        if self.macd_dea[-1] is None:
+            return
+
+        diff = self.macd_diff[-1] - self.macd_dea[-1]
+        # (1) if (MACD-DIFF - MACD-DEA) is negative, sell
+        r_sell = False
+        if diff < 0:
+            r_sell = self._execute_one_sell('by_percentage', new_p)
+            if r_sell is True:
+                self._record_history(new_p, today, SELL_SIGNAL)
+        # (2) if (MACD-DIFF - MACD-DEA) is, buy
+        r_buy = False
+        if diff > 0:
+            r_buy = self._execute_one_buy('by_percentage', new_p)
+            if r_buy is True:
+                self._record_history(new_p, today, BUY_SIGNAL)
+        # add history as well if nothing happens
+        if (r_buy is False and
+            r_sell is False):
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
+
+    def strategy_bollinger_bands(self, queue_name: str,
+            new_p, today: datetime.datetime):
+        '''Trading with Bollinger Band strategy.
+        Buy signal: if today's price <= X's MA - sigma * standard_deviation_of_the_X's_MA;
+        Sell signal: if today's price >= X's MA + sigma * standard_deviation_of_the_X's_MA.
+
+        Args:
+            queue_name (str): The name of the queue.
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime):
+        '''
+        # if the moving average queue is not long enough to consider, skip
+        not_null_values = list(filter(lambda x: x is not None, self.moving_averages[queue_name]))
+        if len(not_null_values) < int(queue_name):
+            return
+
+        # want the last X number of items
+        mas = not_null_values[-int(queue_name):]
+        # compute mean and standard deviation
+        ma_mean, ma_std = np.mean(mas), np.std(mas)
+
+        # compute upper and lower bound
+        boll_upper = ma_mean + self.bollinger_sigma * ma_std
+        boll_lower = ma_mean - self.bollinger_sigma * ma_std
+
+        # (1) if the price exceeds the upper bound, sell
+        r_sell = False
+        if new_p >= boll_upper:
+            r_sell = self._execute_one_sell('by_percentage', new_p)
+            if r_sell is True:
+                self._record_history(new_p, today, SELL_SIGNAL)
+        # (2) if the price drops below the lower bound, buy
+        r_buy = False
+        if new_p <= boll_lower:
+            r_buy = self._execute_one_buy('by_percentage', new_p)
+            if r_buy is True:
+                self._record_history(new_p, today, BUY_SIGNAL)
+        # add history as well if nothing happens
+        if (r_buy is False and
+            r_sell is False):
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
+
+    # basic functionality
     def _execute_one_buy(self, method: str, new_p: float):
         '''Execute a buy action via a specific method.
 
@@ -120,8 +359,10 @@ class MATrader:
         '''Record an event into trade history.'''
         item = {
             'action': action,
-            'price': new_p, 'date': d,
-            'coin': self.cur_coin, 'cash': self.cash,
+            'price': new_p,
+            'date': d,
+            'coin': self.cur_coin,
+            'cash': self.cash,
             'portfolio': self.portfolio_value
         }
         self.trade_history.append(item)
@@ -131,17 +372,27 @@ class MATrader:
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
         '''Deposit more cash to our wallet.'''
+        if c <= 0:
+            raise ValueError('Should deposit a positive amount!')
+
         self.cash += c
-        self.record_history(new_p, d, 'deposit')
+        self.record_history(new_p, d, DEPOSIT_CST)
 
-    @property
-    def max_drawdown(self):
-        '''Compute max draw-down of trader. This metric gives us insight on the risks.'''
-        raise NotImplementedError('pending')
+    def withdraw(self, c: float, new_p: float, d: datetime.datetime):
+        '''Withdraw some cash out of our wallet.'''
+        if c > self.cash:
+            raise ValueError('Not enough cash to withdraw!')
 
+        self.cash -= c
+        self._record_history(new_p, d, WITHDRAW_CST)
+
+    # properties, built upon functions defined above
     @property
     def all_history(self):
         '''Returns all histories in complete fashion.'''
+        if len(self.trade_history) == 0:
+            return []
+
         tmps = copy.deepcopy(self.trade_history)
         # for logs on the same day, if all logs are 'no action' take only 1; o/w, return all actions
         day_to_action = collections.defaultdict(list)
@@ -160,6 +411,7 @@ class MATrader:
 
     @property
     def all_history_trade_only(self):
+        '''Returns all histories, filter out NO_ACTION items.'''
         all_hist = self.all_history
         return list(filter(lambda x: x['action'] != NO_ACTION_SIGNAL, all_hist))
 
@@ -168,18 +420,48 @@ class MATrader:
         return len(self.all_history_trade_only)
 
     @property
+    def num_buy_action(self):
+        trades_only = self.all_history_trade_only
+        return len([x for x in trades_only if x['action'] == BUY_SIGNAL])
+
+    @property
+    def num_sell_action(self):
+        trades_only = self.all_history_trade_only
+        return len([x for x in trades_only if x['action'] == SELL_SIGNAL])
+
+    @property
     def max_drawdown(self):
         '''Utilizes history to compute max draw-down.'''
-        all_hist = self.all_history
-        value_cur, value_max_pre = all_hist[0]['portfolio'], all_hist[0]['portfolio']
+        all_hist = []
+        if len(self.all_history) > 0:
+            all_hist = list(map(lambda x: x['portfolio'], self.all_history))
+        else:
+            # no transaction happened at all
+            # free to grab all this currency's data, re-compute
+            for (price, _) in self.crypto_prices:
+                port_value = self.cur_coin * price + self.cash
+                all_hist.append(port_value)
 
-        l = []
-        for hist in all_hist[1:]:
-            value_max_pre = max(value_max_pre, hist['portfolio'])
-            value_cur = hist['portfolio']
-            l.append(1 - value_cur / value_max_pre)
+        return max_drawdown_helper(all_hist)
 
-        return np.round(max(l), 4)
+    @property
+    def baseline_rate_of_return(self):
+        '''Computes for baseline gain percentage (i.e. hold all coins, have 0 transaction).'''
+        init_p = self.all_history[0]['portfolio']
+        final_p = self.init_coin * self.all_history[-1]['price'] + self.init_cash
+        return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
+
+    @property
+    def rate_of_return(self):
+        '''Computes for the rate of return = (V_final - V_init) / V_init.'''
+        init_p, final_p = self.all_history[0]['portfolio'], self.all_history[-1]['portfolio']
+        return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
+
+    @property
+    def coin_rate_of_return(self):
+        '''How much the price of the currency has gone up.'''
+        init_price, final_price = self.all_history[0]['price'], self.all_history[-1]['price']
+        return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
 
     @property
     def trade_signal(self):
@@ -199,7 +481,7 @@ class MATrader:
         }
         # find last date on which a transaction occurs
         last_evt = self.trade_history[-1] if len(self.trade_history) > 0 else {}
-        last_date_str = self.trade_history[-1].get('date', None)
+        last_date_str = last_evt.get('date', None)
         if last_date_str is None:
             return res
 
@@ -239,6 +521,7 @@ class MATrader:
         basic = {
             'buy_pct': self.buy_pct,
             'sell_pct': self.sell_pct,
-            'tol_pct': self.tol_pct
+            'tol_pct': self.tol_pct,
+            'bollinger_sigma': self.bollinger_sigma
         }
         return {**basic, **self.strategies}

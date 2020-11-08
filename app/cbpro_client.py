@@ -45,7 +45,7 @@ class CBProClient:
 
         :argument
             name (str): Currency name.
-            grans (int): Granularity, i.e. desired timeslice in seconds; can only be one of the followings:
+            grans (int): Granularity, i.e. desired time slice in seconds; can only be one of the followings:
                  {60 (1 min), 300 (5 mins), 900 (15 mins), 3600 (1hrs), 21600 (6hrs), 86400 (24hrs)}
 
         :return
