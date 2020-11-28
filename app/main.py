@@ -94,11 +94,11 @@ def main():
         print(f'\nfor crypto={best_t.crypto_name}, today\'s signal={signal}')
 
         # if too less, we leave
-        if cash <= EP_CASH:
-            print('[warning] too less cash, discard further actions.')
+        if cash <= EP_CASH and signal == BUY_SIGNAL:
+            print('[warning] too less cash, cannot execute a buy, discard further actions.')
             continue
-        elif cur_coin <= EP_COIN or cur_coin * new_p <= EP_CASH:
-            print('[warning] too less crypto, discard further actions.')
+        elif (cur_coin <= EP_COIN or cur_coin * new_p <= EP_CASH) and signal == SELL_SIGNAL:
+            print('[warning] too less crypto, cannot execute a sell, discard further actions.')
             continue
 
         # otherwise, execute a transaction
