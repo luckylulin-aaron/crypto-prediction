@@ -2,7 +2,7 @@
 SECONDS_IN_ONE_DAY = 86400
 
 # whether commit transaction
-COMMIT = True
+COMMIT = False
 
 # strategies
 # MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)
@@ -14,7 +14,7 @@ TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
 BUY_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
 SELL_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
 
-MA_LENGTHS = [5, 10, 20, 30]
+MA_LENGTHS = [6, 20, 60]
 EMA_LENGTHS = [12, 26]
 BOLLINGER_MAS = [10]
 BOLLINGER_TOLS = [2, 3, 4]
@@ -42,4 +42,4 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 100
+TIMESPAN = 200
