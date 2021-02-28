@@ -1,11 +1,16 @@
+# built-in packages
 import math
-import numpy as np
 
 from typing import List, Any
 
+# third-party packages
+import numpy as np
+
+# customized packages
 from config import ROUND_PRECISION
 from ma_trader import MATrader
 from util import timer
+
 
 class TraderDriver:
 
@@ -79,8 +84,19 @@ class TraderDriver:
             for i in range(1, len(data_stream)):
                 p,d = data_stream[i]
                 t.add_new_day(p,d)
-            # decide best trader while we loop
-            tmp_final_p = t.all_history[-1]['portfolio']
+            # decide best trader while we loop, by comparing all traders final portfolio value
+            # sometimes a trader makes no trade at all
+            if len(t.all_history) > 0:
+                tmp_final_p = t.all_history[-1]['portfolio']
+            # o/w, compute it
+            else:
+                tmp_final_p = (t.crypto_prices[-1][0] * t.cur_coin) + t.cash
+            '''
+            try:
+                tmp_final_p = t.all_history[-1]['portfolio']
+            except IndexError as e:
+                print('Found error!', t.high_strategy)
+            '''
             if tmp_final_p >= max_final_p:
                 max_final_p = tmp_final_p
                 self.best_trader = t
@@ -90,9 +106,12 @@ class TraderDriver:
         '''Find the best trading strategy for a given crypto-currency.'''
         best_trader = self.best_trader
 
+        # compute init value once again, in case no single trade is made
+        init_v = best_trader.init_coin * best_trader.crypto_prices[0][0] + best_trader.init_cash
+
         extra = {
-            'init_value': best_trader.all_history[0]['portfolio'],
-            'max_final_value': np.round(best_trader.all_history[-1]['portfolio'], ROUND_PRECISION),
+            'init_value': np.round(init_v, ROUND_PRECISION),
+            'max_final_value': np.round(best_trader.portfolio_value, ROUND_PRECISION),
             'rate_of_return': str(best_trader.rate_of_return) + '%',
             'baseline_rate_of_return': str(best_trader.baseline_rate_of_return) + '%',
             'coin_rate_of_return': str(best_trader.coin_rate_of_return) + '%'

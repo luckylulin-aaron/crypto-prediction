@@ -454,7 +454,11 @@ class MATrader:
     @property
     def rate_of_return(self):
         '''Computes for the rate of return = (V_final - V_init) / V_init.'''
-        init_p, final_p = self.all_history[0]['portfolio'], self.all_history[-1]['portfolio']
+        # compute init portfolio value
+        init_p = self.init_coin * self.crypto_prices[0][0] + self.init_cash
+        # compute final portfolio value
+        final_p = self.cur_coin * self.crypto_prices[-1][0] + self.cash
+
         return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
@@ -503,7 +507,7 @@ class MATrader:
 
     @property
     def portfolio_value(self):
-        '''Returns your current portfolio value.'''
+        '''Returns your latest portfolio value.'''
         latest_price = self.crypto_prices[-1][0]
         p = latest_price * self.cur_coin + self.cash
         if p < 0:
