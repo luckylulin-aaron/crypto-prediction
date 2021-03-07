@@ -1,11 +1,15 @@
+# built-in packages
 import copy
-import collections
 import datetime
-import numpy as np
+import collections
 import time
 
 from typing import List, Any
 
+# third-party packages
+import numpy as np
+
+# customized packages
 from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
     DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION, DEA_NUM_OF_DAYS)
 from util import (max_drawdown_helper, ema_helper)
@@ -64,6 +68,8 @@ class MATrader:
         self.mode = mode # normal, verbose
         # brokerage percentage
         self.broker_pct = 0.02
+        # strategy signal lists
+        self.strat_dct = collections.defaultdict(list)
 
     def add_new_day(self, new_p: float, d: datetime.datetime):
         '''Add a new day\'s crypto-currency price, find out a computed transaction for today.'''

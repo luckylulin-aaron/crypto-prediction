@@ -1,11 +1,15 @@
+# built-in packages
 import functools
 import datetime
 import math
-import numpy as np
-import pandas as pd
 import time
 
 from typing import List, Any
+
+# third-party packages
+import numpy as np
+import pandas as pd
+
 
 def timer(func):
     """Print the runtime of the decorated function."""

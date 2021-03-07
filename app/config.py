@@ -7,7 +7,7 @@ COMMIT = False
 # strategies
 # MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)
 # DOUBLE-MA: create several moving averages; trades are made via pair-wise comparison
-STRATEGIES = ['MA-SELVES', 'DOUBLE-MA', 'MACD', 'BOLL-BANDS']
+STRATEGIES = ['MA-SELVES', 'DOUBLE-MA', 'MACD', 'BOLL-BANDS', 'COMPOUND']
 
 # simulation configuration
 TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
