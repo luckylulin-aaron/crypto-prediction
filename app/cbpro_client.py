@@ -1,15 +1,22 @@
-import cbpro
+# built-in packages
 import datetime
 
-from coinbase.wallet.client import Client
 from typing import List, Any
 
+# third-party packages
+import cbpro
+
+from coinbase.wallet.client import Client
+
+# customized packages
 from config import *
 from util import *
 
+
+
 class CBProClient:
 
-    def __init__(self, key: str='', secret: str='', pwd: str=''):
+    def __init__(self, key: str = '', secret: str = '', pwd: str = ''):
         # by default will have a public client
         self.public_client = cbpro.PublicClient()
         # whether to create an authenticated client
@@ -49,7 +56,7 @@ class CBProClient:
                  {60 (1 min), 300 (5 mins), 900 (15 mins), 3600 (1hrs), 21600 (6hrs), 86400 (24hrs)}
 
         :return
-            res (List[List[float, str]]): Data stream of prices and dates.
+            res (List[List[float, str, float, float, float]]): Data stream of various prices and dates.
 
         :raise
             ConnectionError (Exception):
@@ -73,17 +80,20 @@ class CBProClient:
                 ]
             '''
             fmt_dt_str = datetime.datetime.fromtimestamp(item[0]).strftime('%Y-%m-%d %H:%M:%S').split(' ')[0]
-            closing_price = item[3]
-            res[index] = [closing_price, fmt_dt_str]
+            # grab desired variables
+            open_price, closing_price = item[3], item[4]
+            low, high = item[1], item[2]
+            # append to the final list
+            res[index] = [closing_price, fmt_dt_str, open_price, low, high]
 
         # today as a string
         today_str = datetime.datetime.now().strftime('%Y-%m-%d')
         # exclude today's data
-        res = list(filter(lambda x: x[-1] != today_str, res))
+        res = list(filter(lambda x: x[1] != today_str, res))
 
         return res
 
-    def get_wallets(self, cur_names: List[str]=[*CURS, *FIAT]):
+    def get_wallets(self, cur_names: List[str] = [*CURS, *FIAT]):
         '''Retrieve wallet information for pre-defined currency names.
         Those with type being vault will be dropped.
 
@@ -100,7 +110,7 @@ class CBProClient:
         return list(filter(lambda x: x['currency'] in cur_names and \
                                      x['type'] != 'vault', accts['data']))
 
-    def place_buy_order(self, wallet_id: str, amount: float, currency: str, commit: bool=False):
+    def place_buy_order(self, wallet_id: str, amount: float, currency: str, commit: bool = False):
         '''Place and (optionally) execute a buy order.
 
         :argument
@@ -126,7 +136,7 @@ class CBProClient:
 
         return order
 
-    def place_sell_order(self, wallet_id: str, amount: float, currency: str, commit: bool=False):
+    def place_sell_order(self, wallet_id: str, amount: float, currency: str, commit: bool = False):
         '''Place and (optionally) execute a sell order.
 
         :argument
