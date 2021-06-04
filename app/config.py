@@ -23,8 +23,8 @@ BUY_STAS = ('by_percentage')
 SELL_STAS = ('by_percentage')
 
 # currencies (digital + real-world)
-CURS = ['BTC', 'ETH', 'LTC', 'BCH', 'ETC']
-FIAT = ['USD']
+CURS = ['BTC', 'ETH', 'LTC', 'BCH', 'ETC', 'OMG', 'LINK', 'ADA']
+FIAT = ['USD', 'USDC']
 
 # signals
 NO_ACTION_SIGNAL = 'NO ACTION'
