@@ -1,11 +1,15 @@
+# built-in packages
 import copy
-import collections
 import datetime
-import numpy as np
+import collections
 import time
 
 from typing import List, Any
 
+# third-party packages
+import numpy as np
+
+# customized packages
 from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
     DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION, DEA_NUM_OF_DAYS)
 from util import (max_drawdown_helper, ema_helper)
@@ -50,6 +54,9 @@ class MATrader:
                                             [[] for _ in range(len(ema_lengths))]))
         # MACD_DIFF = EMA12- EMA26; MACD_DEA = 9_DAY_EMA_OF_MACD_DIFF
         self.macd_diff, self.macd_dea = [], []
+        # KDJ index related
+        self.nine_day_rsv = []
+        self.kdj_dct = collections.defaultdict(list)
         # number of MAs considered in Bollinger Band strategy
         self.bollinger_mas = [str(x) for x in bollinger_mas]
         self.bollinger_sigma = bollinger_sigma
@@ -64,16 +71,23 @@ class MATrader:
         self.mode = mode # normal, verbose
         # brokerage percentage
         self.broker_pct = 0.02
+        # strategy signal lists
+        self.strat_dct = collections.defaultdict(list)
 
-    def add_new_day(self, new_p: float, d: datetime.datetime):
+    def add_new_day(self, new_p: float, d: datetime.datetime, misc_p: dict):
         '''Add a new day\'s crypto-currency price, find out a computed transaction for today.'''
-        self.crypto_prices.append((new_p, d))
+        open, low, high = misc_p['open'], misc_p['low'], misc_p['high']
 
-        # add new moving averages and exponential moving averages, respectively
+        self.crypto_prices.append((new_p, d, open, low, high))
+
+        # add new moving averages and exponential moving averages, get_historic_data respectively
         for queue_name in self.moving_averages:
             self.add_new_moving_averages(queue_name=queue_name, new_p=new_p)
         for queue_name in self.exp_moving_averages:
             self.add_new_exponential_moving_averages(queue_name=queue_name, new_p=new_p)
+
+        # compute KDJ related arrays
+        self.compute_kdj_related((d,low,high,open,new_p))
 
         # Execute trading strategy
         # [1] MA w/ itself
@@ -158,8 +172,8 @@ class MATrader:
             self.exp_moving_averages[queue_name].append(new_ema)
 
     def compute_macd_related(self):
-        # compute macd_diff: 差离值（DIF）的计算： DIF = EMA12 - EMA26
-        # and macd_dea: 差离值(above)的9日的EMA
+        '''Compute macd_diff: 差离值（DIF）的计算： DIF = EMA12 - EMA26
+         and macd_dea: 差离值(above)的9日的EMA.'''
 
         # when shorter than required, simply add None
         ema12, ema26 = self.exp_moving_averages['12'][-1], self.exp_moving_averages['26'][-1]
@@ -184,6 +198,30 @@ class MATrader:
             new_dea = ema_helper(new_price=macd_diff, old_ema=old_dea, num_of_days=DEA_NUM_OF_DAYS)
             self.macd_dea.append(new_dea)
 
+    def compute_kdj_related(self,
+        d: datetime.datetime,
+        low: float, high: float,
+        open: float, close: float):
+        '''Compute KDJ related arrays with dates, prices of lows, highs, opens and closes.
+        Reference: https://www.zcaijing.com/tzzjygs/28735.html.
+        '''
+        # checking
+        assert hasattr(MATrader, 'nine_day_rsv') and hasattr(MATrader, 'kdj_dct'), \
+            'Incorrect initialization, KDJ related attributes missing!'
+
+        def_KnD = 50
+        # if only have at most 8 days' data, then append 0 to nine_days_rsv,
+        # and use 50 for K and D
+        if len(self.crypto_prices) <= 8:
+            self.nine_day_rsv.append(0)
+            self.kdj_dct['K'].append(def_KnD)
+            self.kdj_dct['D'].append(def_KnD)
+        else:
+            highest_within_9 = max(x[4] for x in self.crypto_prices[-9:])
+            lowest_within_9 = min(x[3] for x in self.crypto_prices[-9:])
+            new_rsv = 100 * (close - lowest_within_9) / (highest_within_9 - lowest_within_9)
+            self.nine_day_rsv.append(new_rsv)
+
     # Core Section: TRADING STRATEGY
     def strategy_moving_average_w_tolerance(self, queue_name: str,
             new_p: float, today: datetime.datetime):
@@ -194,6 +232,9 @@ class MATrader:
             new_p (float): Today's new price of a currency.
             today (datetime.datetime):
         '''
+        strat_name = 'MA-SELVES'
+        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
+
         # retrieve the most recent moving average
         last_ma = self.moving_averages[queue_name][-1]
         # (1) if too high, we do a sell
@@ -202,16 +243,19 @@ class MATrader:
             r_sell = self._execute_one_sell('by_percentage', new_p)
             if r_sell is True:
                 self._record_history(new_p, today, SELL_SIGNAL)
+                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
         # (2) if too low, we do a buy
         r_buy = False
         if new_p <= (1 - self.tol_pct) * last_ma:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
                 self._record_history(new_p, today, BUY_SIGNAL)
+                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
         # add history as well if nothing happens
         if (r_buy is False and
             r_sell is False):
             self._record_history(new_p, today, NO_ACTION_SIGNAL)
+            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
 
     def strategy_double_moving_averages(self, shorter_queue_name: str, longer_queue_name,
             new_p: float, today: datetime.datetime):
@@ -224,6 +268,9 @@ class MATrader:
             new_p (float): Today's new price of a currency.
             today (datetime.datetime):
         '''
+        strat_name = 'DOUBLE-MA'
+        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
+
         # compute the moving averages for shorter queue and longer queue, respectively
         shorter_p = self.moving_averages[shorter_queue_name][-1]
         longer_p = self.moving_averages[longer_queue_name][-1]
@@ -234,16 +281,19 @@ class MATrader:
             r_sell = self._execute_one_sell('by_percentage', new_p)
             if r_sell is True:
                 self._record_history(new_p, today, SELL_SIGNAL)
+                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
         # (2) if a 'golden-cross', buy
         r_buy = False
         if shorter_p > longer_p:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
                 self._record_history(new_p, today, BUY_SIGNAL)
+                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
         # add history as well if nothing happens
         if (r_buy is False and
             r_sell is False):
             self._record_history(new_p, today, NO_ACTION_SIGNAL)
+            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
 
     def strategy_macd(self, new_p, today: datetime.datetime):
         '''By default, only have 12 and 26 as keys in self.exp_moving_averages, and use 9 for computing
@@ -253,7 +303,11 @@ class MATrader:
             new_p (float): Today's new price of a currency.
             today (datetime.datetime):
         '''
+        strat_name = 'MACD'
+        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
+
         if self.macd_dea[-1] is None:
+            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
             return
 
         diff = self.macd_diff[-1] - self.macd_dea[-1]
@@ -263,16 +317,19 @@ class MATrader:
             r_sell = self._execute_one_sell('by_percentage', new_p)
             if r_sell is True:
                 self._record_history(new_p, today, SELL_SIGNAL)
+                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
         # (2) if (MACD-DIFF - MACD-DEA) is, buy
         r_buy = False
         if diff > 0:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
                 self._record_history(new_p, today, BUY_SIGNAL)
+                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
         # add history as well if nothing happens
         if (r_buy is False and
             r_sell is False):
             self._record_history(new_p, today, NO_ACTION_SIGNAL)
+            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
 
     def strategy_bollinger_bands(self, queue_name: str,
             new_p, today: datetime.datetime):
@@ -285,9 +342,13 @@ class MATrader:
             new_p (float): Today's new price of a currency.
             today (datetime.datetime):
         '''
+        strat_name = 'BOLL-BANDS'
+        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
+
         # if the moving average queue is not long enough to consider, skip
         not_null_values = list(filter(lambda x: x is not None, self.moving_averages[queue_name]))
         if len(not_null_values) < int(queue_name):
+            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
             return
 
         # want the last X number of items
@@ -305,16 +366,19 @@ class MATrader:
             r_sell = self._execute_one_sell('by_percentage', new_p)
             if r_sell is True:
                 self._record_history(new_p, today, SELL_SIGNAL)
+                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
         # (2) if the price drops below the lower bound, buy
         r_buy = False
         if new_p <= boll_lower:
             r_buy = self._execute_one_buy('by_percentage', new_p)
             if r_buy is True:
                 self._record_history(new_p, today, BUY_SIGNAL)
+                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
         # add history as well if nothing happens
         if (r_buy is False and
             r_sell is False):
             self._record_history(new_p, today, NO_ACTION_SIGNAL)
+            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
 
     # basic functionality
     def _execute_one_buy(self, method: str, new_p: float):
@@ -454,7 +518,11 @@ class MATrader:
     @property
     def rate_of_return(self):
         '''Computes for the rate of return = (V_final - V_init) / V_init.'''
-        init_p, final_p = self.all_history[0]['portfolio'], self.all_history[-1]['portfolio']
+        # compute init portfolio value
+        init_p = self.init_coin * self.crypto_prices[0][0] + self.init_cash
+        # compute final portfolio value
+        final_p = self.cur_coin * self.crypto_prices[-1][0] + self.cash
+
         return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
@@ -503,7 +571,7 @@ class MATrader:
 
     @property
     def portfolio_value(self):
-        '''Returns your current portfolio value.'''
+        '''Returns your latest portfolio value.'''
         latest_price = self.crypto_prices[-1][0]
         p = latest_price * self.cur_coin + self.cash
         if p < 0:

@@ -1,12 +1,16 @@
+# built-in packages
 import datetime
 import json
-import numpy as np
 import os
-import pandas as pd
-import schedule
 import sys
 import time
 
+# third-party packages
+import numpy as np
+import pandas as pd
+import schedule
+
+# customized packages
 from cbpro_client import CBProClient
 from credentials import (CB_API_KEY, CB_API_SECRET)
 from trader_driver import TraderDriver

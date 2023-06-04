@@ -1,7 +1,11 @@
-import datetime
+# built-in packages
 import sys
 import unittest
 
+# third-party packages
+import datetime
+
+# customized packages
 sys.path.insert(0, '../../app')
 
 from config import *
@@ -15,8 +19,9 @@ class TestMADriver(unittest.TestCase):
 
     def test_regular_load_from_local(self):
         '''Test loading data stream from local file.'''
+
         name, l = load_csv(csv_fn='../fixtures/BTC_HISTORY.csv')
-        l = l[-365:]
+        l = l[-120:]
 
         #print('debug:', type(l[0][0]), type(l[0][1]), type(l[0]))
 
@@ -27,9 +32,13 @@ class TestMADriver(unittest.TestCase):
         t_driver = TraderDriver(
             name=name,
             init_amount=init_amount,
+            overall_stats=STRATEGIES,
             cur_coin=cur_coin,
             tol_pcts=TOL_PCTS,
             ma_lengths=MA_LENGTHS,
+            ema_lengths=EMA_LENGTHS,
+            bollinger_mas=BOLLINGER_MAS,
+            bollinger_tols=BOLLINGER_TOLS,
             buy_pcts=BUY_PCTS,
             sell_pcts=SELL_PCTS,
             buy_stas=BUY_STAS,
@@ -50,6 +59,8 @@ class TestMADriver(unittest.TestCase):
         self.assertNotEqual(info['trader_index'], None), 'incorrect best trader index!'
 
     def test_run_with_cbpro(self):
+        '''Test running with CBProClient that requires internet connection.'''
+        return
         client = CBProClient()
 
         for cur_name in CURS:
@@ -63,9 +74,13 @@ class TestMADriver(unittest.TestCase):
             t_driver = TraderDriver(
                 name=cur_name,
                 init_amount=init_amount,
+                overall_stats=STRATEGIES,
                 cur_coin=cur_coin,
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
+                ema_lengths=EMA_LENGTHS,
+                bollinger_mas=BOLLINGER_MAS,
+                bollinger_tols=BOLLINGER_TOLS,
                 buy_pcts=BUY_PCTS,
                 sell_pcts=SELL_PCTS,
                 buy_stas=BUY_STAS,

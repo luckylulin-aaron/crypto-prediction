@@ -1,13 +1,16 @@
-import functools
+# built-in packages
 import datetime
+import functools
 import math
+import time
+from typing import Any, List
+
+# third-party packages
 import numpy as np
 import pandas as pd
-import time
 
-from typing import List, Any
 
-def timer(func):
+def timer(func: Any) -> Any:
     """Print the runtime of the decorated function."""
     @functools.wraps(func)
     def wrapper_timer(*args, **kwargs):
@@ -21,8 +24,16 @@ def timer(func):
 
     return wrapper_timer
 
-def load_csv(csv_fn='../models/BTC_HISTORY.csv'):
-    '''Load a csv file and return dates and prices lists.'''
+def load_csv(csv_fn='../models/BTC_HISTORY.csv') -> tuple([str, List[Any]]):
+    '''Load a csv file and return dates and prices lists.
+    
+    Args:
+        csv_fn (str):
+
+    Returns:
+        name (str):
+        l (List[Any]):
+    '''
     df = pd.read_csv(csv_fn)
     dates, prices = df['Date'].tolist(), df['Closing Price (USD)'].tolist()
 
@@ -32,18 +43,33 @@ def load_csv(csv_fn='../models/BTC_HISTORY.csv'):
 
     return name, l
 
-def display_port_msg(v_c: float, v_f: float, before: bool=True):
-    '''Display portfolio message in certain format.'''
+def display_port_msg(v_c: float, v_f: float, before: bool=True) -> None:
+    '''Display portfolio message in certain format.
+
+    Args:
+        v_c (float):
+        v_f (float):
+        before (bool):
+
+    Returns:
+    '''
     now = datetime.datetime.now()
     stage = 'before' if before else 'after'
     s = v_c + v_f
 
-    print('\n{} transaction, by {}, crypto_value={:.2f}, fiat_value={:.2f}, amount to {:.2f}'.format(
-        stage, now, v_c, v_f, s
-    ))
+    print('\n{} transaction, by {}, crypto_value={:.2f}, fiat_value={:.2f}, \
+          amount to {:.2f}'.format(stage, now, v_c, v_f, s))
 
-def max_drawdown_helper(hist_l: List[float]):
-    '''Compute max drawdown for a given portfolio value history.'''
+def max_drawdown_helper(hist_l: List[float]) -> float:
+    '''Compute max drawdown (最大回撤) for a given portfolio value history.
+
+    Args:
+        hist_l (List[Any]):
+
+    Returns:
+        (float): Computed maximum dragdown in percentage to the total 
+        porfolio value.
+    '''
     res = -math.inf
     value_cur, value_max_pre = hist_l[0], hist_l[0]
     for hist in hist_l[1:]:
@@ -53,10 +79,18 @@ def max_drawdown_helper(hist_l: List[float]):
 
     return np.round(res, 4)
 
-def ema_helper(new_price: float, old_ema: float, num_of_days: int):
-    '''Compute a new EMA. According to formula:
+def ema_helper(new_price: float, old_ema: float, num_of_days: int) -> float:
+    '''Helper function to compute a new EMA. According to formula:
         - EMA = (today’s closing price * K) + (Previous EMA * (1 – K));
         - Smoothing Factor = 2/(N+1), N: number of days.
+
+    Args:
+        new_price (float):
+        old_ema (float):
+        num_of_days (int):
+
+    Returns:
+        ema (float):
     '''
     smoothing_factor = 2.0 / (num_of_days + 1)
     ema = new_price * smoothing_factor + old_ema * (1 - smoothing_factor)
