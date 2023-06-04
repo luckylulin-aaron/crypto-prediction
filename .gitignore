@@ -3,3 +3,4 @@ __pycache__
 .idea
 /app/credentials.py
 /notebooks/.ipynb_checkpoints
+*.DS_store
