@@ -18,4 +18,4 @@ Navigate to ```tests/unit```, execute `python -m unittest` to launch unittest th
 I have no intent to commercialize this project. Sincere thanks to programmers around the world who make it possible. Refer to the following sources if you have technical problems.
 
 1) https://github.com/coinbase/coinbase-python
-2) https://developers.coinbase.com/api/v2?python#2017-08-07
+2) https://developers.coinbase.com/api/v2?python#2017-08-07 
