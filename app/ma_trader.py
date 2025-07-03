@@ -141,6 +141,10 @@ class MATrader:
                     today=d
                 )
 
+        # [5] RSI-based approach
+        elif self.high_strategy == 'RSI':
+            self.strategy_rsi(new_p=new_p, today=d)
+
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         '''Compute and append a new moving average price.'''
         max_l = int(queue_name)
@@ -379,6 +383,39 @@ class MATrader:
             r_sell is False):
             self._record_history(new_p, today, NO_ACTION_SIGNAL)
             self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    def compute_rsi(self, period: int=14):
+        '''Compute the Relative Strength Index (RSI) for the given period.'''
+        if len(self.crypto_prices) < period + 1:
+            return None
+        closes = [x[0] for x in self.crypto_prices]
+        deltas = np.diff(closes[-(period+1):])
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+        avg_gain = np.mean(gains)
+        avg_loss = np.mean(losses)
+        if avg_loss == 0:
+            return 100.0
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+
+    def strategy_rsi(self, new_p: float, today: datetime.datetime, period: int=14, overbought: float=70, oversold: float=30):
+        '''RSI-based trading strategy: buy if oversold, sell if overbought.'''
+        rsi = self.compute_rsi(period)
+        if rsi is None:
+            return  # Not enough data yet
+        self.strat_dct['RSI'].append(rsi)
+        # Buy signal: RSI below oversold threshold
+        if rsi < oversold:
+            self._execute_one_buy(method='RSI', new_p=new_p)
+            self._record_history(new_p, today, BUY_SIGNAL)
+        # Sell signal: RSI above overbought threshold
+        elif rsi > overbought:
+            self._execute_one_sell(method='RSI', new_p=new_p)
+            self._record_history(new_p, today, SELL_SIGNAL)
+        else:
+            self._record_history(new_p, today, NO_ACTION_SIGNAL)
 
     # basic functionality
     def _execute_one_buy(self, method: str, new_p: float):
