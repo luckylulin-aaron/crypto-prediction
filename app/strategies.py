@@ -275,6 +275,59 @@ def strategy_rsi(
         return False, False
 
 
+def strategy_kdj(
+    trader,
+    new_p: float, 
+    today: datetime.datetime, 
+    oversold: float=30, 
+    overbought: float=70) -> Tuple[bool, bool]:
+    """
+    KDJ-based trading strategy: buy if KDJ below oversold threshold, sell if above overbought threshold.
+    
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        oversold (float, optional): Oversold threshold. Defaults to 20.
+        overbought (float, optional): Overbought threshold. Defaults to 80.
+        
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = 'KDJ'
+    assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
+    
+    # Check if we have enough KDJ data
+    if not hasattr(trader, 'kdj_dct') or 'K' not in trader.kdj_dct or len(trader.kdj_dct['K']) == 0:
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    # Get the latest K value (KDJ indicator)
+    current_k = trader.kdj_dct['K'][-1]
+    
+    # Buy signal: KDJ below oversold threshold
+    if current_k < oversold:
+        r_buy = trader._execute_one_buy('by_percentage', new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        return r_buy, False
+    
+    # Sell signal: KDJ above overbought threshold
+    elif current_k > overbought:
+        r_sell = trader._execute_one_sell('by_percentage', new_p)
+        if r_sell:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+        return False, r_sell
+    
+    # No action if KDJ is in neutral zone
+    else:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+
 # Strategy registry for easy lookup
 STRATEGY_REGISTRY = {
     'MA-SELVES': strategy_moving_average_w_tolerance,
@@ -282,4 +335,5 @@ STRATEGY_REGISTRY = {
     'MACD': strategy_macd,
     'BOLL-BANDS': strategy_bollinger_bands,
     'RSI': strategy_rsi,
+    'KDJ': strategy_kdj,
 } 

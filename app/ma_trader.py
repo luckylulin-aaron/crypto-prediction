@@ -193,6 +193,13 @@ class MATrader:
                     today=d
                 )
 
+            elif self.high_strategy == 'KDJ':
+                strategy_func(
+                    trader=self,
+                    new_p=new_p,
+                    today=d
+                )
+
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         """
         Compute and append a new moving average price.
