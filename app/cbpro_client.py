@@ -7,11 +7,13 @@ from coinbase.rest import RESTClient
 # customized packages
 from config import *
 from util import *
+from logger import get_logger
 
 
 class CBProClient:
 
     def __init__(self, key: str='', secret: str=''):
+        self.logger = get_logger(__name__)
         # Create the RESTClient from coinbase-advanced-py
         if len(key) > 0 and len(secret) > 0:
             self.rest_client = RESTClient(api_key=key, api_secret=secret)
@@ -90,9 +92,7 @@ class CBProClient:
     def portfolio_value(self):
         '''Computes portfolio value for an account using Advanced Trade API.'''
         wallets = self.get_wallets()
-        if len(wallets) == 0:
-            raise Exception('No wallets found for this account given the currency names!')
-
+        self.logger.debug(f'wallets: {wallets}')
         v_crypto, v_fiat = 0, 0
         for item in wallets:
             try:
@@ -102,7 +102,7 @@ class CBProClient:
                 elif item['type'] == 'ACCOUNT_TYPE_FIAT':
                     v_fiat += delta_v
             except Exception as e:
-                print(f'[ERROR] Exception processing wallet item: {item}, error: {e}')
+                self.logger.error(f'Exception processing wallet item: {item}, error: {e}')
                 continue
         return v_crypto, v_fiat
 
@@ -110,14 +110,11 @@ class CBProClient:
         '''Retrieve wallet information for pre-defined currency names using Advanced Trade API.'''
         try:
             accounts = self.rest_client.get_accounts()
-            # accounts.accounts is a list of account objects
-            wallets = [x for x in accounts.accounts if x.currency in cur_names]
-            # check if wallets is empty
-            if not wallets:
-                raise Exception('No wallets found for this account given the currency names!')
+            wallets = [x for x in accounts.accounts if x['currency'] in cur_names]
+            self.logger.debug(f'get_accounts response: {wallets}')
             return wallets
         except Exception as e:
-            print(f'[ERROR] Exception when calling get_accounts: {e}')
+            self.logger.error(f'Exception when calling get_accounts: {e}')
             return []
 
     def place_buy_order(self, wallet_id: str, amount: float, currency: str, commit: bool = False):
