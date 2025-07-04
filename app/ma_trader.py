@@ -13,6 +13,7 @@ import numpy as np
 from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
     DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION, DEA_NUM_OF_DAYS)
 from util import (max_drawdown_helper, ema_helper)
+from strategies import STRATEGY_REGISTRY
 
 class MATrader:
 
@@ -123,61 +124,74 @@ class MATrader:
         # compute KDJ related arrays
         self.compute_kdj_related(d=d, low=low, high=high, open=open, close=new_p)
 
-        # Execute trading strategy
-        # [1] MA w/ itself
-        if self.high_strategy == 'MA-SELVES':
-            for queue_name in self.moving_averages:
-                # if we don't have a moving average yet, skip
-                if self.moving_averages[queue_name][-1] is None:
-                    continue
-                self.strategy_moving_average_w_tolerance(
-                    queue_name=queue_name,
-                    new_p=new_p,
-                    today=d
-                )
-
-        # [2] pair-wise MAs
-        elif self.high_strategy == 'DOUBLE-MA':
-            mas = [int(x) for x in list(self.moving_averages.keys())]
-            mas = sorted(mas, reverse=False)
-
-            for i in range(0, len(mas)):
-                for j in range(i+1, len(mas)):
-                    # if too close, skip
-                    if j - i <= 2:
+        # Execute trading strategy using the strategy registry
+        if self.high_strategy in STRATEGY_REGISTRY:
+            strategy_func = STRATEGY_REGISTRY[self.high_strategy]
+            
+            if self.high_strategy == 'MA-SELVES':
+                for queue_name in self.moving_averages:
+                    # if we don't have a moving average yet, skip
+                    if self.moving_averages[queue_name][-1] is None:
                         continue
-                    s_qn, l_qn = str(mas[i]), str(mas[j])
-                    # if either of the two MAs does not have enough lengths, respectively, skip
-                    if (self.moving_averages[s_qn][-1] is None or
-                        self.moving_averages[l_qn][-1] is None):
-                        continue
-                    self.strategy_double_moving_averages(
-                        shorter_queue_name=s_qn,
-                        longer_queue_name=l_qn,
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
                         new_p=new_p,
-                        today=d
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct
                     )
 
-        # [3] MACD divergence/convergence approach
-        elif self.high_strategy == 'MACD':
-            self.compute_macd_related()
-            self.strategy_macd(new_p=new_p, today=d)
+            elif self.high_strategy == 'DOUBLE-MA':
+                mas = [int(x) for x in list(self.moving_averages.keys())]
+                mas = sorted(mas, reverse=False)
 
-        # [4] Bollinger Band approach
-        elif self.high_strategy == 'BOLL-BANDS':
-            for queue_name in self.bollinger_mas:
-                # if we don't have a moving average yet, skip
-                if self.moving_averages[queue_name][-1] is None:
-                    continue
-                self.strategy_bollinger_bands(
-                    queue_name=queue_name,
+                for i in range(0, len(mas)):
+                    for j in range(i+1, len(mas)):
+                        # if too close, skip
+                        if j - i <= 2:
+                            continue
+                        s_qn, l_qn = str(mas[i]), str(mas[j])
+                        # if either of the two MAs does not have enough lengths, respectively, skip
+                        if (self.moving_averages[s_qn][-1] is None or
+                            self.moving_averages[l_qn][-1] is None):
+                            continue
+                        strategy_func(
+                            trader=self,
+                            shorter_queue_name=s_qn,
+                            longer_queue_name=l_qn,
+                            new_p=new_p,
+                            today=d
+                        )
+
+            elif self.high_strategy == 'MACD':
+                self.compute_macd_related()
+                strategy_func(
+                    trader=self,
                     new_p=new_p,
                     today=d
                 )
 
-        # [5] RSI-based approach
-        elif self.high_strategy == 'RSI':
-            self.strategy_rsi(new_p=new_p, today=d)
+            elif self.high_strategy == 'BOLL-BANDS':
+                for queue_name in self.bollinger_mas:
+                    # if we don't have a moving average yet, skip
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        bollinger_sigma=self.bollinger_sigma
+                    )
+
+            elif self.high_strategy == 'RSI':
+                strategy_func(
+                    trader=self,
+                    new_p=new_p,
+                    today=d
+                )
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         """
@@ -295,176 +309,6 @@ class MATrader:
             new_rsv = 100 * (close - lowest_within_9) / (highest_within_9 - lowest_within_9)
             self.nine_day_rsv.append(new_rsv)
 
-    # Core Section: TRADING STRATEGY
-    def strategy_moving_average_w_tolerance(self, queue_name: str,
-            new_p: float, today: datetime.datetime):
-        """
-        For a new day's price, if beyond tolerance level, execute a buy or sell action.
-
-        Args:
-            queue_name (str): The name of the queue.
-            new_p (float): Today's new price of a currency.
-            today (datetime.datetime): Date.
-
-        Returns:
-            None
-        """
-        strat_name = 'MA-SELVES'
-        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
-
-        # retrieve the most recent moving average
-        last_ma = self.moving_averages[queue_name][-1]
-        # (1) if too high, we do a sell
-        r_sell = False
-        if new_p >= (1 + self.tol_pct) * last_ma:
-            r_sell = self._execute_one_sell('by_percentage', new_p)
-            if r_sell is True:
-                self._record_history(new_p, today, SELL_SIGNAL)
-                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        # (2) if too low, we do a buy
-        r_buy = False
-        if new_p <= (1 - self.tol_pct) * last_ma:
-            r_buy = self._execute_one_buy('by_percentage', new_p)
-            if r_buy is True:
-                self._record_history(new_p, today, BUY_SIGNAL)
-                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        # add history as well if nothing happens
-        if (r_buy is False and
-            r_sell is False):
-            self._record_history(new_p, today, NO_ACTION_SIGNAL)
-            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-
-    def strategy_double_moving_averages(self, shorter_queue_name: str, longer_queue_name,
-            new_p: float, today: datetime.datetime):
-        """
-        For a new day's price, if the shorter MA is greater than the longer MA's, execute a buy; otherwise, execute a sell.
-
-        Args:
-            shorter_queue_name (str): The name of the queue with shorter interval.
-            longer_queue_name (str): The name of the queue with longer interval.
-            new_p (float): Today's new price of a currency.
-            today (datetime.datetime): Date.
-
-        Returns:
-            None
-        """
-        strat_name = 'DOUBLE-MA'
-        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
-
-        # compute the moving averages for shorter queue and longer queue, respectively
-        shorter_p = self.moving_averages[shorter_queue_name][-1]
-        longer_p = self.moving_averages[longer_queue_name][-1]
-
-        # (1) if a 'death-cross', sell
-        r_sell = False
-        if longer_p > shorter_p:
-            r_sell = self._execute_one_sell('by_percentage', new_p)
-            if r_sell is True:
-                self._record_history(new_p, today, SELL_SIGNAL)
-                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        # (2) if a 'golden-cross', buy
-        r_buy = False
-        if shorter_p > longer_p:
-            r_buy = self._execute_one_buy('by_percentage', new_p)
-            if r_buy is True:
-                self._record_history(new_p, today, BUY_SIGNAL)
-                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        # add history as well if nothing happens
-        if (r_buy is False and
-            r_sell is False):
-            self._record_history(new_p, today, NO_ACTION_SIGNAL)
-            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-
-    def strategy_macd(self, new_p, today: datetime.datetime):
-        """
-        MACD-based trading strategy.
-
-        Args:
-            new_p (float): Today's new price of a currency.
-            today (datetime.datetime): Date.
-
-        Returns:
-            None
-        """
-        strat_name = 'MACD'
-        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
-
-        if self.macd_dea[-1] is None:
-            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-            return
-
-        diff = self.macd_diff[-1] - self.macd_dea[-1]
-        # (1) if (MACD-DIFF - MACD-DEA) is negative, sell
-        r_sell = False
-        if diff < 0:
-            r_sell = self._execute_one_sell('by_percentage', new_p)
-            if r_sell is True:
-                self._record_history(new_p, today, SELL_SIGNAL)
-                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        # (2) if (MACD-DIFF - MACD-DEA) is, buy
-        r_buy = False
-        if diff > 0:
-            r_buy = self._execute_one_buy('by_percentage', new_p)
-            if r_buy is True:
-                self._record_history(new_p, today, BUY_SIGNAL)
-                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        # add history as well if nothing happens
-        if (r_buy is False and
-            r_sell is False):
-            self._record_history(new_p, today, NO_ACTION_SIGNAL)
-            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-
-    def strategy_bollinger_bands(self, queue_name: str,
-            new_p, today: datetime.datetime):
-        """
-        Trading with Bollinger Band strategy.
-
-        Args:
-            queue_name (str): The name of the queue.
-            new_p (float): Today's new price of a currency.
-            today (datetime.datetime): Date.
-
-        Returns:
-            None
-        """
-        strat_name = 'BOLL-BANDS'
-        assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
-
-        # if the moving average queue is not long enough to consider, skip
-        not_null_values = list(filter(lambda x: x is not None, self.moving_averages[queue_name]))
-        if len(not_null_values) < int(queue_name):
-            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-            return
-
-        # want the last X number of items
-        mas = not_null_values[-int(queue_name):]
-        # compute mean and standard deviation
-        ma_mean, ma_std = np.mean(mas), np.std(mas)
-
-        # compute upper and lower bound
-        boll_upper = ma_mean + self.bollinger_sigma * ma_std
-        boll_lower = ma_mean - self.bollinger_sigma * ma_std
-
-        # (1) if the price exceeds the upper bound, sell
-        r_sell = False
-        if new_p >= boll_upper:
-            r_sell = self._execute_one_sell('by_percentage', new_p)
-            if r_sell is True:
-                self._record_history(new_p, today, SELL_SIGNAL)
-                self.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        # (2) if the price drops below the lower bound, buy
-        r_buy = False
-        if new_p <= boll_lower:
-            r_buy = self._execute_one_buy('by_percentage', new_p)
-            if r_buy is True:
-                self._record_history(new_p, today, BUY_SIGNAL)
-                self.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        # add history as well if nothing happens
-        if (r_buy is False and
-            r_sell is False):
-            self._record_history(new_p, today, NO_ACTION_SIGNAL)
-            self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-
     def compute_rsi(self, period: int=14):
         """
         Compute the Relative Strength Index (RSI) for the given period.
@@ -489,34 +333,8 @@ class MATrader:
         rsi = 100 - (100 / (1 + rs))
         return rsi
 
-    def strategy_rsi(self, new_p: float, today: datetime.datetime, period: int=14, overbought: float=70, oversold: float=30):
-        """
-        RSI-based trading strategy: buy if oversold, sell if overbought.
-
-        Args:
-            new_p (float): Today's new price of a currency.
-            today (datetime.datetime): Date.
-            period (int, optional): RSI period. Defaults to 14.
-            overbought (float, optional): Overbought threshold. Defaults to 70.
-            oversold (float, optional): Oversold threshold. Defaults to 30.
-
-        Returns:
-            None
-        """
-        rsi = self.compute_rsi(period)
-        if rsi is None:
-            return  # Not enough data yet
-        self.strat_dct['RSI'].append(rsi)
-        # Buy signal: RSI below oversold threshold
-        if rsi < oversold:
-            self._execute_one_buy(method='RSI', new_p=new_p)
-            self._record_history(new_p, today, BUY_SIGNAL)
-        # Sell signal: RSI above overbought threshold
-        elif rsi > overbought:
-            self._execute_one_sell(method='RSI', new_p=new_p)
-            self._record_history(new_p, today, SELL_SIGNAL)
-        else:
-            self._record_history(new_p, today, NO_ACTION_SIGNAL)
+    # Core Section: TRADING STRATEGY
+    # Strategy implementations have been moved to strategies.py for better maintainability
 
     # basic functionality
     def _execute_one_buy(self, method: str, new_p: float):

@@ -161,4 +161,8 @@ class TraderDriver:
             'coin_rate_of_return': str(best_trader.coin_rate_of_return) + '%'
         }
 
-        return {**best_trader.trading_strategy, **extra, 'trader_index': self.traders.index(self.best_trader)}
+        return {
+            **best_trader.trading_strategy,
+            **extra,
+            'trader_index': self.traders.index(self.best_trader)
+        }
