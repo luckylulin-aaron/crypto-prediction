@@ -65,6 +65,7 @@ class MATrader:
         # initial and current bitcoin at hand, and cash available
         self.init_coin, self.init_cash = cur_coin, init_amount
         self.cur_coin, self.cash = cur_coin, init_amount
+
         # 2. Transactions
         self.trade_history = []
         self.crypto_prices = []
@@ -82,6 +83,7 @@ class MATrader:
         # number of MAs considered in Bollinger Band strategy
         self.bollinger_mas = [str(x) for x in bollinger_mas]
         self.bollinger_sigma = bollinger_sigma
+
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
@@ -119,7 +121,7 @@ class MATrader:
             self.add_new_exponential_moving_averages(queue_name=queue_name, new_p=new_p)
 
         # compute KDJ related arrays
-        self.compute_kdj_related((d,low,high,open,new_p))
+        self.compute_kdj_related(d=d, low=low, high=high, open=open, close=new_p)
 
         # Execute trading strategy
         # [1] MA w/ itself
@@ -260,8 +262,10 @@ class MATrader:
 
     def compute_kdj_related(self,
         d: datetime.datetime,
-        low: float, high: float,
-        open: float, close: float):
+        low: float,
+        high: float,
+        open: float,
+        close: float):
         """
         Compute KDJ related arrays with dates, prices of lows, highs, opens and closes.
 
@@ -275,9 +279,8 @@ class MATrader:
         Returns:
             None
         """
-        # checking
-        assert hasattr(MATrader, 'nine_day_rsv') and hasattr(MATrader, 'kdj_dct'), \
-            'Incorrect initialization, KDJ related attributes missing!'
+        assert hasattr(self, 'nine_day_rsv') and hasattr(self, 'kdj_dct'), \
+            "Incorrect initialization, KDJ related attributes missing!"
 
         def_KnD = 50
         # if only have at most 8 days' data, then append 0 to nine_days_rsv,
