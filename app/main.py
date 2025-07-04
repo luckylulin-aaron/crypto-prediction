@@ -15,6 +15,9 @@ from cbpro_client import CBProClient
 from config import *
 from trader_driver import TraderDriver
 from util import display_port_msg, load_csv
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # Read API credentials from screte.ini
 config = configparser.ConfigParser()
@@ -27,7 +30,7 @@ CB_API_SECRET = config['CONFIG']['COINBASE_API_SECRET'].strip('"')
 def main():
     '''Run simulation and make trades.'''
 
-    print('\n[INFO] COMMIT is set to {}'.format(COMMIT))
+    logger.info(f'COMMIT is set to {COMMIT}')
     log_file = './log.txt'
 
     # cbpro client to interact with coinbase
@@ -41,23 +44,23 @@ def main():
 
     # before
     try:
-        print(f'Getting portfolio value...', client.portfolio_value)
+        logger.info('Getting portfolio value...')
         v_c1, v_f1 = client.portfolio_value
-        print(f'Portfolio value before: {v_c1}, {v_f1}')
+        logger.info(f'Portfolio value before: {v_c1}, {v_f1}')
     except Exception as e:
-        print(f'Error getting portfolio value: {e}', str(e))
+        logger.error(f'Error getting portfolio value: {e}')
         return
 
     display_port_msg(v_c=v_c1, v_f=v_f1, before=True)
 
     for index,cur_name in enumerate(CURS):
-        print(f'\n[{index+1}] processing for currency={cur_name}...')
+        logger.info(f'[{index+1}] processing for currency={cur_name}...')
         cur_rate = client.get_cur_rate(cur_name + '-USD')
         data_stream = client.get_historic_data(cur_name + '-USD', SECONDS_IN_ONE_DAY)
 
         # cut-off, only want the last X days of data
         data_stream = data_stream[-TIMESPAN:]
-        print('only want the latest {} days of data!'.format(TIMESPAN))
+        logger.info(f'only want the latest {TIMESPAN} days of data!')
 
         # initial cash amount
         _, cash = client.portfolio_value
@@ -65,10 +68,10 @@ def main():
         wallet = client.get_wallets(cur_names=[cur_name])
         cur_coin, wallet_id = None, None
         for item in wallet:
-            if item['currency'] == cur_name and item['type'] == 'wallet':
-                cur_coin, wallet_id = float(item['balance']['amount']), item['id']
+            if item['currency'] == cur_name and item['type'] == 'ACCOUNT_TYPE_CRYPTO':
+                cur_coin, wallet_id = float(item['available_balance']['value']), item['uuid']
 
-        assert cur_coin and wallet_id, f'cannot find relevant wallet for {cur_name}!'
+        assert cur_coin is not None and wallet_id is not None, f'cannot find relevant wallet for {cur_name}!'
 
         # run simulation
         t_driver = TraderDriver(
@@ -101,21 +104,21 @@ def main():
         best_t.add_new_day(new_p, today)
         signal = best_t.trade_signal
 
-        print('\nexamine best trader performance:', info, '\n')
-        print('maximum drawdown / 最大回撤:', best_t.max_drawdown)
-        print('number of transaction / 总的交易数:', best_t.num_transaction)
-        print('high-level trading strategy / 高级交易策略:', best_t.high_strategy)
-        print('number of buy action / 买入次数:', best_t.num_buy_action)
-        print('number of sell action / 卖出次数:', best_t.num_sell_action)
+        logger.info(f'examine best trader performance: {info}')
+        logger.info(f'maximum drawdown / 最大回撤: {best_t.max_drawdown}')
+        logger.info(f'number of transaction / 总的交易数: {best_t.num_transaction}')
+        logger.info(f'high-level trading strategy / 高级交易策略: {best_t.high_strategy}')
+        logger.info(f'number of buy action / 买入次数: {best_t.num_buy_action}')
+        logger.info(f'number of sell action / 卖出次数: {best_t.num_sell_action}')
 
-        print(f'\nfor crypto={best_t.crypto_name}, today\'s signal={signal}')
+        logger.info(f'for crypto={best_t.crypto_name}, today\'s signal={signal}')
 
         # if too less, we leave
         if cash <= EP_CASH and signal == BUY_SIGNAL:
-            print('[warning] too less cash, cannot execute a buy, discard further actions.')
+            logger.warning('too less cash, cannot execute a buy, discard further actions.')
             continue
         elif (cur_coin <= EP_COIN or cur_coin * new_p <= EP_CASH) and signal == SELL_SIGNAL:
-            print('[warning] too less crypto, cannot execute a sell, discard further actions.')
+            logger.warning('too less crypto, cannot execute a sell, discard further actions.')
             continue
 
         # otherwise, execute a transaction
@@ -127,7 +130,7 @@ def main():
                 currency='USD',
                 commit=COMMIT
             )
-            print('bought {:.5f} {}, used {:.2f} USD, at unit price={}'.format(
+            logger.info('bought {:.5f} {}, used {:.2f} USD, at unit price={}'.format(
                 float(order['amount']['amount']), cur_name,
                 float(order['total']['amount']), float(order['unit_price']['amount'])
             ))
@@ -140,13 +143,13 @@ def main():
                 currency=cur_name,
                 commit=COMMIT
             )
-            print('sold {:.5f} {}, cash out {:.2f} USD, at unit price={}'.format(
+            logger.info('sold {:.5f} {}, cash out {:.2f} USD, at unit price={}'.format(
                 float(order['amount']['amount']), cur_name,
                 float(order['subtotal']['amount']), float(order['unit_price']['amount'])
             ))
         elif signal['action'] == NO_ACTION_SIGNAL:
             if mode == 'verbose':
-                print('no action performed as simulation suggests.')
+                logger.info('no action performed as simulation suggests.')
 
     # after
     v_c2, v_f2 = client.portfolio_value
