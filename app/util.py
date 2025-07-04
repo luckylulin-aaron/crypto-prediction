@@ -57,7 +57,7 @@ def display_port_msg(v_c: float, v_s: float, before: bool=True) -> None:
     stage = 'before' if before else 'after'
     s = v_c + v_s
 
-    print('\n{} transaction, by {}, crypto_value={:.2f}, stablecoin_value={:.2f},           amount to {:.2f}'.format(stage, now, v_c, v_s, s))
+    print('\n{} transaction, by {}, crypto_value={:.2f}, stablecoin_value={:.2f}, amount to {:.2f}'.format(stage, now, v_c, v_s, s))
 
 def max_drawdown_helper(hist_l: List[float]) -> float:
     '''Compute max drawdown (最大回撤) for a given portfolio value history.
