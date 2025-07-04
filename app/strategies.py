@@ -2,10 +2,11 @@
 Trading strategy implementations for cryptocurrency trading bot.
 """
 
-import numpy as np
-from typing import Dict, List, Tuple, Optional
 import datetime
-from config import STRATEGIES, BUY_SIGNAL, SELL_SIGNAL, NO_ACTION_SIGNAL
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+from config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES
 
 
 def strategy_moving_average_w_tolerance(
@@ -246,6 +247,9 @@ def strategy_rsi(
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
+    strat_name = 'RSI'
+    assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
+
     rsi = trader.compute_rsi(period)
     if rsi is None:
         return False, False  # Not enough data yet

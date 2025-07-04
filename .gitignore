@@ -5,3 +5,4 @@ __pycache__
 /notebooks/.ipynb_checkpoints
 *.DS_store
 /app/screte.ini
+/app/plots
