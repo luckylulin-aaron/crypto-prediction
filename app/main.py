@@ -1,4 +1,5 @@
 # built-in packages
+import configparser
 import datetime
 import json
 import os
@@ -9,13 +10,18 @@ import time
 import numpy as np
 import pandas as pd
 import schedule
-
 # customized packages
 from cbpro_client import CBProClient
-from credentials import (CB_API_KEY, CB_API_SECRET)
-from trader_driver import TraderDriver
 from config import *
-from util import (display_port_msg, load_csv)
+from trader_driver import TraderDriver
+from util import display_port_msg, load_csv
+
+# Read API credentials from screte.ini
+config = configparser.ConfigParser()
+config.read(os.path.join(os.path.dirname(__file__), 'screte.ini'))
+
+CB_API_KEY = config['CONFIG']['COINBASE_API_KEY'].strip('"')
+CB_API_SECRET = config['CONFIG']['COINBASE_API_SECRET'].strip('"')
 
 
 def main():
@@ -34,7 +40,14 @@ def main():
     mode = 'normal'
 
     # before
-    v_c1, v_f1 = client.portfolio_value
+    try:
+        print(f'Getting portfolio value...', client.portfolio_value)
+        v_c1, v_f1 = client.portfolio_value
+        print(f'Portfolio value before: {v_c1}, {v_f1}')
+    except Exception as e:
+        print(f'Error getting portfolio value: {e}', str(e))
+        return
+
     display_port_msg(v_c=v_c1, v_f=v_f1, before=True)
 
     for index,cur_name in enumerate(CURS):
