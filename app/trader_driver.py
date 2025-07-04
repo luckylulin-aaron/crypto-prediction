@@ -113,13 +113,13 @@ class TraderDriver:
                 })
             # run simulation
             for i in range(1, len(data_stream)):
-                p,d = data_stream[i]
+                p,d = data_stream[i][0], data_stream[i][1] # [cur_price,date,open,low,high]
                 misc_p = {
                     'open': data_stream[i][2],
                     'low': data_stream[i][3],
                     'high': data_stream[i][4]
                 }
-                t.add_new_day(p,d,misc_p)
+                t.add_new_day(p, d, misc_p)
             # decide best trader while we loop, by comparing all traders final portfolio value
             # sometimes a trader makes no trade at all
             if len(t.all_history) > 0:

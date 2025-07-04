@@ -23,7 +23,7 @@ BUY_STAS = ('by_percentage')
 SELL_STAS = ('by_percentage')
 
 # currencies (crptocurrency + stablecoin + fiat)
-CURS = ['SOL', 'ETH']
+CURS = ['SOL']
 FIAT = ['USD', 'SGD']
 STABLECOIN = ['USDC', 'USDT']  # Stablecoins for trading with cryptos
 

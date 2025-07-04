@@ -63,7 +63,6 @@ def main():
         logger.error(f'Error getting portfolio value: {e}')
         return
 
-    return
     display_port_msg(v_c=v_c1, v_s=v_s1, before=True)
 
     for index,cur_name in enumerate(CURS):
@@ -79,14 +78,13 @@ def main():
         _, cash = client.portfolio_value
         # initial coin at hand
         wallet = client.get_wallets(cur_names=[cur_name])
-        logger.info(f'wallet: {wallet}')
-        time.sleep(30)
 
         cur_coin, wallet_id = None, None
         for item in wallet:
             if item['currency'] == cur_name and item['type'] == 'ACCOUNT_TYPE_CRYPTO':
                 cur_coin, wallet_id = float(item['available_balance']['value']), item['uuid']
 
+        logger.info('cur_coin={}, wallet_id={}'.format(np.round(cur_coin, 2), wallet_id))
         assert cur_coin is not None and wallet_id is not None, f'cannot find relevant wallet for {cur_name}!'
 
         # run simulation
@@ -117,7 +115,11 @@ def main():
         new_p = client.get_cur_rate(cur_name + '-USD')
         today = datetime.datetime.now().strftime('%m/%d/%Y')
         # add it and compute
-        best_t.add_new_day(new_p, today)
+        best_t.add_new_day(
+            new_p=new_p,
+            d=today,
+            misc_p={'open': new_p, 'low': new_p, 'high': new_p}
+        )
         signal = best_t.trade_signal
 
         logger.info(f'examine best trader performance: {info}')

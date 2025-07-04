@@ -96,7 +96,7 @@ class CBProClient:
                 delta_v = float(item['available_balance']['value'])
                 if item['currency'] in CURS:
                     coin_cur_rate = self.get_cur_rate(name=item['currency'] + '-USD')
-                    v_crypto += coin_cur_rate * float(item['available_balance']['value'])
+                    v_crypto += coin_cur_rate * delta_v
                 elif item['currency'] in STABLECOIN:
                     v_stable += delta_v
             except Exception as e:
@@ -118,7 +118,6 @@ class CBProClient:
         try:
             accounts = self.rest_client.get_accounts()
             wallets = [x for x in accounts.accounts if x['currency'] in cur_names]
-            self.logger.info(f'get_accounts response: {wallets}')
             return wallets
         except Exception as e:
             self.logger.error(f'Exception when calling get_accounts: {e}')
