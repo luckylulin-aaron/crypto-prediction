@@ -4,3 +4,4 @@ __pycache__
 /app/credentials.py
 /notebooks/.ipynb_checkpoints
 *.DS_store
+/app/screte.ini

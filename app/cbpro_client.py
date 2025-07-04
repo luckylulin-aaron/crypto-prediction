@@ -1,29 +1,22 @@
 # built-in packages
 import datetime
-
-from typing import List, Any
+from typing import Any, List
 
 # third-party packages
-import cbpro
-
-from coinbase.wallet.client import Client
-
+from coinbase.rest import RESTClient
 # customized packages
 from config import *
 from util import *
 
 
-
 class CBProClient:
 
-    def __init__(self, key: str = '', secret: str = '', pwd: str = ''):
-        # by default will have a public client
-        self.public_client = cbpro.PublicClient()
-        # whether to create an authenticated client
+    def __init__(self, key: str='', secret: str=''):
+        # Create the RESTClient from coinbase-advanced-py
         if len(key) > 0 and len(secret) > 0:
-            self.auth_client = Client(key, secret)
+            self.rest_client = RESTClient(api_key=key, api_secret=secret)
         else:
-            self.auth_client = None
+            self.rest_client = RESTClient()  # Will use env vars if set
 
     @timer
     def get_cur_rate(self, name: str):
@@ -39,7 +32,7 @@ class CBProClient:
             ConnectionError (Exception):
         '''
         try:
-            res = self.public_client.get_product_24hr_stats(name)['last']
+            res = self.rest_client.get_product_24hr_stats(name)['last']
         except Exception as e:
             raise ConnectionError(f'cannot get current rate for {name}')
 
@@ -63,7 +56,7 @@ class CBProClient:
         '''
         try:
             # each request can retrieve up to 300 data points
-            res = self.public_client.get_product_historic_rates(name, granularity=grans)
+            res = self.rest_client.get_product_historic_rates(name, granularity=grans)
             assert len(res) == 300, 'Length error!'
         except Exception as e:
             raise ConnectionError(f'cannot get historic rates for {name}')
@@ -93,22 +86,39 @@ class CBProClient:
 
         return res
 
-    def get_wallets(self, cur_names: List[str] = [*CURS, *FIAT]):
-        '''Retrieve wallet information for pre-defined currency names.
-        Those with type being vault will be dropped.
+    @property
+    def portfolio_value(self):
+        '''Computes portfolio value for an account using Advanced Trade API.'''
+        wallets = self.get_wallets()
+        if len(wallets) == 0:
+            raise Exception('No wallets found for this account given the currency names!')
 
-        :argument
-            cur_names （List[str]):
+        v_crypto, v_fiat = 0, 0
+        for item in wallets:
+            try:
+                delta_v = float(item['available_balance']['value'])
+                if item['type'] == 'ACCOUNT_TYPE_CRYPTO':
+                    v_crypto += delta_v
+                elif item['type'] == 'ACCOUNT_TYPE_FIAT':
+                    v_fiat += delta_v
+            except Exception as e:
+                print(f'[ERROR] Exception processing wallet item: {item}, error: {e}')
+                continue
+        return v_crypto, v_fiat
 
-        :return
-            List[dictionary]:
-
-        :raise
-        '''
-        accts = self.auth_client.get_accounts()
-
-        return list(filter(lambda x: x['currency'] in cur_names and \
-                                     x['type'] != 'vault', accts['data']))
+    def get_wallets(self, cur_names: List[str]=[*CURS, *FIAT]):
+        '''Retrieve wallet information for pre-defined currency names using Advanced Trade API.'''
+        try:
+            accounts = self.rest_client.get_accounts()
+            # accounts.accounts is a list of account objects
+            wallets = [x for x in accounts.accounts if x.currency in cur_names]
+            # check if wallets is empty
+            if not wallets:
+                raise Exception('No wallets found for this account given the currency names!')
+            return wallets
+        except Exception as e:
+            print(f'[ERROR] Exception when calling get_accounts: {e}')
+            return []
 
     def place_buy_order(self, wallet_id: str, amount: float, currency: str, commit: bool = False):
         '''Place and (optionally) execute a buy order.
@@ -126,7 +136,7 @@ class CBProClient:
             (Exception):
         '''
         try:
-            order = self.auth_client.buy(wallet_id,
+            order = self.rest_client.buy(wallet_id,
                         amount=str(amount),
                         currency=currency,
                         commit=commit
@@ -152,7 +162,7 @@ class CBProClient:
             (Exception):
         '''
         try:
-            order = self.auth_client.sell(wallet_id,
+            order = self.rest_client.sell(wallet_id,
                          amount=str(amount),
                          currency=currency,
                          commit=commit
@@ -161,30 +171,3 @@ class CBProClient:
             raise e
 
         return order
-
-    @property
-    def portfolio_value(self):
-        '''Computes portfolio value for an account.
-
-        :argument
-
-        :return
-            v_crypto (float): Value of all crypto-currencies in USD.
-            v_fiat (float): Value of fiat currency in USD.
-
-        :raise
-        '''
-        assert self.auth_client is not None, 'no authorized account to get information from!'
-        wallets = self.get_wallets()
-
-        v_crypto, v_fiat = 0, 0
-
-        for item in wallets:
-            delta_v = float(item['native_balance']['amount'])
-            # add to different variables
-            if item['type'] == 'wallet':
-                v_crypto += delta_v
-            elif item['type'] == 'fiat':
-                v_fiat += delta_v
-
-        return v_crypto, v_fiat
