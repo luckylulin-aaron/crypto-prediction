@@ -43,4 +43,4 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 120
+TIMESPAN = 3

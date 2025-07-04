@@ -29,7 +29,28 @@ class TraderDriver:
             buy_stas: List[str] = ['by_percentage'],
             sell_stas: List[str] = ['by_percentage'],
             mode: str='normal'):
+        """
+        Initialize a TraderDriver instance.
 
+        Args:
+            name (str): Name of the trader.
+            init_amount (int): Initial cash amount.
+            cur_coin (float): Initial coin amount.
+            overall_stats (List[str]): List of strategy names.
+            tol_pcts (List[float]): List of tolerance percentages.
+            ma_lengths (List[int]): List of moving average lengths.
+            ema_lengths (List[int]): List of exponential moving average lengths.
+            bollinger_mas (List[int]): List of Bollinger MA lengths.
+            bollinger_tols (List[int]): List of Bollinger tolerances.
+            buy_pcts (List[float]): List of buy percentages.
+            sell_pcts (List[float]): List of sell percentages.
+            buy_stas (List[str], optional): Buy strategies. Defaults to ['by_percentage'].
+            sell_stas (List[str], optional): Sell strategies. Defaults to ['by_percentage'].
+            mode (str, optional): Mode. Defaults to 'normal'.
+
+        Returns:
+            None
+        """
         self.init_amount, self.init_coin = init_amount, cur_coin
         self.mode = mode
         self.traders = []
@@ -66,7 +87,15 @@ class TraderDriver:
 
     @timer
     def feed_data(self, data_stream: List[tuple]):
-        '''Feed in historic data, where data_stream consists of tuples of (price, date).'''
+        """
+        Feed in historic data, where data_stream consists of tuples of (price, date, open, low, high).
+
+        Args:
+            data_stream (List[tuple]): List of tuples with price and date info.
+
+        Returns:
+            None
+        """
         if self.mode == 'verbose':
             print('running simulation...')
 
@@ -110,7 +139,15 @@ class TraderDriver:
 
     @property
     def best_trader_info(self):
-        '''Find the best trading strategy for a given crypto-currency.'''
+        """
+        Find the best trading strategy for a given crypto-currency.
+
+        Args:
+            None
+
+        Returns:
+            dict: Information about the best trader and its performance.
+        """
         best_trader = self.best_trader
 
         # compute init value once again, in case no single trade is made

@@ -32,6 +32,28 @@ class MATrader:
             buy_stas: List[str]=['by_percentage'],
             sell_stas: List[str]=['by_percentage'],
             mode: str='normal'):
+        """
+        Initialize a MATrader instance.
+
+        Args:
+            name (str): Name of the crypto.
+            init_amount (float): Initial cash amount.
+            stat (str): Strategy name.
+            tol_pct (float): Tolerance percentage.
+            ma_lengths (List[int]): Moving average lengths.
+            ema_lengths (List[int]): Exponential moving average lengths.
+            bollinger_mas (List[int]): Bollinger MA lengths.
+            bollinger_sigma (int): Bollinger sigma value.
+            buy_pct (float): Buy percentage.
+            sell_pct (float): Sell percentage.
+            cur_coin (float, optional): Initial coin amount. Defaults to 0.0.
+            buy_stas (List[str], optional): Buy strategies. Defaults to ['by_percentage'].
+            sell_stas (List[str], optional): Sell strategies. Defaults to ['by_percentage'].
+            mode (str, optional): Mode. Defaults to 'normal'.
+
+        Returns:
+            None
+        """
         # check
         if stat not in STRATEGIES:
             raise ValueError('Unknown high-level trading strategy!')
@@ -75,7 +97,17 @@ class MATrader:
         self.strat_dct = collections.defaultdict(list)
 
     def add_new_day(self, new_p: float, d: datetime.datetime, misc_p: dict):
-        '''Add a new day\'s crypto-currency price, find out a computed transaction for today.'''
+        """
+        Add a new day's crypto-currency price, find out a computed transaction for today.
+
+        Args:
+            new_p (float): New price.
+            d (datetime.datetime): Date.
+            misc_p (dict): Miscellaneous price info (open, low, high).
+
+        Returns:
+            None
+        """
         open, low, high = misc_p['open'], misc_p['low'], misc_p['high']
 
         self.crypto_prices.append((new_p, d, open, low, high))
@@ -146,7 +178,16 @@ class MATrader:
             self.strategy_rsi(new_p=new_p, today=d)
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
-        '''Compute and append a new moving average price.'''
+        """
+        Compute and append a new moving average price.
+
+        Args:
+            queue_name (str): Name of the MA queue.
+            new_p (float): New price.
+
+        Returns:
+            None
+        """
         max_l = int(queue_name)
         if len(self.crypto_prices) <= max_l:
             self.moving_averages[queue_name].append(None)
@@ -158,7 +199,16 @@ class MATrader:
         self.moving_averages[queue_name].append(new_ma)
 
     def add_new_exponential_moving_averages(self, queue_name: str, new_p: float):
-        '''Compute and append a new exponential moving average price.'''
+        """
+        Compute and append a new exponential moving average price.
+
+        Args:
+            queue_name (str): Name of the EMA queue.
+            new_p (float): New price.
+
+        Returns:
+            None
+        """
         max_l = int(queue_name)
         if len(self.crypto_prices) <= max_l:
             self.exp_moving_averages[queue_name].append(None)
@@ -176,9 +226,15 @@ class MATrader:
             self.exp_moving_averages[queue_name].append(new_ema)
 
     def compute_macd_related(self):
-        '''Compute macd_diff: 差离值（DIF）的计算： DIF = EMA12 - EMA26
-         and macd_dea: 差离值(above)的9日的EMA.'''
+        """
+        Compute MACD-related values (DIF, DEA).
 
+        Args:
+            None
+
+        Returns:
+            None
+        """
         # when shorter than required, simply add None
         ema12, ema26 = self.exp_moving_averages['12'][-1], self.exp_moving_averages['26'][-1]
         if (ema12 is None or
@@ -206,9 +262,19 @@ class MATrader:
         d: datetime.datetime,
         low: float, high: float,
         open: float, close: float):
-        '''Compute KDJ related arrays with dates, prices of lows, highs, opens and closes.
-        Reference: https://www.zcaijing.com/tzzjygs/28735.html.
-        '''
+        """
+        Compute KDJ related arrays with dates, prices of lows, highs, opens and closes.
+
+        Args:
+            d (datetime.datetime): Date.
+            low (float): Low price.
+            high (float): High price.
+            open (float): Open price.
+            close (float): Close price.
+
+        Returns:
+            None
+        """
         # checking
         assert hasattr(MATrader, 'nine_day_rsv') and hasattr(MATrader, 'kdj_dct'), \
             'Incorrect initialization, KDJ related attributes missing!'
@@ -229,13 +295,17 @@ class MATrader:
     # Core Section: TRADING STRATEGY
     def strategy_moving_average_w_tolerance(self, queue_name: str,
             new_p: float, today: datetime.datetime):
-        '''For a new day's price, find if beyond tolerance level, execute a buy or sell action.
+        """
+        For a new day's price, if beyond tolerance level, execute a buy or sell action.
 
         Args:
             queue_name (str): The name of the queue.
             new_p (float): Today's new price of a currency.
-            today (datetime.datetime):
-        '''
+            today (datetime.datetime): Date.
+
+        Returns:
+            None
+        """
         strat_name = 'MA-SELVES'
         assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
 
@@ -263,15 +333,18 @@ class MATrader:
 
     def strategy_double_moving_averages(self, shorter_queue_name: str, longer_queue_name,
             new_p: float, today: datetime.datetime):
-        '''For a new day's price, if the shorter MA is greater than the longer MA's, execute a buy;
-        otherwise, execute a sell.
+        """
+        For a new day's price, if the shorter MA is greater than the longer MA's, execute a buy; otherwise, execute a sell.
 
         Args:
             shorter_queue_name (str): The name of the queue with shorter interval.
             longer_queue_name (str): The name of the queue with longer interval.
             new_p (float): Today's new price of a currency.
-            today (datetime.datetime):
-        '''
+            today (datetime.datetime): Date.
+
+        Returns:
+            None
+        """
         strat_name = 'DOUBLE-MA'
         assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
 
@@ -300,13 +373,16 @@ class MATrader:
             self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
 
     def strategy_macd(self, new_p, today: datetime.datetime):
-        '''By default, only have 12 and 26 as keys in self.exp_moving_averages, and use 9 for computing
-        the EMA for MACD diff.
+        """
+        MACD-based trading strategy.
 
         Args:
             new_p (float): Today's new price of a currency.
-            today (datetime.datetime):
-        '''
+            today (datetime.datetime): Date.
+
+        Returns:
+            None
+        """
         strat_name = 'MACD'
         assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
 
@@ -337,15 +413,17 @@ class MATrader:
 
     def strategy_bollinger_bands(self, queue_name: str,
             new_p, today: datetime.datetime):
-        '''Trading with Bollinger Band strategy.
-        Buy signal: if today's price <= X's MA - sigma * standard_deviation_of_the_X's_MA;
-        Sell signal: if today's price >= X's MA + sigma * standard_deviation_of_the_X's_MA.
+        """
+        Trading with Bollinger Band strategy.
 
         Args:
             queue_name (str): The name of the queue.
             new_p (float): Today's new price of a currency.
-            today (datetime.datetime):
-        '''
+            today (datetime.datetime): Date.
+
+        Returns:
+            None
+        """
         strat_name = 'BOLL-BANDS'
         assert strat_name in STRATEGIES, 'Unknown trading strategy name!'
 
@@ -385,7 +463,15 @@ class MATrader:
             self.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
 
     def compute_rsi(self, period: int=14):
-        '''Compute the Relative Strength Index (RSI) for the given period.'''
+        """
+        Compute the Relative Strength Index (RSI) for the given period.
+
+        Args:
+            period (int, optional): RSI period. Defaults to 14.
+
+        Returns:
+            float or None: RSI value or None if not enough data.
+        """
         if len(self.crypto_prices) < period + 1:
             return None
         closes = [x[0] for x in self.crypto_prices]
@@ -401,7 +487,19 @@ class MATrader:
         return rsi
 
     def strategy_rsi(self, new_p: float, today: datetime.datetime, period: int=14, overbought: float=70, oversold: float=30):
-        '''RSI-based trading strategy: buy if oversold, sell if overbought.'''
+        """
+        RSI-based trading strategy: buy if oversold, sell if overbought.
+
+        Args:
+            new_p (float): Today's new price of a currency.
+            today (datetime.datetime): Date.
+            period (int, optional): RSI period. Defaults to 14.
+            overbought (float, optional): Overbought threshold. Defaults to 70.
+            oversold (float, optional): Oversold threshold. Defaults to 30.
+
+        Returns:
+            None
+        """
         rsi = self.compute_rsi(period)
         if rsi is None:
             return  # Not enough data yet
@@ -419,15 +517,16 @@ class MATrader:
 
     # basic functionality
     def _execute_one_buy(self, method: str, new_p: float):
-        '''Execute a buy action via a specific method.
+        """
+        Execute a buy action via a specific method.
 
         Args:
             method (str): Which strategy to use.
             new_p (float): Signals a new day's price of a currency.
 
         Returns:
-            (bool): Whether a buy action is executed, given the
-        '''
+            bool: Whether a buy action is executed.
+        """
         if method not in self.strategies['buy']:
             raise ValueError('unknown buy strategy!')
         if self.cash <= 0:
@@ -442,7 +541,16 @@ class MATrader:
         return True
 
     def _execute_one_sell(self, method: str, new_p: float):
-        '''Execute a sell action via a specific method.'''
+        """
+        Execute a sell action via a specific method.
+
+        Args:
+            method (str): Which strategy to use.
+            new_p (float): Signals a new day's price of a currency.
+
+        Returns:
+            bool: Whether a sell action is executed.
+        """
         if method not in self.strategies['sell']:
             raise ValueError('unknown sell strategy!')
         if self.cur_coin <= 0:
@@ -457,7 +565,17 @@ class MATrader:
         return True
 
     def _record_history(self, new_p: float, d: datetime.datetime, action: str):
-        '''Record an event into trade history.'''
+        """
+        Record an event into trade history.
+
+        Args:
+            new_p (float): New price.
+            d (datetime.datetime): Date.
+            action (str): Action taken.
+
+        Returns:
+            None
+        """
         item = {
             'action': action,
             'price': new_p,
@@ -472,7 +590,19 @@ class MATrader:
             print(item)
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
-        '''Deposit more cash to our wallet.'''
+        """
+        Deposit more cash to our wallet.
+
+        Args:
+            c (float): Amount to deposit.
+            new_p (float): New price.
+            d (datetime.datetime): Date.
+
+        Returns:
+            None
+        Raises:
+            ValueError: If c <= 0.
+        """
         if c <= 0:
             raise ValueError('Should deposit a positive amount!')
 
@@ -480,7 +610,19 @@ class MATrader:
         self.record_history(new_p, d, DEPOSIT_CST)
 
     def withdraw(self, c: float, new_p: float, d: datetime.datetime):
-        '''Withdraw some cash out of our wallet.'''
+        """
+        Withdraw some cash out of our wallet.
+
+        Args:
+            c (float): Amount to withdraw.
+            new_p (float): New price.
+            d (datetime.datetime): Date.
+
+        Returns:
+            None
+        Raises:
+            ValueError: If c > self.cash.
+        """
         if c > self.cash:
             raise ValueError('Not enough cash to withdraw!')
 

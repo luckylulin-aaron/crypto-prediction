@@ -1,12 +1,15 @@
 # built-in packages
 import datetime
+import time
 from typing import Any, List
+from datetime import datetime, timedelta
 
 # third-party packages
+import numpy as np
 from coinbase.rest import RESTClient
 # customized packages
-from config import *
-from util import *
+from config import (TIMESPAN, CURS, STABLECOIN)
+from util import timer
 from logger import get_logger
 
 
@@ -22,71 +25,56 @@ class CBProClient:
 
     @timer
     def get_cur_rate(self, name: str):
-        '''For a given currency name, return its latest hour\'s price.
-
-        :argument
-            name (str): Currency name.
-
-        :return
-            res (float): Value in USD.
-
-        :raise
-            ConnectionError (Exception):
-        '''
+        '''For a given currency name, return its latest price using Advanced Trade API.'''
         try:
-            res = self.rest_client.get_product_24hr_stats(name)['last']
+            trades = self.rest_client.get_market_trades(name, limit=1) # The first trade is the most recent
+            res = trades['trades'][0]['price']
         except Exception as e:
-            raise ConnectionError(f'cannot get current rate for {name}')
-
-        res = float(res)
-        return res
+            raise ConnectionError(f'cannot get current rate for {name}: {e}')
+        return float(res)
 
     @timer
-    def get_historic_data(self, name: str, grans: int):
-        '''Get historic rates.
+    def get_historic_data(self, name: str):
+        '''Get historic rates using Advanced Trade API.
 
-        :argument
-            name (str): Currency name.
-            grans (int): Granularity, i.e. desired time slice in seconds; can only be one of the followings:
-                 {60 (1 min), 300 (5 mins), 900 (15 mins), 3600 (1hrs), 21600 (6hrs), 86400 (24hrs)}
+        Args:
+            name (str): The product_id or currency pair (e.g., 'BTC-USD').
 
-        :return
-            res (List[List[float, str, float, float, float]]): Data stream of various prices and dates.
+        Returns:
+            list: Each element is [closing_price (float), date (str, 'YYYY-MM-DD'), open_price (float), low (float), high (float)].
 
-        :raise
-            ConnectionError (Exception):
+        Raises:
+            ConnectionError: If the API call fails or the response is invalid.
         '''
         try:
-            # each request can retrieve up to 300 data points
-            res = self.rest_client.get_product_historic_rates(name, granularity=grans)
-            assert len(res) == 300, 'Length error!'
+            end = datetime.utcnow()
+            start = end - timedelta(days=TIMESPAN)
+            res = self.rest_client.get_candles(
+                name,
+                granularity="ONE_DAY",
+                start=int(start.timestamp()),
+                end=int(end.timestamp())
+            ) # res: <class 'coinbase.rest.types.product_types.GetProductCandlesResponse'>
+            # processing
+            candles = res['candles']
+            parsed = []
+            for item in candles:
+                # item fields are strings, convert as needed
+                closing_price = float(item['close'])
+                fmt_dt_str = datetime.utcfromtimestamp(int(item['start'])).strftime('%Y-%m-%d')
+                open_price = float(item['open'])
+                low = float(item['low'])
+                high = float(item['high'])
+                parsed.append([closing_price, fmt_dt_str, open_price, low, high])
+            # Sort by date ascending
+            parsed = sorted(parsed, key=lambda x: x[1])
+            # Remove today's data if present
+            today_str = datetime.utcnow().strftime('%Y-%m-%d')
+            parsed = [x for x in parsed if x[1] != today_str]
+            return parsed
+
         except Exception as e:
-            raise ConnectionError(f'cannot get historic rates for {name}')
-
-        # WARNING: must flip order!
-        res = sorted(res, key=lambda x: x[0], reverse=False)
-
-        # want formatted datetime for clearer presentation
-        for index,item in enumerate(res):
-            '''Each item looks like: [
-                [ time, low, high, open, close, volume ],
-                [ 1415398768, 0.32, 4.2, 0.35, 4.2, 12.3 ], 
-                    ...
-                ]
-            '''
-            fmt_dt_str = datetime.datetime.fromtimestamp(item[0]).strftime('%Y-%m-%d %H:%M:%S').split(' ')[0]
-            # grab desired variables
-            open_price, closing_price = item[3], item[4]
-            low, high = item[1], item[2]
-            # append to the final list
-            res[index] = [closing_price, fmt_dt_str, open_price, low, high]
-
-        # today as a string
-        today_str = datetime.datetime.now().strftime('%Y-%m-%d')
-        # exclude today's data
-        res = list(filter(lambda x: x[1] != today_str, res))
-
-        return res
+            raise ConnectionError(f'cannot get historic rates for {name}: {e}')
 
     @property
     def portfolio_value(self):
@@ -117,7 +105,7 @@ class CBProClient:
             self.logger.error(f'Exception when calling get_accounts: {e}')
             return []
 
-    def place_buy_order(self, wallet_id: str, amount: float, currency: str, commit: bool = False):
+    def place_buy_order(self, wallet_id: str, amount: float, currency: str, commit: bool=False):
         '''Place and (optionally) execute a buy order.
 
         :argument

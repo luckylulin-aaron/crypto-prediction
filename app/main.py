@@ -1,5 +1,6 @@
 # built-in packages
 import configparser
+from curses import nocbreak
 import datetime
 import json
 import os
@@ -28,7 +29,18 @@ CB_API_SECRET = config['CONFIG']['COINBASE_API_SECRET'].strip('"')
 
 
 def main():
-    '''Run simulation and make trades.'''
+    """
+    Run simulation and make trades.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Raises:
+        Exception: If there is an error during portfolio value retrieval or trading simulation.
+    """
 
     logger.info(f'COMMIT is set to {COMMIT}')
     log_file = './log.txt'
@@ -55,8 +67,11 @@ def main():
 
     for index,cur_name in enumerate(CURS):
         logger.info(f'[{index+1}] processing for currency={cur_name}...')
-        cur_rate = client.get_cur_rate(cur_name + '-USD')
-        data_stream = client.get_historic_data(cur_name + '-USD', SECONDS_IN_ONE_DAY)
+        cur_rate = client.get_cur_rate(name=cur_name + '-USD')
+        logger.info(f'current rate for {cur_name + "-USD"}: {cur_rate}')
+        data_stream = client.get_historic_data(name=cur_name + '-USD')
+        logger.info(f'data_stream: {data_stream}')
+        time.sleep(120)
 
         # cut-off, only want the last X days of data
         data_stream = data_stream[-TIMESPAN:]
