@@ -122,14 +122,14 @@ def main():
         )
         signal = best_t.trade_signal
 
-        logger.info(f'examine best trader performance: {info}')
-        logger.info(f'maximum drawdown / 最大回撤: {best_t.max_drawdown}')
-        logger.info(f'number of transaction / 总的交易数: {best_t.num_transaction}')
-        logger.info(f'high-level trading strategy / 高级交易策略: {best_t.high_strategy}')
-        logger.info(f'number of buy action / 买入次数: {best_t.num_buy_action}')
-        logger.info(f'number of sell action / 卖出次数: {best_t.num_sell_action}')
-
-        logger.info(f'for crypto={best_t.crypto_name}, today\'s signal={signal}')
+        logger.info(
+            f"Best trader performance: {info}\n"
+            f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
+            f"Transactions: {best_t.num_transaction}, "
+            f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
+            f"Strategy: {best_t.high_strategy}\n"
+            f"Today's signal: {signal} for crypto={best_t.crypto_name}"
+        )
 
         # if too less, we leave
         if cash <= EP_CASH and signal == BUY_SIGNAL:
