@@ -1,11 +1,11 @@
 # built-in packages
 import configparser
-from curses import nocbreak
 import datetime
 import json
 import os
 import sys
 import time
+from curses import nocbreak
 
 # third-party packages
 import numpy as np
@@ -14,9 +14,11 @@ import schedule
 # customized packages
 from cbpro_client import CBProClient
 from config import *
+from logger import get_logger
 from trader_driver import TraderDriver
 from util import display_port_msg, load_csv
-from logger import get_logger
+from visualization import (create_comprehensive_dashboard,
+                           create_portfolio_value_chart)
 
 logger = get_logger(__name__)
 
@@ -130,6 +132,31 @@ def main():
             f"Strategy: {best_t.high_strategy}\n"
             f"Today's signal: {signal} for crypto={best_t.crypto_name}"
         )
+
+        # Generate visualizations for the best trader
+        try:
+            logger.info("Generating trading visualizations...")
+            
+            # Create comprehensive dashboard
+            dashboard_filename = f"trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            dashboard = create_comprehensive_dashboard(
+                trader_instance=best_t,
+                save_html=True,
+                filename=dashboard_filename
+            )
+            logger.info(f"Dashboard saved to: {dashboard_filename}")
+            
+            # Create individual portfolio chart
+            portfolio_filename = f"portfolio_chart_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            portfolio_chart = create_portfolio_value_chart(
+                trade_history=best_t.trade_history,
+                title=f"Portfolio Value - {cur_name} ({best_t.high_strategy})"
+            )
+            portfolio_chart.write_html(portfolio_filename)
+            logger.info(f"Portfolio chart saved to: {portfolio_filename}")
+            
+        except Exception as e:
+            logger.error(f"Error generating visualizations: {e}")
 
         # if too less, we leave
         if cash <= EP_CASH and signal == BUY_SIGNAL:
