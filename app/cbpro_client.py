@@ -78,28 +78,47 @@ class CBProClient:
 
     @property
     def portfolio_value(self):
-        '''Computes portfolio value for an account using Advanced Trade API.'''
+        '''
+        Computes portfolio value for an account using Advanced Trade API, where
+        v_crypto is sum of CURS, v_stable is sum of STABLECOIN.
+
+        Returns:
+            tuple: (v_crypto, v_stable): Portfolio value in USDT for crypto and stablecoin.
+
+        Raises:
+        '''
         wallets = self.get_wallets()
-        self.logger.debug(f'wallets: {wallets}')
-        v_crypto, v_stable = 0, 0
+        # self.logger.info(f'wallets: {wallets}')
+        v_crypto = v_stable = 0
+
         for item in wallets:
             try:
                 delta_v = float(item['available_balance']['value'])
-                if item['type'] == 'ACCOUNT_TYPE_CRYPTO':
-                    v_crypto += delta_v
+                if item['currency'] in CURS:
+                    coin_cur_rate = self.get_cur_rate(name=item['currency'] + '-USD')
+                    v_crypto += coin_cur_rate * float(item['available_balance']['value'])
                 elif item['currency'] in STABLECOIN:
                     v_stable += delta_v
             except Exception as e:
                 self.logger.error(f'Exception processing wallet item: {item}, error: {e}')
                 continue
+
         return np.round(v_crypto, 2), np.round(v_stable, 2)
 
     def get_wallets(self, cur_names: List[str]=[*CURS, *STABLECOIN]):
-        '''Retrieve wallet information for pre-defined currency names using Advanced Trade API.'''
+        '''
+        Retrieve wallet information for pre-defined currency names using Advanced Trade API.
+
+        Args:
+            cur_names (list): List of currency names to retrieve.
+
+        Returns:
+            list: List of wallet dictionaries.
+        '''
         try:
             accounts = self.rest_client.get_accounts()
             wallets = [x for x in accounts.accounts if x['currency'] in cur_names]
-            self.logger.debug(f'get_accounts response: {wallets}')
+            self.logger.info(f'get_accounts response: {wallets}')
             return wallets
         except Exception as e:
             self.logger.error(f'Exception when calling get_accounts: {e}')

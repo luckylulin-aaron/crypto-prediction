@@ -58,20 +58,18 @@ def main():
     try:
         logger.info('Getting portfolio value...')
         v_c1, v_s1 = client.portfolio_value
-        logger.info(f'Portfolio value before: {v_c1}, {v_s1}')
+        logger.info(f'Portfolio value before, crypto={v_c1}, stablecoin={v_s1}')
     except Exception as e:
         logger.error(f'Error getting portfolio value: {e}')
         return
 
+    return
     display_port_msg(v_c=v_c1, v_s=v_s1, before=True)
 
     for index,cur_name in enumerate(CURS):
         logger.info(f'[{index+1}] processing for currency={cur_name}...')
         cur_rate = client.get_cur_rate(name=cur_name + '-USD')
-        logger.info(f'current rate for {cur_name + "-USD"}: {cur_rate}')
         data_stream = client.get_historic_data(name=cur_name + '-USD')
-        logger.info(f'data_stream: {data_stream}')
-        time.sleep(120)
 
         # cut-off, only want the last X days of data
         data_stream = data_stream[-TIMESPAN:]
@@ -81,6 +79,9 @@ def main():
         _, cash = client.portfolio_value
         # initial coin at hand
         wallet = client.get_wallets(cur_names=[cur_name])
+        logger.info(f'wallet: {wallet}')
+        time.sleep(30)
+
         cur_coin, wallet_id = None, None
         for item in wallet:
             if item['currency'] == cur_name and item['type'] == 'ACCOUNT_TYPE_CRYPTO':

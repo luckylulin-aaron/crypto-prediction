@@ -23,7 +23,7 @@ BUY_STAS = ('by_percentage')
 SELL_STAS = ('by_percentage')
 
 # currencies (crptocurrency + stablecoin + fiat)
-CURS = ['BTC', 'ETH', 'LTC', 'BCH', 'ETC', 'OMG', 'LINK', 'ADA', 'ATOM']
+CURS = ['SOL', 'ETH']
 FIAT = ['USD', 'SGD']
 STABLECOIN = ['USDC', 'USDT']  # Stablecoins for trading with cryptos
 
@@ -43,4 +43,4 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 3
+TIMESPAN = 30
