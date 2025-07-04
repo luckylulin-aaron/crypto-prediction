@@ -93,20 +93,20 @@ class CBProClient:
         '''Computes portfolio value for an account using Advanced Trade API.'''
         wallets = self.get_wallets()
         self.logger.debug(f'wallets: {wallets}')
-        v_crypto, v_fiat = 0, 0
+        v_crypto, v_stable = 0, 0
         for item in wallets:
             try:
                 delta_v = float(item['available_balance']['value'])
                 if item['type'] == 'ACCOUNT_TYPE_CRYPTO':
                     v_crypto += delta_v
-                elif item['type'] == 'ACCOUNT_TYPE_FIAT':
-                    v_fiat += delta_v
+                elif item['currency'] in STABLECOIN:
+                    v_stable += delta_v
             except Exception as e:
                 self.logger.error(f'Exception processing wallet item: {item}, error: {e}')
                 continue
-        return v_crypto, v_fiat
+        return np.round(v_crypto, 2), np.round(v_stable, 2)
 
-    def get_wallets(self, cur_names: List[str]=[*CURS, *FIAT]):
+    def get_wallets(self, cur_names: List[str]=[*CURS, *STABLECOIN]):
         '''Retrieve wallet information for pre-defined currency names using Advanced Trade API.'''
         try:
             accounts = self.rest_client.get_accounts()

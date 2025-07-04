@@ -43,22 +43,21 @@ def load_csv(csv_fn='../models/BTC_HISTORY.csv') -> tuple([str, List[Any]]):
 
     return name, l
 
-def display_port_msg(v_c: float, v_f: float, before: bool=True) -> None:
+def display_port_msg(v_c: float, v_s: float, before: bool=True) -> None:
     '''Display portfolio message in certain format.
 
     Args:
         v_c (float):
-        v_f (float):
+        v_s (float):
         before (bool):
 
     Returns:
     '''
     now = datetime.datetime.now()
     stage = 'before' if before else 'after'
-    s = v_c + v_f
+    s = v_c + v_s
 
-    print('\n{} transaction, by {}, crypto_value={:.2f}, fiat_value={:.2f}, \
-          amount to {:.2f}'.format(stage, now, v_c, v_f, s))
+    print('\n{} transaction, by {}, crypto_value={:.2f}, stablecoin_value={:.2f}, amount to {:.2f}'.format(stage, now, v_c, v_s, s))
 
 def max_drawdown_helper(hist_l: List[float]) -> float:
     '''Compute max drawdown (最大回撤) for a given portfolio value history.
@@ -81,7 +80,7 @@ def max_drawdown_helper(hist_l: List[float]) -> float:
 
 def ema_helper(new_price: float, old_ema: float, num_of_days: int) -> float:
     '''Helper function to compute a new EMA. According to formula:
-        - EMA = (today’s closing price * K) + (Previous EMA * (1 – K));
+        - EMA = (today's closing price * K) + (Previous EMA * (1 – K));
         - Smoothing Factor = 2/(N+1), N: number of days.
 
     Args:

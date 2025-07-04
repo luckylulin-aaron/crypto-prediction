@@ -45,13 +45,13 @@ def main():
     # before
     try:
         logger.info('Getting portfolio value...')
-        v_c1, v_f1 = client.portfolio_value
-        logger.info(f'Portfolio value before: {v_c1}, {v_f1}')
+        v_c1, v_s1 = client.portfolio_value
+        logger.info(f'Portfolio value before: {v_c1}, {v_s1}')
     except Exception as e:
         logger.error(f'Error getting portfolio value: {e}')
         return
 
-    display_port_msg(v_c=v_c1, v_f=v_f1, before=True)
+    display_port_msg(v_c=v_c1, v_s=v_s1, before=True)
 
     for index,cur_name in enumerate(CURS):
         logger.info(f'[{index+1}] processing for currency={cur_name}...')
@@ -86,8 +86,8 @@ def main():
             bollinger_tols=BOLLINGER_TOLS,
             buy_pcts=BUY_PCTS,
             sell_pcts=SELL_PCTS,
-            buy_stas=BUY_STAS,
-            sell_stas=SELL_STAS,
+            buy_stas=list(BUY_STAS) if isinstance(BUY_STAS, (list, tuple)) else [BUY_STAS],
+            sell_stas=list(SELL_STAS) if isinstance(SELL_STAS, (list, tuple)) else [SELL_STAS],
             mode=mode
         )
 
@@ -152,8 +152,8 @@ def main():
                 logger.info('no action performed as simulation suggests.')
 
     # after
-    v_c2, v_f2 = client.portfolio_value
-    display_port_msg(v_c=v_c2, v_f=v_f2, before=False)
+    v_c2, v_s2 = client.portfolio_value
+    display_port_msg(v_c=v_c2, v_s=v_s2, before=False)
 
     # write to log file
     now = datetime.datetime.now()
