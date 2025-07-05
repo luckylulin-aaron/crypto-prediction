@@ -4,11 +4,11 @@ A sophisticated cryptocurrency trading bot with web interface, built with Python
 
 ## 🚀 Features
 
-- **Multiple Trading Strategies**: RSI, KDJ, Moving Averages, Bollinger Bands
+- **Multiple Trading Strategies**: 11 strategies including 5 advanced composite strategies
 - **Bias-Free Simulation**: Configurable simulation methods to eliminate trading bias
 - **Web Dashboard**: Interactive Flask-based web interface
 - **Real-time Monitoring**: Live status updates and performance tracking
-- **Interactive Visualizations**: Plotly-based charts and dashboards
+- **Enhanced Visualizations**: Plotly-based charts with winning strategy names
 - **API Integration**: Coinbase Advanced Trade API
 - **Automated Trading**: Configurable trading parameters and risk management
 - **Comprehensive Logging**: Detailed logging and error tracking
@@ -300,25 +300,64 @@ crypto-prediction/
 
 ## 📈 Trading Strategies
 
-### RSI Strategy
+### Basic Strategies
+
+**RSI Strategy**
 - **Buy Signal**: RSI < 30 (oversold)
 - **Sell Signal**: RSI > 70 (overbought)
 - **Parameters**: Configurable thresholds
 
-### KDJ Strategy
+**KDJ Strategy**
 - **Buy Signal**: KDJ < 20 (oversold)
 - **Sell Signal**: KDJ > 80 (overbought)
 - **Parameters**: Configurable thresholds
 
-### Moving Average Strategy
+**Moving Average Strategy (MA-SELVES)**
 - **Buy Signal**: Price crosses above MA
 - **Sell Signal**: Price crosses below MA
 - **Parameters**: Multiple MA periods
 
-### Bollinger Bands Strategy
+**Bollinger Bands Strategy**
 - **Buy Signal**: Price touches lower band
 - **Sell Signal**: Price touches upper band
 - **Parameters**: MA period and standard deviation
+
+### Advanced Composite Strategies
+
+**MA-MACD Strategy**
+- **Description**: Combines Moving Average and MACD signals
+- **Logic**: Requires both MA signal AND MACD confirmation
+- **Buy**: MA shows oversold AND MACD shows bullish
+- **Sell**: MA shows overbought AND MACD shows bearish
+- **Advantage**: Reduces false signals by requiring dual confirmation
+
+**MACD-KDJ Strategy**
+- **Description**: Combines momentum (MACD) and oscillator (KDJ) signals
+- **Logic**: Requires both momentum and oscillator confirmation
+- **Buy**: MACD bullish AND KDJ oversold
+- **Sell**: MACD bearish AND KDJ overbought
+- **Advantage**: Captures both trend and reversal signals
+
+**RSI-BOLL Strategy**
+- **Description**: Combines RSI momentum with Bollinger Bands volatility
+- **Logic**: Uses RSI for momentum and Bollinger Bands for volatility confirmation
+- **Buy**: RSI oversold AND price at lower Bollinger band
+- **Sell**: RSI overbought AND price at upper Bollinger band
+- **Advantage**: Confirms momentum with volatility breakout
+
+**TRIPLE-SIGNAL Strategy**
+- **Description**: Combines MA, MACD, and RSI signals
+- **Logic**: Requires confirmation from at least 2 out of 3 signals
+- **Buy**: At least 2 buy signals from MA, MACD, RSI
+- **Sell**: At least 2 sell signals from MA, MACD, RSI
+- **Advantage**: Maximum signal confirmation, reduces false positives
+
+**CONSERVATIVE-MA Strategy**
+- **Description**: Moving Average with multiple period confirmation
+- **Logic**: Requires price to stay beyond tolerance for multiple periods
+- **Buy**: Price below MA for most periods (2 out of 3)
+- **Sell**: Price above MA for most periods (2 out of 3)
+- **Advantage**: Reduces whipsaws and false breakouts
 
 ## 🔒 Security
 

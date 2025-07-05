@@ -452,17 +452,20 @@ def create_comprehensive_dashboard(
     Returns:
         plotly.graph_objects.Figure: Dashboard figure
     """
+    # Get strategy name for subplot titles
+    strategy_name = getattr(trader_instance, 'high_strategy', 'Unknown Strategy')
+    
     # Create subplots
     fig = make_subplots(
         rows=3,
         cols=2,
         subplot_titles=(
-            "Portfolio Value Over Time",
-            "Asset Allocation",
-            "Price History with Signals",
-            "Drawdown Analysis",
-            "Performance Comparison",
-            "Returns Distribution",
+            f"Portfolio Value Over Time - {strategy_name}",
+            f"Asset Allocation - {strategy_name}",
+            f"Price History with Signals - {strategy_name}",
+            f"Drawdown Analysis - {strategy_name}",
+            f"Performance Comparison - {strategy_name}",
+            f"Returns Distribution - {strategy_name}",
         ),
         specs=[
             [{"secondary_y": False}, {"secondary_y": False}],
@@ -479,22 +482,35 @@ def create_comprehensive_dashboard(
         return fig
 
     # 1. Portfolio Value Chart
-    portfolio_fig = create_portfolio_value_chart(trade_history)
+    portfolio_fig = create_portfolio_value_chart(
+        trade_history, 
+        title=f"Portfolio Value Over Time - {strategy_name}"
+    )
     for trace in portfolio_fig.data:
         fig.add_trace(trace, row=1, col=1)
 
     # 2. Asset Allocation Chart
-    allocation_fig = create_asset_allocation_chart(trade_history)
+    allocation_fig = create_asset_allocation_chart(
+        trade_history,
+        title=f"Asset Allocation - {strategy_name}"
+    )
     for trace in allocation_fig.data:
         fig.add_trace(trace, row=1, col=2)
 
     # 3. Price and Signals Chart
-    price_fig = create_price_and_signals_chart(crypto_prices, trade_history)
+    price_fig = create_price_and_signals_chart(
+        crypto_prices, 
+        trade_history,
+        title=f"Price History with Signals - {strategy_name}"
+    )
     for trace in price_fig.data:
         fig.add_trace(trace, row=2, col=1)
 
     # 4. Drawdown Chart
-    drawdown_fig = create_drawdown_chart(trade_history)
+    drawdown_fig = create_drawdown_chart(
+        trade_history,
+        title=f"Drawdown Analysis - {strategy_name}"
+    )
     for trace in drawdown_fig.data:
         fig.add_trace(trace, row=2, col=2)
 
@@ -506,7 +522,7 @@ def create_comprehensive_dashboard(
             x=df["date"],
             y=df["portfolio"],
             mode="lines",
-            name="Strategy Performance",
+            name=f"Strategy Performance ({strategy_name})",
             line=dict(color="blue", width=2),
         ),
         row=3,
@@ -514,13 +530,17 @@ def create_comprehensive_dashboard(
     )
 
     # 6. Returns Distribution
-    returns_fig = create_returns_distribution_chart(trade_history)
+    returns_fig = create_returns_distribution_chart(
+        trade_history,
+        title=f"Returns Distribution - {strategy_name}"
+    )
     for trace in returns_fig.data:
         fig.add_trace(trace, row=3, col=2)
 
-    # Update layout
+    # Update layout with strategy name
+    strategy_name = getattr(trader_instance, 'high_strategy', 'Unknown Strategy')
     fig.update_layout(
-        title=f"Trading Strategy Dashboard - {trader_instance.crypto_name}",
+        title=f"Trading Strategy Dashboard - {trader_instance.crypto_name} ({strategy_name})",
         height=1200,
         showlegend=True,
         template="plotly_white",

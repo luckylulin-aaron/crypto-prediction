@@ -7,7 +7,20 @@ COMMIT = False
 # strategies
 # MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)
 # DOUBLE-MA: create several moving averages; trades are made via pair-wise comparison
-STRATEGIES = ["MA-SELVES", "DOUBLE-MA", "MACD", "BOLL-BANDS", "COMPOUND", "KDJ", "RSI"]
+# Advanced composite strategies combine multiple signals for better decision-making
+STRATEGIES = [
+    "MA-SELVES",      # Original moving average strategy
+    "DOUBLE-MA",      # Double moving average crossover
+    "MACD",           # MACD momentum indicator
+    "BOLL-BANDS",     # Bollinger Bands volatility strategy
+    "RSI",            # Relative Strength Index
+    "KDJ",            # KDJ oscillator
+    "MA-MACD",        # Combined MA + MACD (requires both signals)
+    "MACD-KDJ",       # Combined MACD + KDJ (momentum + oscillator)
+    "RSI-BOLL",       # Combined RSI + Bollinger Bands
+    "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
+    "CONSERVATIVE-MA" # MA with multiple period confirmation
+]
 
 # simulation configuration
 TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
@@ -23,7 +36,7 @@ BUY_STAS = "by_percentage"
 SELL_STAS = "by_percentage"
 
 # currencies (crptocurrency + stablecoin + fiat)
-CURS = ["SOL", "ETH"]
+CURS = ["SOL"]
 FIAT = ["USD", "SGD"]
 STABLECOIN = ["USDC", "USDT"]  # Stablecoins for trading with cryptos
 
@@ -43,7 +56,7 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 120
+TIMESPAN = 90
 
 # Simulation Configuration
 SIMULATION_METHOD = "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
