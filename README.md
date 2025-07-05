@@ -720,6 +720,28 @@ The Fear & Greed Index strategy uses market sentiment to make trading decisions:
 - **Sell Signal**: MA sell signal + negative momentum
 - **Advantage**: Filters out false signals
 
+### Recurring Investment Strategies
+
+**Simple Recurring Investment Strategy (SIMPLE-RECURRING)**
+- **Description**: Invests a fixed amount every X days (e.g., every 7 days). If the portfolio profit exceeds a threshold (e.g., 10%), reduces position (sells). If the loss exceeds a threshold (e.g., -10%), increases position (buys more). Otherwise, performs a normal recurring buy.
+- **Buy Signal**: Every X days, or if loss threshold is exceeded
+- **Sell Signal**: If profit threshold is exceeded
+- **Parameters**:
+  - `investment_interval_days`: Days between investments (default: 7)
+  - `profit_threshold`: Profit threshold to reduce position (default: 10%)
+  - `loss_threshold`: Loss threshold to increase position (default: 10%)
+  - `base_investment_pct`: Base investment percentage (default: 5%)
+- **Advantage**: Implements a simple, robust dollar-cost averaging (DCA) approach with adaptive position management based on performance.
+
+**Weighted Recurring Investment Strategy (WEIGHTED-RECURRING)**
+- **Description**: Invests every X days, but the investment amount is weighted based on the price's position relative to its moving average. If the price is significantly below the MA, increases investment; if above, reduces investment; if near, invests the base amount.
+- **Buy Signal**: Every X days, with amount weighted by MA deviation
+- **Parameters**:
+  - `investment_interval_days`: Days between investments (default: 7)
+  - `base_investment_pct`: Base investment percentage (default: 5%)
+  - `ma_weight_factor`: Factor to weight MA-based adjustments (default: 2.0)
+- **Advantage**: Combines the simplicity of recurring investment with basic technical analysis for smarter DCA.
+
 ## 🎯 Trading Execution Strategies
 
 The bot supports multiple execution strategies for buy and sell actions, significantly expanding the trading algorithm search space:

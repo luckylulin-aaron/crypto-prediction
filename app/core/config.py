@@ -28,6 +28,8 @@ STRATEGIES = [
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
     "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
     "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
+    "SIMPLE-RECURRING",  # Simple recurring investment strategy
+    "WEIGHTED-RECURRING",  # Weighted recurring investment based on MA
 ]
 
 # simulation configuration
@@ -53,6 +55,13 @@ KDJ_OVERBOUGHT_THRESHOLDS = [70, 80, 90]  # Overbought thresholds (sell signals)
 FEAR_GREED_BUY_THRESHOLDS = [20, 30]  # Buy when index is below these values (fear/extreme fear)
 FEAR_GREED_SELL_THRESHOLDS = [70, 80]  # Sell when index is above these values (greed/extreme greed)
 FEAR_GREED_STRATEGY_NAME = "FEAR-GREED-SENTIMENT"  # Strategy name for identification
+
+# Recurring Investment Strategy Configuration
+RECURRING_INVESTMENT_INTERVALS = [3, 7, 14, 30]  # Days between investments
+RECURRING_PROFIT_THRESHOLDS = [0.05, 0.10, 0.15]  # Profit thresholds for position reduction
+RECURRING_LOSS_THRESHOLDS = [0.05, 0.10, 0.15]  # Loss thresholds for position increase
+RECURRING_BASE_INVESTMENT_PCTS = [0.03, 0.05, 0.10]  # Base investment percentages
+RECURRING_MA_WEIGHT_FACTORS = [1.0, 2.0, 3.0]  # MA weight factors for weighted strategy
 
 # Trading execution strategies
 BUY_STAS = ["by_percentage", "fixed_amount", "market_order"]
