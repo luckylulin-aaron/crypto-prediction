@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 # Import trading bot components
 from cbpro_client import CBProClient
 from config import *
+from database import db_manager
 from logger import get_logger
 from trader_driver import TraderDriver
 from util import display_port_msg, calculate_simulation_amounts
@@ -442,6 +443,49 @@ def health_check():
             "client_initialized": client is not None,
         }
     )
+
+
+@app.route("/api/database/stats")
+def get_database_stats():
+    """Get database statistics."""
+    try:
+        stats = db_manager.get_data_statistics()
+        return jsonify({
+            "status": "success",
+            "data": [
+                {
+                    "symbol": symbol,
+                    "record_count": count,
+                    "last_updated": last_updated.isoformat() if last_updated else None
+                }
+                for symbol, count, last_updated in stats
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Error getting database stats: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@app.route("/api/database/clear", methods=["POST"])
+def clear_old_data():
+    """Clear old data from database."""
+    try:
+        data = request.get_json() or {}
+        days = data.get("days", 365)
+        deleted_count = db_manager.clear_old_data(days)
+        return jsonify({
+            "status": "success",
+            "message": f"Deleted {deleted_count} records older than {days} days"
+        })
+    except Exception as e:
+        logger.error(f"Error clearing old data: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 
 def main():
