@@ -2,8 +2,8 @@
 Test to verify Poetry setup and basic imports work correctly.
 """
 
-import sys
 import os
+import sys
 
 # Add the app directory to the Python path for testing
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
@@ -12,15 +12,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
 def test_imports():
     """Test that all main modules can be imported."""
     try:
+        import cbpro_client
         import config
         import logger
-        import util
-        import cbpro_client
         import ma_trader
-        import trader_driver
-        import strategies
-        import visualization
         import server
+        import strategies
+        import trader_driver
+        import util
+        import visualization
         print("✅ All modules imported successfully")
         return True
     except ImportError as e:
@@ -59,9 +59,9 @@ def test_poetry_dependencies():
     """Test that Poetry dependencies are available."""
     try:
         import flask
-        import plotly
-        import pandas
         import numpy
+        import pandas
+        import plotly
         import requests
         print("✅ Poetry dependencies available")
         return True

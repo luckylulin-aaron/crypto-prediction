@@ -7,12 +7,14 @@ import os
 import sys
 
 # Add the app directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'app'))
+app_dir = os.path.join(os.path.dirname(__file__), 'app')
+sys.path.insert(0, app_dir)
 
 # Import and run the server
-from app.server import app, initialize_client
+from server import app, initialize_client
 
-if __name__ == '__main__':
+def main():
+    """Main function for Poetry script entry point."""
     print("🚀 Starting Crypto Trading Bot Web Server...")
     
     # Initialize client
@@ -28,4 +30,7 @@ if __name__ == '__main__':
     else:
         print("❌ Failed to initialize Coinbase client")
         print("Please check your API credentials in app/screte.ini")
-        sys.exit(1) 
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main() 

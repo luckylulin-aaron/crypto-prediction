@@ -14,6 +14,9 @@ import configparser
 from typing import Dict, List, Optional
 import traceback
 
+# Add the app directory to the Python path
+sys.path.insert(0, os.path.dirname(__file__))
+
 # Import trading bot components
 from cbpro_client import CBProClient
 from config import *
@@ -155,8 +158,8 @@ def run_trading_simulation():
                     plots_dir = os.path.join(os.path.dirname(__file__), 'plots')
                     os.makedirs(plots_dir, exist_ok=True)
                     
-                    # Create comprehensive dashboard
-                    dashboard_filename = f"plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                    # Create comprehensive dashboard (relative to project root)
+                    dashboard_filename = f"app/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
                     dashboard = create_comprehensive_dashboard(
                         trader_instance=best_t,
                         save_html=True,

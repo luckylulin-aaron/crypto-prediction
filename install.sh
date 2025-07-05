@@ -7,9 +7,10 @@ set -e  # Exit on any error
 echo "🚀 Setting up Crypto Trading Bot with Poetry..."
 
 # Check if Python 3.8+ is installed
-python_version=$(python3 --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+python_version=$(python3 --version 2>&1 | sed 's/Python \([0-9]\+\.[0-9]\+\).*/\1/')
 required_version="3.8"
 
+# Compare versions (works on both macOS and Linux)
 if [ "$(printf '%s\n' "$required_version" "$python_version" | sort -V | head -n1)" != "$required_version" ]; then
     echo "❌ Error: Python 3.8 or higher is required. Found: $python_version"
     exit 1

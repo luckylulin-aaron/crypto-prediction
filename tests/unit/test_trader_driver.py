@@ -1,16 +1,15 @@
 # built-in packages
-import sys
-import unittest
-
 # third-party packages
 import datetime
+import sys
+import unittest
 
 # customized packages
 sys.path.insert(0, '../../app')
 
-from config import *
-from credentials import (CB_API_KEY, CB_API_SECRET)
 from cbpro_client import CBProClient
+from config import *
+from credentials import CB_API_KEY, CB_API_SECRET
 from trader_driver import TraderDriver
 from util import *
 
