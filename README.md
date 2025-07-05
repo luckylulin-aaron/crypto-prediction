@@ -8,7 +8,7 @@ A sophisticated cryptocurrency trading bot with web interface, built with Python
 - **Bias-Free Simulation**: Configurable simulation methods to eliminate trading bias
 - **Web Dashboard**: Interactive Flask-based web interface
 - **Real-time Monitoring**: Live status updates and performance tracking
-- **Enhanced Visualizations**: Plotly-based charts with winning strategy names
+- **Enhanced Visualizations**: Plotly-based charts with winning strategy names and execution strategies
 - **API Integration**: Coinbase Advanced Trade API
 - **Automated Trading**: Configurable trading parameters and risk management
 - **Comprehensive Logging**: Detailed logging and error tracking
@@ -722,6 +722,37 @@ The bot automatically tests all combinations of:
 - **Parameters** (percentages, tolerances, periods)
 
 This creates a comprehensive search space of **6,075+ strategy combinations** for each cryptocurrency!
+
+## 📊 Visualization Features
+
+### **Interactive Dashboards**
+The bot generates comprehensive interactive dashboards showing:
+
+- **Portfolio Value Over Time**: Track portfolio performance with buy/sell signals
+- **Asset Allocation**: Visualize crypto vs cash allocation changes
+- **Price History with Signals**: See price movements and trading signals
+- **Drawdown Analysis**: Monitor portfolio decline from peak values
+- **Performance Comparison**: Compare strategy vs buy & hold performance
+- **Returns Distribution**: Analyze daily return patterns
+
+### **Execution Strategy Display**
+All visualizations now include the selected execution strategies in their titles:
+
+- **Buy Strategies**: Shows which buy execution method was selected (by_percentage, fixed_amount, market_order)
+- **Sell Strategies**: Shows which sell execution method was selected (by_percentage, stop_loss, take_profit)
+- **Strategy Combination**: Displays the complete strategy configuration used
+
+**Example Title**: 
+```
+Trading Strategy Dashboard - SOL (MA-SELVES)
+Buy: by_percentage, fixed_amount, market_order | Sell: by_percentage, stop_loss, take_profit
+```
+
+### **Chart Types**
+- **Interactive HTML**: All charts are saved as interactive HTML files
+- **Plotly Integration**: Professional-quality interactive visualizations
+- **Real-time Updates**: Charts update with each trading simulation
+- **Export Ready**: Charts can be easily shared or embedded in reports
 
 ## 🔒 Security
 

@@ -164,7 +164,7 @@ class CBProClient:
             for wallet in wallets:
                 balance = float(wallet["available_balance"]["value"])
                 if balance > 0:  # Only log wallets with non-zero balance
-                    self.logger.info(f"Wallet: {wallet['currency']} - Balance: {balance}")
+                    self.logger.info(f"Wallet: {wallet['currency']} - Balance: {balance:.3f}")
             
             return wallets
         except Exception as e:

@@ -135,7 +135,7 @@ def run_trading_simulation():
                             item["uuid"],
                         )
 
-                logger.info("cur_coin={}, wallet_id={}".format(cur_coin, wallet_id))
+                logger.info("cur_coin={:.3f}, wallet_id={}".format(cur_coin, wallet_id))
                 assert (
                     cur_coin is not None and wallet_id is not None
                 ), f"cannot find relevant wallet for {cur_name}!"

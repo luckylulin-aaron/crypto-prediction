@@ -97,7 +97,7 @@ def main():
             return
 
         logger.info(
-            "cur_coin={}, wallet_id={}".format(np.round(cur_coin, 2), wallet_id)
+            "cur_coin={:.3f}, wallet_id={}".format(cur_coin, wallet_id)
         )
 
         # Calculate simulation amounts using configurable method
