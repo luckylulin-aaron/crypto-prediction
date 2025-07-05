@@ -596,14 +596,21 @@ psql crypto_trading < backup_20240115.sql
 ### Basic Strategies
 
 **RSI Strategy**
-- **Buy Signal**: RSI < 30 (oversold)
-- **Sell Signal**: RSI > 70 (overbought)
-- **Parameters**: Configurable thresholds
+The RSI strategy uses the Relative Strength Index to identify overbought and oversold conditions:
+- **Buy Signal**: When RSI falls below the oversold threshold (default: 30)
+- **Sell Signal**: When RSI rises above the overbought threshold (default: 70)
+- **Parameters**: 
+  - RSI periods: [7, 14, 21]
+  - Oversold thresholds: [10, 20, 30]
+  - Overbought thresholds: [70, 80, 90]
 
 **KDJ Strategy**
-- **Buy Signal**: KDJ < 20 (oversold)
-- **Sell Signal**: KDJ > 80 (overbought)
-- **Parameters**: Configurable thresholds
+The KDJ strategy uses the KDJ oscillator to identify momentum and trend changes:
+- **Buy Signal**: When KDJ falls below the oversold threshold (default: 20)
+- **Sell Signal**: When KDJ rises above the overbought threshold (default: 80)
+- **Parameters**:
+  - Oversold thresholds: [10, 20, 30]
+  - Overbought thresholds: [70, 80, 90]
 
 **Moving Average Strategy (MA-SELVES)**
 - **Buy Signal**: Price crosses above MA
@@ -853,4 +860,22 @@ poetry install
 - [Coinbase Advanced Trade API Documentation](https://docs.cloud.coinbase.com/advanced-trade-api/docs/rest-api-overview)
 - [Flask Documentation](https://flask.palletsprojects.com/)
 - [Plotly Documentation](https://plotly.com/python/)
-- [Poetry Documentation](https://python-poetry.org/docs/) 
+- [Poetry Documentation](https://python-poetry.org/docs/)
+
+### Strategy Parameters
+- **RSI Strategy**: Configure periods, oversold, and overbought thresholds
+- **KDJ Strategy**: Configure oversold and overbought thresholds
+- **Moving Averages**: Configure MA lengths, EMA lengths, and Bollinger Bands parameters
+- **Tolerance Percentages**: Fine-tune buy/sell decision thresholds 
+
+## Configuration
+
+The bot uses a comprehensive configuration system that allows for extensive parameter optimization:
+
+### Search Space Expansion
+The bot automatically tests multiple parameter combinations for each strategy:
+- **RSI Strategy**: Tests 3 periods × 3 oversold thresholds × 3 overbought thresholds = 27 combinations
+- **KDJ Strategy**: Tests 3 oversold thresholds × 3 overbought thresholds = 9 combinations
+- **Other Strategies**: Test various tolerance percentages, buy/sell percentages, and technical indicators
+
+This expanded search space helps find the optimal parameters for each market condition and cryptocurrency. 

@@ -140,8 +140,17 @@ def run_trading_simulation():
                     cur_coin is not None and wallet_id is not None
                 ), f"cannot find relevant wallet for {cur_name}!"
 
-                # Calculate simulation amounts using configurable method
-                from core.config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
+                        # Calculate simulation amounts using configurable method
+        from core.config import (
+            SIMULATION_METHOD, 
+            SIMULATION_BASE_AMOUNT, 
+            SIMULATION_PERCENTAGE,
+            RSI_PERIODS,
+            RSI_OVERSOLD_THRESHOLDS,
+            RSI_OVERBOUGHT_THRESHOLDS,
+            KDJ_OVERSOLD_THRESHOLDS,
+            KDJ_OVERBOUGHT_THRESHOLDS
+        )
                 
                 sim_cash, sim_coin = calculate_simulation_amounts(
                     actual_cash=v_s1,
@@ -172,6 +181,11 @@ def run_trading_simulation():
                     sell_stas=list(SELL_STAS)
                     if isinstance(SELL_STAS, (list, tuple))
                     else [SELL_STAS],
+                    rsi_periods=RSI_PERIODS,
+                    rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
+                    rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
+                    kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
+                    kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
                     mode="normal",
                 )
 

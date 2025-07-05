@@ -42,6 +42,11 @@ class MATrader:
         cur_coin: float = 0.0,
         buy_stas: List[str] = ["by_percentage"],
         sell_stas: List[str] = ["by_percentage"],
+        rsi_period: int = 14,
+        rsi_oversold: float = 30,
+        rsi_overbought: float = 70,
+        kdj_oversold: float = 20,
+        kdj_overbought: float = 80,
         mode: str = "normal",
     ):
         """
@@ -113,6 +118,13 @@ class MATrader:
         self.broker_pct = 0.02
         # Track last buy price for stop loss and take profit strategies
         self.last_buy_price = None
+        # RSI parameters
+        self.rsi_period = rsi_period
+        self.rsi_oversold = rsi_oversold
+        self.rsi_overbought = rsi_overbought
+        # KDJ parameters
+        self.kdj_oversold = kdj_oversold
+        self.kdj_overbought = kdj_overbought
         # strategy signal lists
         self.strat_dct = collections.defaultdict(list)
 
@@ -202,10 +214,23 @@ class MATrader:
                     )
 
             elif self.high_strategy == "RSI":
-                strategy_func(trader=self, new_p=new_p, today=d)
+                strategy_func(
+                    trader=self, 
+                    new_p=new_p, 
+                    today=d,
+                    period=self.rsi_period,
+                    oversold=self.rsi_oversold,
+                    overbought=self.rsi_overbought
+                )
 
             elif self.high_strategy == "KDJ":
-                strategy_func(trader=self, new_p=new_p, today=d)
+                strategy_func(
+                    trader=self, 
+                    new_p=new_p, 
+                    today=d,
+                    oversold=self.kdj_oversold,
+                    overbought=self.kdj_overbought
+                )
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         """
