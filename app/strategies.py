@@ -708,6 +708,99 @@ def strategy_conservative_ma(
     return r_buy, r_sell
 
 
+def strategy_volume_breakout(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    volume_period: int = 20,
+    volume_threshold: float = 1.5,
+) -> Tuple[bool, bool]:
+    """
+    Volume-based breakout strategy.
+    Uses volume spikes to confirm price movements and identify breakout opportunities.
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        volume_period (int): Period for volume average calculation.
+        volume_threshold (float): Volume spike threshold multiplier.
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "VOLUME-BREAKOUT"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Check if we have volume data
+    if len(trader.crypto_prices) < volume_period:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Extract volume data from crypto_prices (assuming volume is the 6th element)
+    volumes = []
+    for price_data in trader.crypto_prices[-volume_period:]:
+        if len(price_data) >= 6:  # Check if volume data exists
+            volumes.append(price_data[5])  # Volume is 6th element
+        else:
+            volumes.append(0)  # Default if no volume data
+
+    if not volumes or all(v == 0 for v in volumes):
+        # No volume data available, fall back to no action
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Filter out zero volumes for average calculation
+    non_zero_volumes = [v for v in volumes[:-1] if v > 0]  # Exclude today's volume
+    if not non_zero_volumes:
+        # No valid volume data for average calculation
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Calculate average volume from non-zero volumes
+    avg_volume = np.mean(non_zero_volumes)
+    current_volume = volumes[-1] if len(volumes) > 0 else 0
+
+    # Check for volume spike
+    volume_spike = current_volume > (avg_volume * volume_threshold)
+
+    # Get price movement direction
+    if len(trader.crypto_prices) >= 2:
+        prev_price = trader.crypto_prices[-2][0]  # Previous closing price
+        price_change = new_p - prev_price
+        price_up = price_change > 0
+        price_down = price_change < 0
+    else:
+        price_up = price_down = False
+
+    # Execute trades based on volume and price movement
+    r_buy, r_sell = False, False
+
+    # Buy signal: Volume spike with price increase
+    if volume_spike and price_up:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+    # Sell signal: Volume spike with price decrease
+    elif volume_spike and price_down:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    # No action if no volume spike or conflicting signals
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    return r_buy, r_sell
+
+
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "MA-SELVES": strategy_moving_average_w_tolerance,
@@ -721,5 +814,6 @@ STRATEGY_REGISTRY = {
     "RSI-BOLL": strategy_rsi_bollinger_combined,
     "TRIPLE-SIGNAL": strategy_triple_signal,
     "CONSERVATIVE-MA": strategy_conservative_ma,
+    "VOLUME-BREAKOUT": strategy_volume_breakout,
 }
 # ----------------------------- #

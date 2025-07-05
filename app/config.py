@@ -19,7 +19,8 @@ STRATEGIES = [
     "MACD-KDJ",       # Combined MACD + KDJ (momentum + oscillator)
     "RSI-BOLL",       # Combined RSI + Bollinger Bands
     "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
-    "CONSERVATIVE-MA" # MA with multiple period confirmation
+    "CONSERVATIVE-MA", # MA with multiple period confirmation
+    "VOLUME-BREAKOUT" # Volume-based breakout strategy
 ]
 
 # simulation configuration

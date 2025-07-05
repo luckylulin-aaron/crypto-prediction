@@ -43,7 +43,7 @@ class CBProClient:
             name (str): The product_id or currency pair (e.g., 'BTC-USD').
 
         Returns:
-            list: Each element is [closing_price (float), date (str, 'YYYY-MM-DD'), open_price (float), low (float), high (float)].
+            list: Each element is [closing_price (float), date (str, 'YYYY-MM-DD'), open_price (float), low (float), high (float), volume (float)].
 
         Raises:
             ConnectionError: If the API call fails or the response is invalid.
@@ -69,7 +69,13 @@ class CBProClient:
                 open_price = float(item["open"])
                 low = float(item["low"])
                 high = float(item["high"])
-                parsed.append([closing_price, fmt_dt_str, open_price, low, high])
+                # Try to get volume data, but handle cases where it's not available
+                try:
+                    volume = float(item["volume"])
+                except (KeyError, ValueError, TypeError):
+                    volume = 0.0  # Default to 0 if volume data is not available
+                # append
+                parsed.append([closing_price, fmt_dt_str, open_price, low, high, volume])
             # Sort by date ascending
             parsed = sorted(parsed, key=lambda x: x[1])
             # Remove today's data if present

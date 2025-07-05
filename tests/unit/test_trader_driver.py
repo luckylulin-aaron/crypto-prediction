@@ -1,37 +1,48 @@
 # built-in packages
-# third-party packages
+import configparser
 import datetime
+import os
 import sys
 import unittest
+
+# third-party packages
 
 # customized packages
 sys.path.insert(0, "../../app")
 
 from cbpro_client import CBProClient
 from config import *
-from credentials import CB_API_KEY, CB_API_SECRET
 from trader_driver import TraderDriver
-from util import *
+from util import (load_csv)
 
 
 class TestMADriver(unittest.TestCase):
     def test_regular_load_from_local(self):
         """Test loading data stream from local file."""
 
-        name, l = load_csv(csv_fn="../fixtures/BTC_HISTORY.csv")
+        name, l = load_csv(csv_fn="tests/fixtures/BTC_HISTORY.csv")
         l = l[-120:]
+        # Expand to (price, date, open, low, high)
+        l = [(row[0], row[1], row[0], row[0], row[0]) for row in l]
 
         # print('debug:', type(l[0][0]), type(l[0][1]), type(l[0]))
 
-        init_amount = 3000
-        cur_coin = 5
-        mode = "normal"
+        # Use simulation amounts for testing
+        from util import calculate_simulation_amounts
+        
+        sim_cash, sim_coin = calculate_simulation_amounts(
+            actual_cash=3000,
+            actual_coin=5,
+            method="FIXED",  # Use fixed for testing
+            base_amount=10000,
+            percentage=0.1
+        )
 
         t_driver = TraderDriver(
             name=name,
-            init_amount=init_amount,
+            init_amount=int(sim_cash),
             overall_stats=STRATEGIES,
-            cur_coin=cur_coin,
+            cur_coin=sim_coin,
             tol_pcts=TOL_PCTS,
             ma_lengths=MA_LENGTHS,
             ema_lengths=EMA_LENGTHS,
@@ -41,7 +52,7 @@ class TestMADriver(unittest.TestCase):
             sell_pcts=SELL_PCTS,
             buy_stas=BUY_STAS,
             sell_stas=SELL_STAS,
-            mode=mode,
+            mode="normal",
         )
 
         t_driver.feed_data(data_stream=l)
@@ -59,7 +70,15 @@ class TestMADriver(unittest.TestCase):
     def test_run_with_cbpro(self):
         """Test running with CBProClient that requires internet connection."""
         return
-        client = CBProClient()
+        
+        # Read API credentials from screte.ini
+        config = configparser.ConfigParser()
+        config.read(os.path.join(os.path.dirname(__file__), "../../app/screte.ini"))
+        
+        CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
+        CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
+        
+        client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
 
         for cur_name in CURS:
             r1 = client.get_cur_rate(cur_name + "-USD")
@@ -67,15 +86,20 @@ class TestMADriver(unittest.TestCase):
                 cur_name + "-USD", SECONDS_IN_ONE_DAY
             )
 
-            init_amount = 3000
-            cur_coin = 5
-            mode = "normal"
+            # Use simulation amounts for testing
+            sim_cash, sim_coin = calculate_simulation_amounts(
+                actual_cash=3000,
+                actual_coin=5,
+                method="FIXED",  # Use fixed for testing
+                base_amount=10000,
+                percentage=0.1
+            )
 
             t_driver = TraderDriver(
                 name=cur_name,
-                init_amount=init_amount,
+                init_amount=int(sim_cash),
                 overall_stats=STRATEGIES,
-                cur_coin=cur_coin,
+                cur_coin=sim_coin,
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -85,7 +109,7 @@ class TestMADriver(unittest.TestCase):
                 sell_pcts=SELL_PCTS,
                 buy_stas=BUY_STAS,
                 sell_stas=SELL_STAS,
-                mode=mode,
+                mode="normal",
             )
 
             t_driver.feed_data(data_stream=data_stream)
