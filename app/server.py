@@ -9,6 +9,7 @@ import time
 import datetime
 import json
 import os
+import sys
 import configparser
 from typing import Dict, List, Optional
 import traceback
@@ -398,10 +399,15 @@ def health_check():
         'client_initialized': client is not None
     })
 
-if __name__ == '__main__':
+def main():
+    """Main function for Poetry script entry point."""
     # Initialize client on startup
     if initialize_client():
         logger.info("Server starting...")
-        app.run(host='0.0.0.0', port=5000, debug=False)
+        app.run(host='0.0.0.0', port=8000, debug=False)
     else:
-        logger.error("Failed to initialize client. Server not started.") 
+        logger.error("Failed to initialize client. Server not started.")
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main() 
