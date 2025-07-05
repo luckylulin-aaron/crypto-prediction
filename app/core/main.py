@@ -13,12 +13,24 @@ import pandas as pd
 import schedule
 
 # customized packages
-from trading.cbpro_client import CBProClient
-from core.config import *
-from core.logger import get_logger
-from trading.trader_driver import TraderDriver
-from utils.util import display_port_msg, load_csv, calculate_simulation_amounts
-from visualization.visualization import create_comprehensive_dashboard, create_portfolio_value_chart
+try:
+    from trading.cbpro_client import CBProClient
+    from core.config import *
+    from core.logger import get_logger
+    from trading.trader_driver import TraderDriver
+    from utils.util import display_port_msg, load_csv, calculate_simulation_amounts
+    from visualization.visualization import create_comprehensive_dashboard, create_portfolio_value_chart
+except ImportError:
+    # Fallback for when running as script
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from trading.cbpro_client import CBProClient
+    from core.config import *
+    from core.logger import get_logger
+    from trading.trader_driver import TraderDriver
+    from utils.util import display_port_msg, load_csv, calculate_simulation_amounts
+    from visualization.visualization import create_comprehensive_dashboard, create_portfolio_value_chart
 
 logger = get_logger(__name__)
 
@@ -151,14 +163,14 @@ def main():
             logger.info("Generating trading visualizations...")
 
             # Create comprehensive dashboard
-            dashboard_filename = f"app/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            dashboard_filename = f"app/visualization/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             dashboard = create_comprehensive_dashboard(
                 trader_instance=best_t, save_html=True, filename=dashboard_filename
             )
             logger.info(f"Dashboard saved to: {dashboard_filename}")
 
             # Create individual portfolio chart
-            portfolio_filename = f"app/plots/portfolio_chart_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            portfolio_filename = f"app/visualization/plots/portfolio_chart_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             portfolio_chart = create_portfolio_value_chart(
                 trade_history=best_t.trade_history,
                 title=f"Portfolio Value - {cur_name} ({best_t.high_strategy})",

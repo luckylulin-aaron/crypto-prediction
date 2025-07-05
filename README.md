@@ -354,20 +354,34 @@ The trading bot now includes PostgreSQL database integration to cache historical
 
 ### Database Setup
 
-#### Option 1: Docker Compose (Recommended)
+The trading bot automatically uses SQLite for development (no setup required) and can be configured to use PostgreSQL for production.
+
+#### Quick Start (SQLite - Default)
+
+The bot automatically creates a SQLite database file (`crypto_trading.db`) in the project root. No additional setup required!
+
+```bash
+# The database will be created automatically when you first run the bot
+poetry run python app/core/main.py --symbol BTC-USD --strategy MA-SELVES --days 30
+```
+
+#### Option 1: PostgreSQL with Docker Compose (Production)
 
 ```bash
 # Start PostgreSQL database
 docker-compose up -d postgres
 
+# Set environment variable for PostgreSQL
+export DATABASE_URL="postgresql://postgres:password@localhost:5432/crypto_trading"
+
 # Initialize database tables
-poetry run python app/db_management.py init
+poetry run python app/db/db_management.py init
 
 # Test database connection
-poetry run python app/db_management.py test
+poetry run python app/db/db_management.py test
 ```
 
-#### Option 2: Local PostgreSQL
+#### Option 2: Local PostgreSQL Installation
 
 1. **Install PostgreSQL**:
    ```bash
@@ -480,10 +494,11 @@ CREATE INDEX idx_data_cache_symbol ON data_cache (symbol);
 #### Environment Variables
 
 ```bash
-# Database connection string
+# Database connection string (optional)
+# If not set, defaults to SQLite: "sqlite:///./crypto_trading.db"
 DATABASE_URL="postgresql://username:password@localhost:5432/crypto_trading"
 
-# Default: postgresql://postgres:password@localhost:5432/crypto_trading
+# Default: sqlite:///./crypto_trading.db (SQLite for development)
 ```
 
 #### Cache Settings

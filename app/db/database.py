@@ -20,8 +20,16 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from core.config import TIMESPAN
-from core.logger import get_logger
+try:
+    from ..core.config import TIMESPAN
+    from ..core.logger import get_logger
+except ImportError:
+    # Fallback for when running as script
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from core.config import TIMESPAN
+    from core.logger import get_logger
 
 # Create base class for declarative models
 Base = declarative_base()
@@ -29,7 +37,7 @@ Base = declarative_base()
 # Database configuration
 DATABASE_URL = os.getenv(
     "DATABASE_URL", 
-    "postgresql://postgres:password@localhost:5432/crypto_trading"
+    "sqlite:///./crypto_trading.db"  # SQLite fallback for development
 )
 
 # Create engine with connection pooling

@@ -6,8 +6,16 @@ import os
 import sys
 from datetime import datetime, timedelta
 
-from db.database import db_manager, engine, Base
-from core.logger import get_logger
+try:
+    from database import db_manager, engine, Base
+    from ..core.logger import get_logger
+except ImportError:
+    # Fallback for when running as script
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from db.database import db_manager, engine, Base
+    from core.logger import get_logger
 
 
 def init_database():
