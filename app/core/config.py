@@ -37,7 +37,10 @@ BUY_STAS = "by_percentage"
 SELL_STAS = "by_percentage"
 
 # currencies (crptocurrency + stablecoin + fiat)
-CURS = ["SOL"]
+# Updated to match actual account holdings
+CURS = ["SOL", "AMP", "CLV", "FORTH", "RNDR"]  # Tradeable cryptocurrencies with balance
+# Note: ETH2 exists in account but ETH2-USD is not a valid trading pair
+# LTC and ADA are not in the account
 FIAT = ["USD", "SGD"]
 STABLECOIN = ["USDC", "USDT"]  # Stablecoins for trading with cryptos
 
