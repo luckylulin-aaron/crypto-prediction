@@ -613,9 +613,9 @@ The KDJ strategy uses the KDJ oscillator to identify momentum and trend changes:
   - Overbought thresholds: [70, 80, 90]
 
 **Moving Average Strategy (MA-SELVES)**
-- **Buy Signal**: Price crosses above MA
-- **Sell Signal**: Price crosses below MA
-- **Parameters**: Multiple MA periods
+- **Buy Signal**: Price < MA * (1 - tolerance)
+- **Sell Signal**: Price > MA * (1 + tolerance)
+- **Parameters**: Configurable MA lengths and tolerance percentages
 
 **Bollinger Bands Strategy**
 - **Buy Signal**: Price touches lower band
@@ -665,6 +665,38 @@ The KDJ strategy uses the KDJ oscillator to identify momentum and trend changes:
 - **Buy**: Volume spike (>1.5x average) with price increase
 - **Sell**: Volume spike (>1.5x average) with price decrease
 - **Advantage**: Confirms price movements with volume validation
+
+**Enhanced MA-SELVES Strategies**
+
+**Multi-Timeframe MA-SELVES**
+- **Concept**: Requires confirmation from multiple timeframes (short, medium, long)
+- **Buy Signal**: Majority of timeframes show buy signal
+- **Sell Signal**: Majority of timeframes show sell signal
+- **Advantage**: Reduces false signals through confirmation
+
+**Trend-Aware MA-SELVES**
+- **Concept**: Adjusts tolerance based on overall trend direction
+- **Uptrend**: More aggressive buying, conservative selling
+- **Downtrend**: More aggressive selling, conservative buying
+- **Advantage**: Adapts to market conditions
+
+**Volume-Weighted MA-SELVES**
+- **Concept**: Adjusts tolerance based on trading volume
+- **High Volume**: Tighter tolerance (stronger signals)
+- **Low Volume**: Wider tolerance (weaker signals)
+- **Advantage**: Considers market participation
+
+**Adaptive MA-SELVES**
+- **Concept**: Adjusts tolerance based on market volatility
+- **High Volatility**: Wider tolerance bands
+- **Low Volatility**: Tighter tolerance bands
+- **Advantage**: Adapts to market volatility
+
+**Momentum-Enhanced MA-SELVES**
+- **Concept**: Only trades when momentum confirms MA signal
+- **Buy Signal**: MA buy signal + positive momentum
+- **Sell Signal**: MA sell signal + negative momentum
+- **Advantage**: Filters out false signals
 
 ## 🎯 Trading Execution Strategies
 
@@ -876,6 +908,12 @@ The bot uses a comprehensive configuration system that allows for extensive para
 The bot automatically tests multiple parameter combinations for each strategy:
 - **RSI Strategy**: Tests 3 periods × 3 oversold thresholds × 3 overbought thresholds = 27 combinations
 - **KDJ Strategy**: Tests 3 oversold thresholds × 3 overbought thresholds = 9 combinations
+- **Enhanced MA-SELVES**: Tests multiple MA lengths with various parameters:
+  - **Multi-Timeframe**: Tests short/medium/long MA combinations
+  - **Trend-Aware**: Tests different trend periods and thresholds
+  - **Volume-Weighted**: Tests volume periods and thresholds
+  - **Adaptive**: Tests volatility periods and multipliers
+  - **Momentum-Enhanced**: Tests momentum periods and thresholds
 - **Other Strategies**: Test various tolerance percentages, buy/sell percentages, and technical indicators
 
 This expanded search space helps find the optimal parameters for each market condition and cryptocurrency. 

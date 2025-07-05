@@ -88,6 +88,8 @@ class MATrader:
         # 2. Transactions
         self.trade_history = []
         self.crypto_prices = []
+        self.volume_history = []  # Track volume for volume-based strategies
+        self.price_history = []  # Track price history for volatility calculations
         # moving average (type: dictionary)
         self.moving_averages = dict(
             zip([str(x) for x in ma_lengths], [[] for _ in range(len(ma_lengths))])
@@ -143,6 +145,14 @@ class MATrader:
         open, low, high = misc_p["open"], misc_p["low"], misc_p["high"]
 
         self.crypto_prices.append((new_p, d, open, low, high))
+        self.price_history.append(new_p)  # Track price for volatility calculations
+        
+        # Track volume if available in misc_p
+        if "volume" in misc_p:
+            self.volume_history.append(misc_p["volume"])
+        else:
+            # Use a default volume if not available
+            self.volume_history.append(1000.0)
 
         # add new moving averages and exponential moving averages, get_historic_data respectively
         for queue_name in self.moving_averages:
@@ -231,6 +241,90 @@ class MATrader:
                     oversold=self.kdj_oversold,
                     overbought=self.kdj_overbought,
                 )
+
+            elif self.high_strategy == "MULTI-MA-SELVES":
+                # Use short, medium, and long MAs for confirmation
+                ma_lengths_int = [int(x) for x in self.moving_averages.keys()]
+                short_queue = str(min(ma_lengths_int))
+                medium_queue = str(sorted(ma_lengths_int)[len(ma_lengths_int)//2])
+                long_queue = str(max(ma_lengths_int))
+                
+                strategy_func(
+                    trader=self,
+                    short_queue=short_queue,
+                    medium_queue=medium_queue,
+                    long_queue=long_queue,
+                    new_p=new_p,
+                    today=d,
+                    tol_pct=self.tol_pct,
+                    buy_pct=self.buy_pct,
+                    sell_pct=self.sell_pct,
+                    confirmation_required=2,
+                )
+
+            elif self.high_strategy == "TREND-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        trend_period=50,
+                        trend_threshold=0.02,
+                    )
+
+            elif self.high_strategy == "VOLUME-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        volume_period=20,
+                        volume_threshold=1.5,
+                    )
+
+            elif self.high_strategy == "ADAPTIVE-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        base_tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        volatility_period=20,
+                        volatility_multiplier=1.0,
+                    )
+
+            elif self.high_strategy == "MOMENTUM-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        momentum_period=14,
+                        momentum_threshold=0.01,
+                    )
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         """

@@ -21,6 +21,11 @@ STRATEGIES = [
     "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
     "CONSERVATIVE-MA",  # MA with multiple period confirmation
     "VOLUME-BREAKOUT",  # Volume-based breakout strategy
+    "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
+    "TREND-MA-SELVES",  # Trend-aware MA strategy
+    "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
+    "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
+    "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
 ]
 
 # simulation configuration

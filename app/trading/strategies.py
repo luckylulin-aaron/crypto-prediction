@@ -804,6 +804,418 @@ def strategy_volume_breakout(
     return r_buy, r_sell
 
 
+def strategy_multi_timeframe_ma_selves(
+    trader,
+    short_queue: str,
+    medium_queue: str,
+    long_queue: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+    confirmation_required: int = 2,
+) -> Tuple[bool, bool]:
+    """
+    MA-SELVES that requires confirmation from multiple timeframes.
+    Only executes trades when majority of timeframes agree.
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        short_queue (str): Short-term MA queue name (e.g., "6").
+        medium_queue (str): Medium-term MA queue name (e.g., "12").
+        long_queue (str): Long-term MA queue name (e.g., "30").
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        confirmation_required (int): Number of timeframes that must agree (default: 2).
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "MULTI-MA-SELVES"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Get signals from all timeframes
+    signals = []
+    for queue in [short_queue, medium_queue, long_queue]:
+        if queue not in trader.moving_averages or len(trader.moving_averages[queue]) == 0:
+            signals.append("HOLD")
+            continue
+            
+        last_ma = trader.moving_averages[queue][-1]
+        if last_ma is None:  # Check for None values
+            signals.append("HOLD")
+            continue
+            
+        if new_p >= (1 + tol_pct) * last_ma:
+            signals.append("SELL")
+        elif new_p <= (1 - tol_pct) * last_ma:
+            signals.append("BUY")
+        else:
+            signals.append("HOLD")
+    
+    # Count signals
+    sell_count = signals.count("SELL")
+    buy_count = signals.count("BUY")
+    
+    # Execute trades based on confirmation
+    r_buy, r_sell = False, False
+    
+    if sell_count >= confirmation_required:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    elif buy_count >= confirmation_required:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    # Record no action if no confirmation
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
+def strategy_trend_aware_ma_selves(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+    trend_period: int = 50,
+    trend_threshold: float = 0.02,
+) -> Tuple[bool, bool]:
+    """
+    MA-SELVES that considers the overall trend direction.
+    More aggressive in trend direction, conservative against trend.
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Base tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        trend_period (int): Period for trend calculation (default: 50).
+        trend_threshold (float): Threshold for trend detection (default: 0.02).
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "TREND-MA-SELVES"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Calculate trend using longer period
+    if len(trader.moving_averages[queue_name]) < trend_period:
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    trend_ma = trader.moving_averages[queue_name][-trend_period]
+    current_ma = trader.moving_averages[queue_name][-1]
+    
+    # Check for None values
+    if trend_ma is None or current_ma is None:
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    trend_direction = (current_ma - trend_ma) / trend_ma
+    
+    # Adjust tolerance based on trend
+    if trend_direction > trend_threshold:  # Uptrend
+        buy_tol = tol_pct * 0.8  # More aggressive buying
+        sell_tol = tol_pct * 1.2  # More conservative selling
+    elif trend_direction < -trend_threshold:  # Downtrend
+        buy_tol = tol_pct * 1.2  # More conservative buying
+        sell_tol = tol_pct * 0.8  # More aggressive selling
+    else:  # Sideways
+        buy_tol = sell_tol = tol_pct
+    
+    # Get the most recent moving average
+    last_ma = trader.moving_averages[queue_name][-1]
+    
+    # Check for None values
+    if last_ma is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    # Execute trades with trend-adjusted tolerances
+    r_buy, r_sell = False, False
+    
+    # (1) if too high, we do a sell
+    if new_p >= (1 + sell_tol) * last_ma:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # (2) if too low, we do a buy
+    elif new_p <= (1 - buy_tol) * last_ma:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
+def strategy_volume_weighted_ma_selves(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+    volume_period: int = 20,
+    volume_threshold: float = 1.5,
+) -> Tuple[bool, bool]:
+    """
+    MA-SELVES that considers volume for signal confirmation.
+    Higher volume = stronger signals with tighter tolerance.
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Base tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        volume_period (int): Period for volume calculation (default: 20).
+        volume_threshold (float): Threshold for high volume detection (default: 1.5).
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "VOLUME-MA-SELVES"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Check if we have enough volume data
+    if len(trader.volume_history) < volume_period:
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    # Calculate volume ratio
+    avg_volume = np.mean(trader.volume_history[-volume_period:])
+    current_volume = trader.volume_history[-1]
+    volume_ratio = current_volume / avg_volume
+    
+    # Adjust tolerance based on volume
+    if volume_ratio > volume_threshold:
+        # High volume - use tighter tolerance (stronger signals)
+        adjusted_tol = tol_pct * 0.7
+    else:
+        # Low volume - use wider tolerance (weaker signals)
+        adjusted_tol = tol_pct * 1.3
+    
+    # Get the most recent moving average
+    last_ma = trader.moving_averages[queue_name][-1]
+    
+    # Check for None values
+    if last_ma is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    # Execute trades with volume-adjusted tolerance
+    r_buy, r_sell = False, False
+    
+    # (1) if too high, we do a sell
+    if new_p >= (1 + adjusted_tol) * last_ma:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # (2) if too low, we do a buy
+    elif new_p <= (1 - adjusted_tol) * last_ma:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
+def strategy_adaptive_ma_selves(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    base_tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+    volatility_period: int = 20,
+    volatility_multiplier: float = 1.0,
+) -> Tuple[bool, bool]:
+    """
+    MA-SELVES with adaptive tolerance based on market volatility.
+    Higher volatility = wider tolerance bands.
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        base_tol_pct (float): Base tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        volatility_period (int): Period for volatility calculation (default: 20).
+        volatility_multiplier (float): Multiplier for volatility adjustment (default: 1.0).
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "ADAPTIVE-MA-SELVES"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Check if we have enough price data
+    if len(trader.price_history) < volatility_period:
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    # Calculate recent volatility
+    recent_prices = trader.price_history[-volatility_period:]
+    volatility = np.std(recent_prices) / np.mean(recent_prices)
+    
+    # Adjust tolerance based on volatility
+    adaptive_tol = base_tol_pct * (1 + volatility * volatility_multiplier)
+    
+    # Get the most recent moving average
+    last_ma = trader.moving_averages[queue_name][-1]
+    
+    # Check for None values
+    if last_ma is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    # Execute trades with adaptive tolerance
+    r_buy, r_sell = False, False
+    
+    # (1) if too high, we do a sell
+    if new_p >= (1 + adaptive_tol) * last_ma:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # (2) if too low, we do a buy
+    elif new_p <= (1 - adaptive_tol) * last_ma:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
+def strategy_momentum_enhanced_ma_selves(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+    momentum_period: int = 14,
+    momentum_threshold: float = 0.01,
+) -> Tuple[bool, bool]:
+    """
+    MA-SELVES with momentum confirmation.
+    Only trade when momentum aligns with MA signal.
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        momentum_period (int): Period for momentum calculation (default: 14).
+        momentum_threshold (float): Threshold for momentum confirmation (default: 0.01).
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "MOMENTUM-MA-SELVES"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Check if we have enough price data
+    if len(trader.price_history) < momentum_period:
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    # Calculate momentum (rate of change)
+    momentum = (new_p - trader.price_history[-momentum_period]) / trader.price_history[-momentum_period]
+    
+    # Get MA signal
+    last_ma = trader.moving_averages[queue_name][-1]
+    
+    # Check for None values
+    if last_ma is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    
+    ma_signal = None
+    
+    if new_p >= (1 + tol_pct) * last_ma:
+        ma_signal = "SELL"
+    elif new_p <= (1 - tol_pct) * last_ma:
+        ma_signal = "BUY"
+    
+    # Execute trades only if momentum confirms MA signal
+    r_buy, r_sell = False, False
+    
+    if ma_signal == "BUY" and momentum > momentum_threshold:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    elif ma_signal == "SELL" and momentum < -momentum_threshold:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # Record no action if no confirmation
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "MA-SELVES": strategy_moving_average_w_tolerance,
@@ -818,5 +1230,10 @@ STRATEGY_REGISTRY = {
     "TRIPLE-SIGNAL": strategy_triple_signal,
     "CONSERVATIVE-MA": strategy_conservative_ma,
     "VOLUME-BREAKOUT": strategy_volume_breakout,
+    "MULTI-MA-SELVES": strategy_multi_timeframe_ma_selves,
+    "TREND-MA-SELVES": strategy_trend_aware_ma_selves,
+    "VOLUME-MA-SELVES": strategy_volume_weighted_ma_selves,
+    "ADAPTIVE-MA-SELVES": strategy_adaptive_ma_selves,
+    "MOMENTUM-MA-SELVES": strategy_momentum_enhanced_ma_selves,
 }
 # ----------------------------- #
