@@ -659,6 +659,70 @@ psql crypto_trading < backup_20240115.sql
 - **Sell**: Volume spike (>1.5x average) with price decrease
 - **Advantage**: Confirms price movements with volume validation
 
+## 🎯 Trading Execution Strategies
+
+The bot supports multiple execution strategies for buy and sell actions, significantly expanding the trading algorithm search space:
+
+### **Buy Execution Strategies**
+
+**by_percentage** (Default)
+- **Description**: Use a percentage of available cash
+- **Logic**: `buy_pct` represents the percentage of cash to spend
+- **Example**: 70% means spend 70% of available cash
+- **Advantage**: Conservative, maintains cash reserves
+
+**fixed_amount**
+- **Description**: Use a fixed USD amount for buying
+- **Logic**: `buy_pct` represents the fixed USD amount to spend
+- **Example**: 100 means spend exactly $100 USD
+- **Advantage**: Predictable position sizing
+
+**market_order**
+- **Description**: Use all available cash for buying
+- **Logic**: Spends entire cash balance on each buy signal
+- **Example**: If you have $1000 cash, spend all $1000
+- **Advantage**: Aggressive entry, maximizes position size
+
+### **Sell Execution Strategies**
+
+**by_percentage** (Default)
+- **Description**: Use a percentage of available crypto
+- **Logic**: `sell_pct` represents the percentage of crypto to sell
+- **Example**: 70% means sell 70% of available crypto
+- **Advantage**: Gradual profit taking, maintains position
+
+**stop_loss**
+- **Description**: Sell all crypto when price drops below threshold
+- **Logic**: `sell_pct` represents the loss percentage below buy price
+- **Example**: 10% means sell all if price drops 10% below buy price
+- **Advantage**: Automatic risk management, limits losses
+
+**take_profit**
+- **Description**: Sell all crypto when price rises above threshold
+- **Logic**: `sell_pct` represents the profit percentage above buy price
+- **Example**: 20% means sell all if price rises 20% above buy price
+- **Advantage**: Automatic profit taking, locks in gains
+
+### **Strategy Configuration**
+
+Execution strategies are configured in `app/core/config.py`:
+
+```python
+# Trading execution strategies
+BUY_STAS = ["by_percentage", "fixed_amount", "market_order"]
+SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
+```
+
+### **Strategy Combinations**
+
+The bot automatically tests all combinations of:
+- **Trading Strategies** (MA-SELVES, RSI, MACD, etc.)
+- **Buy Execution Strategies** (by_percentage, fixed_amount, market_order)
+- **Sell Execution Strategies** (by_percentage, stop_loss, take_profit)
+- **Parameters** (percentages, tolerances, periods)
+
+This creates a comprehensive search space of **6,075+ strategy combinations** for each cryptocurrency!
+
 ## 🔒 Security
 
 ### API Security
