@@ -597,5 +597,103 @@ def display_chart(fig: go.Figure) -> None:
 
     Args:
         fig: Plotly figure object
+
+    Returns:
+        None
     """
     fig.show()
+
+
+def create_strategy_performance_chart(
+    strategy_performance: List[Dict],
+    title: str = "Strategy Performance Comparison",
+    top_n: int = 20,
+) -> go.Figure:
+    """
+    Create a bar chart showing the best performing strategies in descending order.
+
+    Args:
+        strategy_performance: List of dictionaries containing strategy performance data
+        title: Chart title
+        top_n: Number of top strategies to display (default: 20)
+
+    Returns:
+        plotly.graph_objects.Figure: Interactive chart
+    """
+    if not strategy_performance:
+        print("No strategy performance data provided")
+        return go.Figure()
+
+    try:
+        # Aggregate: for each unique strategy, keep only the record with the highest rate_of_return
+        best_by_strategy = {}
+        for record in strategy_performance:
+            strat = record.get('strategy', 'Unknown')
+            if strat not in best_by_strategy or record['rate_of_return'] > best_by_strategy[strat]['rate_of_return']:
+                best_by_strategy[strat] = record
+        
+        # Get the best records and sort by rate_of_return
+        best_records = list(best_by_strategy.values())
+        best_records.sort(key=lambda x: x['rate_of_return'], reverse=True)
+        
+        # Take top N
+        top_strategies = best_records[:top_n]
+        df = pd.DataFrame(top_strategies)
+        
+        # Create simple strategy labels
+        strategy_labels = []
+        for i, row in df.iterrows():
+            strategy = row.get('strategy', f'Strategy {i}')
+            rate = row.get('rate_of_return', 0)
+            strategy_labels.append(f"{strategy} ({rate:.2f}%)")
+        
+        # Create the figure
+        fig = go.Figure()
+        
+        # Add bars for rate of return
+        fig.add_trace(
+            go.Bar(
+                x=strategy_labels,
+                y=df['rate_of_return'],
+                name='Rate of Return (%)',
+                marker_color='lightblue',
+                hovertemplate="<b>%{x}</b><br>" +
+                             "Rate of Return: %{y:.2f}%<br>" +
+                             "Max Drawdown: " + df['max_drawdown'].astype(str) + "%<br>" +
+                             "Transactions: " + df['num_transactions'].astype(str) + "<br>" +
+                             "Buys: " + df['num_buys'].astype(str) + ", Sells: " + df['num_sells'].astype(str) + "<br>" +
+                             "Final Value: $" + df['max_final_value'].astype(str) + "<extra></extra>",
+            )
+        )
+        
+        # Add a horizontal line for baseline performance (buy & hold) if available
+        if len(df) > 0 and 'baseline_rate_of_return' in df.columns:
+            baseline_return = df.iloc[0]['baseline_rate_of_return']
+            fig.add_hline(
+                y=baseline_return,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"Baseline (Buy & Hold): {baseline_return:.2f}%",
+                annotation_position="top right"
+            )
+        
+        # Update layout
+        fig.update_layout(
+            title=title,
+            xaxis_title="Strategy",
+            yaxis_title="Rate of Return (%)",
+            xaxis_tickangle=-45,
+            showlegend=True,
+            template="plotly_white",
+            height=600,
+            margin=dict(b=150),  # Increase bottom margin for rotated labels
+        )
+        
+        return fig
+        
+    except Exception as e:
+        print(f"Error in create_strategy_performance_chart: {e}")
+        print(f"Strategy performance data length: {len(strategy_performance)}")
+        if strategy_performance:
+            print(f"First record keys: {list(strategy_performance[0].keys())}")
+        return go.Figure()

@@ -22,6 +22,7 @@ try:
     from visualization.visualization import (
         create_comprehensive_dashboard,
         create_portfolio_value_chart,
+        create_strategy_performance_chart,
     )
 except ImportError:
     # Fallback for when running as script
@@ -37,6 +38,7 @@ except ImportError:
     from visualization.visualization import (
         create_comprehensive_dashboard,
         create_portfolio_value_chart,
+        create_strategy_performance_chart,
     )
 
 logger = get_logger(__name__)
@@ -201,6 +203,17 @@ def main():
             )
             portfolio_chart.write_html(portfolio_filename)
             logger.info(f"Portfolio chart saved to: {portfolio_filename}")
+
+            # Create strategy performance comparison chart
+            strategy_performance = t_driver.get_all_strategy_performance()
+            strategy_filename = f"app/visualization/plots/strategy_performance_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            strategy_chart = create_strategy_performance_chart(
+                strategy_performance=strategy_performance,
+                title=f"Strategy Performance Comparison - {cur_name}",
+                top_n=20,
+            )
+            strategy_chart.write_html(strategy_filename)
+            logger.info(f"Strategy performance chart saved to: {strategy_filename}")
 
         except Exception as e:
             logger.error(f"Error generating visualizations: {e}")

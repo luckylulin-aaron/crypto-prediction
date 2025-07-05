@@ -271,3 +271,66 @@ class TraderDriver:
             **extra,
             "trader_index": self.traders.index(self.best_trader),
         }
+
+    def get_all_strategy_performance(self):
+        """
+        Collect performance data for all strategies tested.
+
+        Args:
+            None
+
+        Returns:
+            List[Dict]: List of dictionaries containing strategy performance data.
+        """
+        strategy_performance = []
+        
+        for index, trader in enumerate(self.traders):
+            try:
+                if trader is None:
+                    continue
+                    
+                # compute init value once again, in case no single trade is made
+                if hasattr(trader, 'init_coin') and hasattr(trader, 'crypto_prices') and hasattr(trader, 'init_cash'):
+                    init_v = (
+                        trader.init_coin * trader.crypto_prices[0][0]
+                        + trader.init_cash
+                    )
+                else:
+                    init_v = 0
+                
+                # Extract rate of return as float for sorting
+                rate_of_return_str = getattr(trader, 'rate_of_return', '0%')
+                if isinstance(rate_of_return_str, (int, float, np.number)):
+                    rate_of_return_float = float(rate_of_return_str)
+                    rate_of_return_str = f"{rate_of_return_float:.3f}%"
+                else:
+                    rate_of_return_float = float(str(rate_of_return_str).replace('%', ''))
+                
+                performance_data = {
+                    "strategy": getattr(trader, 'high_strategy', f'Strategy_{index}'),
+                    "rate_of_return": rate_of_return_float,
+                    "rate_of_return_str": rate_of_return_str,
+                    "init_value": np.round(init_v, ROUND_PRECISION),
+                    "max_final_value": np.round(getattr(trader, 'portfolio_value', 0), ROUND_PRECISION),
+                    "baseline_rate_of_return": getattr(trader, 'baseline_rate_of_return', 0),
+                    "coin_rate_of_return": getattr(trader, 'coin_rate_of_return', 0),
+                    "max_drawdown": getattr(trader, 'max_drawdown', 0) * 100,
+                    "num_transactions": getattr(trader, 'num_transaction', 0),
+                    "num_buys": getattr(trader, 'num_buy_action', 0),
+                    "num_sells": getattr(trader, 'num_sell_action', 0),
+                    "trader_index": index,
+                }
+                
+                # Add trading strategy parameters if available
+                if hasattr(trader, 'trading_strategy'):
+                    performance_data.update(trader.trading_strategy)
+                
+                strategy_performance.append(performance_data)
+                
+            except Exception as e:
+                continue
+        
+        # Sort by rate of return in descending order
+        strategy_performance.sort(key=lambda x: x["rate_of_return"], reverse=True)
+        
+        return strategy_performance
