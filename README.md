@@ -359,6 +359,13 @@ crypto-prediction/
 - **Sell**: Price above MA for most periods (2 out of 3)
 - **Advantage**: Reduces whipsaws and false breakouts
 
+**VOLUME-BREAKOUT Strategy**
+- **Description**: Volume-based breakout strategy using trading volume
+- **Logic**: Uses volume spikes to confirm price movements
+- **Buy**: Volume spike (>1.5x average) with price increase
+- **Sell**: Volume spike (>1.5x average) with price decrease
+- **Advantage**: Confirms price movements with volume validation
+
 ## 🔒 Security
 
 ### API Security
