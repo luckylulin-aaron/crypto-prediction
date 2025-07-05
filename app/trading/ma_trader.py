@@ -9,7 +9,7 @@ from typing import Any, List
 import numpy as np
 
 # customized packages
-from config import (
+from core.config import (
     BUY_SIGNAL,
     DEA_NUM_OF_DAYS,
     DEPOSIT_CST,
@@ -19,8 +19,8 @@ from config import (
     STRATEGIES,
     WITHDRAW_CST,
 )
-from strategies import STRATEGY_REGISTRY
-from util import ema_helper, max_drawdown_helper
+from trading.strategies import STRATEGY_REGISTRY
+from utils.util import ema_helper, max_drawdown_helper
 
 
 class MATrader:

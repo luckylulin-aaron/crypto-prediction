@@ -6,7 +6,7 @@ import datetime
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES
+from core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES
 
 
 def strategy_moving_average_w_tolerance(

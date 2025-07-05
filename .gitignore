@@ -5,6 +5,7 @@ __pycache__
 /notebooks/.ipynb_checkpoints
 *.DS_store
 /app/screte.ini
+/app/core/screte.ini
 /app/plots
 
 # Byte-compiled / optimized / DLL files
@@ -118,4 +119,21 @@ dmypy.json
 app/plots/
 *.html
 log.txt
+
+# Credentials and secrets - NEVER commit these!
 screte.ini
+*.ini
+credentials.py
+secrets.py
+.env
+.env.local
+.env.production
+.env.development
+*.key
+*.pem
+*.p12
+*.pfx
+config.ini
+settings.ini
+api_keys.txt
+tokens.txt

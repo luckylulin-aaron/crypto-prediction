@@ -48,19 +48,31 @@ cd crypto-prediction
    ```
 
 3. **Configure API credentials**:
-   Create `app/screte.ini` with your Coinbase API credentials:
+   ```bash
+   # Copy the template and add your credentials
+   cp app/core/screte.ini.template app/core/screte.ini
+   ```
+   
+   Then edit `app/core/screte.ini` with your Coinbase API credentials:
    ```ini
    [CONFIG]
-   COINBASE_API_KEY = "your_api_key_here"
-   COINBASE_API_SECRET = "your_api_secret_here"
+   COINBASE_API_KEY = "your_actual_api_key_here"
+   COINBASE_API_SECRET = "your_actual_api_secret_here"
    ```
+   
+   ⚠️ **IMPORTANT**: Never commit your actual `screte.ini` file to Git!
 
 4. **Set up PostgreSQL (Optional)**:
    ```bash
-   # Using Docker Compose (recommended)
+   # Option A: Using Docker Compose (if Docker is installed)
    docker-compose up -d postgres
    
-   # Or install PostgreSQL locally and set DATABASE_URL environment variable
+   # Option B: Install PostgreSQL locally
+   # macOS: brew install postgresql
+   # Ubuntu: sudo apt-get install postgresql postgresql-contrib
+   # Windows: Download from https://www.postgresql.org/download/windows/
+   
+   # Then set DATABASE_URL environment variable
    export DATABASE_URL="postgresql://username:password@localhost:5432/crypto_trading"
    ```
 
@@ -289,24 +301,40 @@ poetry run pytest
 ```
 crypto-prediction/
 ├── app/                    # Main application code
-│   ├── __init__.py
-│   ├── cbpro_client.py    # Coinbase API client
-│   ├── config.py          # Configuration settings
-│   ├── logger.py          # Logging utilities
-│   ├── main.py            # Main trading bot logic
-│   ├── ma_trader.py       # Trading strategies
-│   ├── server.py          # Flask web server
-│   ├── strategies.py      # Strategy implementations
-│   ├── trader_driver.py   # Trading engine
-│   ├── util.py            # Utility functions
-│   ├── visualization.py   # Chart generation
-│   ├── plots/             # Generated visualizations
-│   └── screte.ini         # API credentials (not in git)
+│   ├── api/               # API and web server
+│   │   ├── __init__.py
+│   │   └── server.py      # Flask web server
+│   ├── core/              # Core functionality
+│   │   ├── __init__.py
+│   │   ├── config.py      # Configuration settings
+│   │   ├── logger.py      # Logging utilities
+│   │   ├── main.py        # Main trading bot logic
+│   │   ├── log.txt        # Application logs
+│   │   └── screte.ini     # API credentials (not in git)
+│   ├── trading/           # Trading logic
+│   │   ├── __init__.py
+│   │   ├── cbpro_client.py    # Coinbase API client
+│   │   ├── ma_trader.py       # Trading strategies
+│   │   ├── strategies.py      # Strategy implementations
+│   │   └── trader_driver.py   # Trading engine
+│   ├── db/                # Database management
+│   │   ├── __init__.py
+│   │   ├── database.py        # SQLAlchemy models and DB manager
+│   │   └── db_management.py   # DB CLI tools
+│   ├── visualization/     # Visualization and charts
+│   │   ├── __init__.py
+│   │   ├── visualization.py  # Chart generation
+│   │   └── plots/            # Generated visualizations
+│   └── utils/             # Utility functions
+│       ├── __init__.py
+│       └── util.py           # Utility functions
 ├── tests/                 # Test files
 ├── notebooks/             # Jupyter notebooks
 ├── pyproject.toml         # Poetry configuration
 ├── install.sh             # Installation script
 ├── start_server.py        # Server startup script
+├── docker-compose.yml     # Docker setup for PostgreSQL
+├── init.sql              # Database initialization
 └── README.md              # This file
 ```
 
@@ -371,19 +399,19 @@ poetry run python app/db_management.py test
 
 ```bash
 # Initialize database tables
-poetry run python app/db_management.py init
+poetry run python app/db/db_management.py init
 
 # Show database statistics
-poetry run python app/db_management.py stats
+poetry run python app/db/db_management.py stats
 
 # Clear old data (older than 365 days)
-poetry run python app/db_management.py clear --days 365
+poetry run python app/db/db_management.py clear --days 365
 
 # Test database connection
-poetry run python app/db_management.py test
+poetry run python app/db/db_management.py test
 
 # Drop all tables (use with caution)
-poetry run python app/db_management.py drop
+poetry run python app/db/db_management.py drop
 ```
 
 #### Web Interface
@@ -479,7 +507,7 @@ def get_historic_data(self, name: str, use_cache: bool = True):
 
 ```bash
 # View cached data statistics
-poetry run python app/db_management.py stats
+poetry run python app/db/db_management.py stats
 
 # Example output:
 # === Database Statistics ===
@@ -502,10 +530,10 @@ The web interface shows database statistics and allows data management through A
 
 ```bash
 # Clear data older than 1 year (recommended monthly)
-poetry run python app/db_management.py clear --days 365
+poetry run python app/db/db_management.py clear --days 365
 
 # Clear data older than 6 months (more aggressive)
-poetry run python app/db_management.py clear --days 180
+poetry run python app/db/db_management.py clear --days 180
 ```
 
 #### Backup
@@ -525,7 +553,7 @@ psql crypto_trading < backup_20240115.sql
 1. **Connection Errors**
    ```bash
    # Test connection
-   poetry run python app/db_management.py test
+   poetry run python app/db/db_management.py test
    
    # Check PostgreSQL status
    sudo systemctl status postgresql

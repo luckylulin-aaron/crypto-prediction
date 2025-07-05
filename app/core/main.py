@@ -13,12 +13,12 @@ import pandas as pd
 import schedule
 
 # customized packages
-from cbpro_client import CBProClient
-from config import *
-from logger import get_logger
-from trader_driver import TraderDriver
-from util import display_port_msg, load_csv, calculate_simulation_amounts
-from visualization import create_comprehensive_dashboard, create_portfolio_value_chart
+from trading.cbpro_client import CBProClient
+from core.config import *
+from core.logger import get_logger
+from trading.trader_driver import TraderDriver
+from utils.util import display_port_msg, load_csv, calculate_simulation_amounts
+from visualization.visualization import create_comprehensive_dashboard, create_portfolio_value_chart
 
 logger = get_logger(__name__)
 
@@ -88,7 +88,7 @@ def main():
         )
 
         # Calculate simulation amounts using configurable method
-        from config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
+        from core.config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
         
         sim_cash, sim_coin = calculate_simulation_amounts(
             actual_cash=v_s1,

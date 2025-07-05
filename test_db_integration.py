@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'app'))
 def test_database_imports():
     """Test that database modules can be imported."""
     try:
-        from database import db_manager, HistoricalData, DataCache
+        from db.database import db_manager, HistoricalData, DataCache
         print("✅ Database modules imported successfully")
         return True
     except ImportError as e:
@@ -23,7 +23,7 @@ def test_database_imports():
 def test_database_models():
     """Test database model definitions."""
     try:
-        from database import HistoricalData, DataCache
+        from db.database import HistoricalData, DataCache
         
         # Test HistoricalData model
         assert hasattr(HistoricalData, '__tablename__')
@@ -42,7 +42,7 @@ def test_database_models():
 def test_cbpro_client_integration():
     """Test that CBProClient can import database module."""
     try:
-        from cbpro_client import CBProClient
+        from trading.cbpro_client import CBProClient
         print("✅ CBProClient can import database module")
         return True
     except ImportError as e:
@@ -52,7 +52,7 @@ def test_cbpro_client_integration():
 def test_server_integration():
     """Test that server can import database module."""
     try:
-        from server import app
+        from api.server import app
         print("✅ Server can import database module")
         return True
     except ImportError as e:
@@ -62,7 +62,7 @@ def test_server_integration():
 def test_db_management_script():
     """Test database management script imports."""
     try:
-        from db_management import init_database, show_statistics, test_connection
+        from db.db_management import init_database, show_statistics, test_connection
         print("✅ Database management script imports successfully")
         return True
     except ImportError as e:
@@ -99,11 +99,17 @@ def main():
         print("🎉 All tests passed! Database integration is ready.")
         print("\n📋 Next Steps:")
         print("1. Set up PostgreSQL database:")
+        print("   # Option A: Using Docker (if installed)")
         print("   docker-compose up -d postgres")
+        print("   ")
+        print("   # Option B: Install PostgreSQL locally")
+        print("   # macOS: brew install postgresql")
+        print("   # Ubuntu: sudo apt-get install postgresql postgresql-contrib")
+        print("   # Windows: Download from https://www.postgresql.org/download/windows/")
         print("2. Initialize database tables:")
-        print("   poetry run python app/db_management.py init")
+        print("   poetry run python app/db/db_management.py init")
         print("3. Test database connection:")
-        print("   poetry run python app/db_management.py test")
+        print("   poetry run python app/db/db_management.py test")
         print("4. Start the trading bot:")
         print("   poetry run start-server")
     else:

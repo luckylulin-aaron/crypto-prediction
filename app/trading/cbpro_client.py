@@ -9,10 +9,10 @@ import numpy as np
 from coinbase.rest import RESTClient
 
 # customized packages
-from config import CURS, STABLECOIN, TIMESPAN
-from database import db_manager
-from logger import get_logger
-from util import timer
+from core.config import CURS, STABLECOIN, TIMESPAN
+from db.database import db_manager
+from core.logger import get_logger
+from utils.util import timer
 
 
 class CBProClient:

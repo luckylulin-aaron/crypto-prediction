@@ -6,9 +6,9 @@ from typing import Any, List
 import numpy as np
 
 # customized packages
-from config import ROUND_PRECISION
-from ma_trader import MATrader
-from util import timer
+from core.config import ROUND_PRECISION
+from trading.ma_trader import MATrader
+from utils.util import timer
 
 
 class TraderDriver:

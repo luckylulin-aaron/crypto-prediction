@@ -11,7 +11,7 @@ app_dir = os.path.join(os.path.dirname(__file__), "app")
 sys.path.insert(0, app_dir)
 
 # Import and run the server
-from server import app, initialize_client
+from api.server import app, initialize_client
 
 
 def main():
