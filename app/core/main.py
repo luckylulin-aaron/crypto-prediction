@@ -176,6 +176,10 @@ def main():
             mode="normal",
         )
 
+        # Set fear & greed data for the trader driver if available
+        if fear_greed_data:
+            t_driver.set_fear_greed_data(fear_greed_data)
+
         t_driver.feed_data(data_stream)
 
         info = t_driver.best_trader_info

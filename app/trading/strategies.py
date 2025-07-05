@@ -1217,6 +1217,70 @@ def strategy_momentum_enhanced_ma_selves(
     return r_buy, r_sell
 
 
+def strategy_fear_greed_sentiment(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    buy_thresholds: List[float] = [20, 30],
+    sell_thresholds: List[float] = [70, 80],
+) -> Tuple[bool, bool]:
+    """
+    Fear & Greed Index sentiment-based trading strategy.
+    Buy when market sentiment shows extreme fear (low index values).
+    Sell when market sentiment shows extreme greed (high index values).
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        buy_thresholds (List[float]): List of fear thresholds for buy signals (default: [20, 30]).
+        sell_thresholds (List[float]): List of greed thresholds for sell signals (default: [70, 80]).
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "FEAR-GREED-SENTIMENT"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Check if fear & greed data is available
+    if not hasattr(trader, 'fear_greed_data') or not trader.fear_greed_data:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Get the most recent fear & greed index value
+    current_fear_greed = trader.fear_greed_data[0]
+    current_value = int(current_fear_greed['value'])
+
+    r_buy, r_sell = False, False
+
+    # Check for buy signal (extreme fear)
+    for threshold in buy_thresholds:
+        if current_value <= threshold:
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+                break
+
+    # Check for sell signal (extreme greed) - only if no buy was executed
+    if not r_buy:
+        for threshold in sell_thresholds:
+            if current_value >= threshold:
+                r_sell = trader._execute_one_sell("by_percentage", new_p)
+                if r_sell is True:
+                    trader._record_history(new_p, today, SELL_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+                    break
+
+    # Record no action if no signal was triggered
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    return r_buy, r_sell
+
+
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "MA-SELVES": strategy_moving_average_w_tolerance,
@@ -1236,5 +1300,6 @@ STRATEGY_REGISTRY = {
     "VOLUME-MA-SELVES": strategy_volume_weighted_ma_selves,
     "ADAPTIVE-MA-SELVES": strategy_adaptive_ma_selves,
     "MOMENTUM-MA-SELVES": strategy_momentum_enhanced_ma_selves,
+    "FEAR-GREED-SENTIMENT": strategy_fear_greed_sentiment,
 }
 # ----------------------------- #

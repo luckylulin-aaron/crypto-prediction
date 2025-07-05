@@ -26,6 +26,7 @@ STRATEGIES = [
     "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
     "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
+    "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
 ]
 
 # simulation configuration
@@ -46,6 +47,11 @@ RSI_OVERBOUGHT_THRESHOLDS = [70, 80, 90]  # Overbought thresholds (sell signals)
 # KDJ Strategy Configuration
 KDJ_OVERSOLD_THRESHOLDS = [10, 20, 30]  # Oversold thresholds (buy signals)
 KDJ_OVERBOUGHT_THRESHOLDS = [70, 80, 90]  # Overbought thresholds (sell signals)
+
+# Fear & Greed Index Strategy Configuration
+FEAR_GREED_BUY_THRESHOLDS = [20, 30]  # Buy when index is below these values (fear/extreme fear)
+FEAR_GREED_SELL_THRESHOLDS = [70, 80]  # Sell when index is above these values (greed/extreme greed)
+FEAR_GREED_STRATEGY_NAME = "FEAR-GREED-SENTIMENT"  # Strategy name for identification
 
 # Trading execution strategies
 BUY_STAS = ["by_percentage", "fixed_amount", "market_order"]
