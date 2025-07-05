@@ -206,9 +206,6 @@ def main():
 
             # Create strategy performance comparison chart
             strategy_performance = t_driver.get_all_strategy_performance()
-            print(f"DEBUG: Collected {len(strategy_performance)} strategy performance records")
-            if strategy_performance:
-                print(f"DEBUG: First record: {strategy_performance[0]}")
             strategy_filename = f"app/visualization/plots/strategy_performance_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             strategy_chart = create_strategy_performance_chart(
                 strategy_performance=strategy_performance,

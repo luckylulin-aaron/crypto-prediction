@@ -284,16 +284,11 @@ class TraderDriver:
         """
         strategy_performance = []
         
-        print(f"DEBUG: Starting to collect performance for {len(self.traders)} traders")
-        
         for index, trader in enumerate(self.traders):
             try:
                 if trader is None:
-                    print(f"DEBUG: Trader {index} is None, skipping")
                     continue
                     
-                print(f"DEBUG: Processing trader {index}")
-                
                 # compute init value once again, in case no single trade is made
                 if hasattr(trader, 'init_coin') and hasattr(trader, 'crypto_prices') and hasattr(trader, 'init_cash'):
                     init_v = (
@@ -333,10 +328,7 @@ class TraderDriver:
                 strategy_performance.append(performance_data)
                 
             except Exception as e:
-                print(f"DEBUG: Error processing trader {index}: {e}")
                 continue
-        
-        print(f"DEBUG: Collected {len(strategy_performance)} performance records")
         
         # Sort by rate of return in descending order
         strategy_performance.sort(key=lambda x: x["rate_of_return"], reverse=True)

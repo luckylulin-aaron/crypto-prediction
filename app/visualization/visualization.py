@@ -625,10 +625,19 @@ def create_strategy_performance_chart(
         return go.Figure()
 
     try:
-        # Take top N strategies
-        top_strategies = strategy_performance[:top_n]
+        # Aggregate: for each unique strategy, keep only the record with the highest rate_of_return
+        best_by_strategy = {}
+        for record in strategy_performance:
+            strat = record.get('strategy', 'Unknown')
+            if strat not in best_by_strategy or record['rate_of_return'] > best_by_strategy[strat]['rate_of_return']:
+                best_by_strategy[strat] = record
         
-        # Create DataFrame for easier manipulation
+        # Get the best records and sort by rate_of_return
+        best_records = list(best_by_strategy.values())
+        best_records.sort(key=lambda x: x['rate_of_return'], reverse=True)
+        
+        # Take top N
+        top_strategies = best_records[:top_n]
         df = pd.DataFrame(top_strategies)
         
         # Create simple strategy labels
