@@ -181,41 +181,200 @@ class CBProClient:
             self.logger.error(f"Exception when calling get_accounts: {e}")
             return []
 
+    def get_order_status(self, order_id: str) -> Optional[dict]:
+        """Get the status of an order.
+
+        Args:
+            order_id (str): The order ID to check.
+
+        Returns:
+            dict: Order status information or None if error.
+
+        Raises:
+            Exception: If there is an error getting the order status.
+        """
+        try:
+            order = self.rest_client.get_order(order_id)
+            return order
+        except Exception as e:
+            self.logger.error(f"Error getting order status for {order_id}: {e}")
+            return None
+
+    def cancel_order(self, order_id: str) -> bool:
+        """Cancel an existing order.
+
+        Args:
+            order_id (str): The order ID to cancel.
+
+        Returns:
+            bool: True if order was cancelled successfully, False otherwise.
+
+        Raises:
+            Exception: If there is an error cancelling the order.
+        """
+        try:
+            self.rest_client.cancel_order(order_id)
+            self.logger.info(f"Successfully cancelled order {order_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error cancelling order {order_id}: {e}")
+            return False
+
+    def get_account_balance(self, currency: str) -> float:
+        """Get the available balance for a specific currency.
+
+        Args:
+            currency (str): The currency to get balance for.
+
+        Returns:
+            float: Available balance for the currency.
+
+        Raises:
+            ValueError: If currency is invalid.
+            Exception: If there is an error getting the balance.
+        """
+        try:
+            if not currency:
+                raise ValueError("Currency cannot be empty")
+            
+            wallets = self.get_wallets(cur_names=[currency])
+            
+            for wallet in wallets:
+                if wallet["currency"] == currency:
+                    return float(wallet["available_balance"]["value"])
+            
+            # If no wallet found for the currency, return 0
+            self.logger.warning(f"No wallet found for currency: {currency}")
+            return 0.0
+            
+        except Exception as e:
+            self.logger.error(f"Error getting balance for {currency}: {e}")
+            raise e
+
+    def validate_order_size(self, amount: float, currency: str, side: str) -> bool:
+        """Validate if the order size meets minimum requirements.
+
+        Args:
+            amount (float): The order amount.
+            currency (str): The currency being traded.
+            side (str): 'BUY' or 'SELL'.
+
+        Returns:
+            bool: True if order size is valid, False otherwise.
+        """
+        try:
+            # Minimum order sizes (these are approximate and may vary)
+            min_order_sizes = {
+                "BTC": 0.001,  # Minimum 0.001 BTC
+                "ETH": 0.01,   # Minimum 0.01 ETH
+                "SOL": 0.1,    # Minimum 0.1 SOL
+                "LTC": 0.1,    # Minimum 0.1 LTC
+                "BCH": 0.01,   # Minimum 0.01 BCH
+                "ADA": 1.0,    # Minimum 1 ADA
+                "DOT": 0.1,    # Minimum 0.1 DOT
+                "LINK": 0.1,   # Minimum 0.1 LINK
+            }
+            
+            # For USD amounts (buy orders), convert to crypto amount first
+            if side == "BUY":
+                product_id = f"{currency}-USD"
+                current_price = self.get_cur_rate(product_id)
+                crypto_amount = amount / current_price
+            else:
+                crypto_amount = amount
+            
+            min_size = min_order_sizes.get(currency, 0.01)  # Default minimum
+            
+            if crypto_amount < min_size:
+                self.logger.warning(
+                    f"Order size {crypto_amount} {currency} is below minimum {min_size} {currency}"
+                )
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error validating order size: {e}")
+            return False
+
     def place_buy_order(
         self, wallet_id: str, amount: float, currency: str, commit: bool = False
     ):
         """Place and (optionally) execute a buy order.
 
-        :argument
-            wallet_id (str):
-            amount (float):
-            currency (str):
-            commit (boolean): Whether to commit this transaction.
+        Args:
+            wallet_id (str): The wallet ID to use for the order.
+            amount (float): The amount to buy in USD.
+            currency (str): The cryptocurrency to buy (e.g., 'BTC', 'ETH').
+            commit (bool): Whether to commit this transaction.
 
-        :return
-            order (dictionary):
+        Returns:
+            dict: Order response from the API.
 
-        :raise
-            (Exception):
+        Raises:
+            ValueError: If input parameters are invalid.
+            ConnectionError: If there is a network or API error.
+            Exception: If there is any other error placing the order.
         """
         try:
-            # For now, just log the order since COMMIT is False
-            self.logger.info(
-                f"Would place BUY order: {amount} {currency} from wallet {wallet_id}"
-            )
+            if not commit:
+                # For simulation mode, just log the order
+                self.logger.info(
+                    f"Would place BUY order: {amount} USD for {currency} from wallet {wallet_id}"
+                )
 
-            # Mock order response for simulation
-            order = {
-                "amount": {"amount": str(amount), "currency": currency},
-                "total": {"amount": str(amount), "currency": "USD"},
-                "unit_price": {"amount": "1.00", "currency": "USD"},
-                "status": "simulated",
-            }
+                # Mock order response for simulation
+                order = {
+                    "amount": {"amount": str(amount), "currency": currency},
+                    "total": {"amount": str(amount), "currency": "USD"},
+                    "unit_price": {"amount": "1.00", "currency": "USD"},
+                    "status": "simulated",
+                }
+            else:
+                # Validate inputs
+                if amount <= 0:
+                    raise ValueError("Amount must be positive")
+                if not currency or currency not in CURS:
+                    raise ValueError(f"Invalid currency: {currency}")
+                
+                # Check if we have enough USD balance
+                usd_balance = self.get_account_balance("USD")
+                if usd_balance < amount:
+                    raise ValueError(f"Insufficient USD balance. Required: {amount}, Available: {usd_balance}")
+                
+                # Validate order size
+                if not self.validate_order_size(amount, currency, "BUY"):
+                    raise ValueError(f"Order size {amount} USD for {currency} is below minimum requirements")
+                
+                # Get current price for the currency pair
+                product_id = f"{currency}-USD"
+                current_price = self.get_cur_rate(product_id)
+                
+                # Calculate the quantity to buy based on USD amount
+                quantity = amount / current_price
+                
+                # Create the order using Coinbase Advanced Trade API
+                # Using market order with immediate-or-cancel (IOC) for immediate execution
+                order = self.rest_client.create_order(
+                    product_id=product_id,
+                    side="BUY",
+                    order_configuration={
+                        "market_market_ioc": {
+                            "quote_size": str(amount)
+                        }
+                    }
+                )
+                
+                self.logger.info(
+                    f"Placed BUY order: {quantity:.6f} {currency} for {amount} USD at ~{current_price:.2f} USD"
+                )
 
-            # TODO: Implement actual Coinbase Advanced Trade API call
-            # The correct method might be something like:
-            # order = self.rest_client.create_order(...)
-
+        except ValueError as e:
+            self.logger.error(f"Validation error in buy order: {e}")
+            raise e
+        except ConnectionError as e:
+            self.logger.error(f"Connection error in buy order: {e}")
+            raise e
         except Exception as e:
             self.logger.error(f"Error placing buy order: {e}")
             raise e
@@ -227,36 +386,77 @@ class CBProClient:
     ):
         """Place and (optionally) execute a sell order.
 
-        :argument
-            wallet_id (str):
-            amount (float):
-            currency (str):
-            commit (boolean): Whether to commit this transaction.
+        Args:
+            wallet_id (str): The wallet ID to use for the order.
+            amount (float): The amount to sell in cryptocurrency units.
+            currency (str): The cryptocurrency to sell (e.g., 'BTC', 'ETH').
+            commit (bool): Whether to commit this transaction.
 
-        :return
-            order (dictionary):
+        Returns:
+            dict: Order response from the API.
 
-        :raise
-            (Exception):
+        Raises:
+            ValueError: If input parameters are invalid.
+            ConnectionError: If there is a network or API error.
+            Exception: If there is any other error placing the order.
         """
         try:
-            # For now, just log the order since COMMIT is False
-            self.logger.info(
-                f"Would place SELL order: {amount} {currency} from wallet {wallet_id}"
-            )
+            if not commit:
+                # For simulation mode, just log the order
+                self.logger.info(
+                    f"Would place SELL order: {amount} {currency} from wallet {wallet_id}"
+                )
 
-            # Mock order response for simulation
-            order = {
-                "amount": {"amount": str(amount), "currency": currency},
-                "subtotal": {"amount": str(amount), "currency": "USD"},
-                "unit_price": {"amount": "1.00", "currency": "USD"},
-                "status": "simulated",
-            }
+                # Mock order response for simulation
+                order = {
+                    "amount": {"amount": str(amount), "currency": currency},
+                    "subtotal": {"amount": str(amount), "currency": "USD"},
+                    "unit_price": {"amount": "1.00", "currency": "USD"},
+                    "status": "simulated",
+                }
+            else:
+                # Validate inputs
+                if amount <= 0:
+                    raise ValueError("Amount must be positive")
+                if not currency or currency not in CURS:
+                    raise ValueError(f"Invalid currency: {currency}")
+                
+                # Check if we have enough crypto balance
+                crypto_balance = self.get_account_balance(currency)
+                if crypto_balance < amount:
+                    raise ValueError(f"Insufficient {currency} balance. Required: {amount}, Available: {crypto_balance}")
+                
+                # Validate order size
+                if not self.validate_order_size(amount, currency, "SELL"):
+                    raise ValueError(f"Order size {amount} {currency} is below minimum requirements")
+                
+                # Get current price for the currency pair
+                product_id = f"{currency}-USD"
+                current_price = self.get_cur_rate(product_id)
+                
+                # Create the order using Coinbase Advanced Trade API
+                # Using market order with immediate-or-cancel (IOC) for immediate execution
+                order = self.rest_client.create_order(
+                    product_id=product_id,
+                    side="SELL",
+                    order_configuration={
+                        "market_market_ioc": {
+                            "base_size": str(amount)
+                        }
+                    }
+                )
+                
+                estimated_usd_value = amount * current_price
+                self.logger.info(
+                    f"Placed SELL order: {amount:.6f} {currency} for ~{estimated_usd_value:.2f} USD at ~{current_price:.2f} USD"
+                )
 
-            # TODO: Implement actual Coinbase Advanced Trade API call
-            # The correct method might be something like:
-            # order = self.rest_client.create_order(...)
-
+        except ValueError as e:
+            self.logger.error(f"Validation error in sell order: {e}")
+            raise e
+        except ConnectionError as e:
+            self.logger.error(f"Connection error in sell order: {e}")
+            raise e
         except Exception as e:
             self.logger.error(f"Error placing sell order: {e}")
             raise e
