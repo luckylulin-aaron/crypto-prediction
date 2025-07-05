@@ -117,8 +117,15 @@ dmypy.json
 
 # Trading bot specific
 app/plots/
+app/visualization/plots/
 *.html
 log.txt
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+crypto_trading.db
 
 # Credentials and secrets - NEVER commit these!
 screte.ini

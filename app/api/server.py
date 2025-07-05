@@ -188,7 +188,7 @@ def run_trading_simulation():
                     os.makedirs(plots_dir, exist_ok=True)
 
                     # Create comprehensive dashboard (relative to project root)
-                    dashboard_filename = f"app/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                    dashboard_filename = f"app/visualization/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
                     dashboard = create_comprehensive_dashboard(
                         trader_instance=best_t,
                         save_html=True,
@@ -429,7 +429,7 @@ def update_config():
 @app.route("/plots/<filename>")
 def serve_plot(filename):
     """Serve plot files."""
-    plots_dir = os.path.join(os.path.dirname(__file__), "plots")
+    plots_dir = os.path.join(os.path.dirname(__file__), "..", "visualization", "plots")
     return send_from_directory(plots_dir, filename)
 
 
