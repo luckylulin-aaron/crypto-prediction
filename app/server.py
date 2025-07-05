@@ -3,16 +3,17 @@ Flask web server for cryptocurrency trading bot.
 Provides API endpoints for monitoring, configuration, and execution.
 """
 
-from flask import Flask, jsonify, request, render_template_string, send_from_directory
-import threading
-import time
+import configparser
 import datetime
 import json
 import os
 import sys
-import configparser
-from typing import Dict, List, Optional
+import threading
+import time
 import traceback
+from typing import Dict, List, Optional
+
+from flask import Flask, jsonify, render_template_string, request, send_from_directory
 
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -20,9 +21,9 @@ sys.path.insert(0, os.path.dirname(__file__))
 # Import trading bot components
 from cbpro_client import CBProClient
 from config import *
+from logger import get_logger
 from trader_driver import TraderDriver
 from util import display_port_msg
-from logger import get_logger
 from visualization import create_comprehensive_dashboard
 
 app = Flask(__name__)
@@ -30,77 +31,79 @@ logger = get_logger(__name__)
 
 # Global state
 trading_state = {
-    'is_running': False,
-    'last_run': None,
-    'current_status': 'idle',
-    'error_message': None,
-    'results': {},
-    'config': {}
+    "is_running": False,
+    "last_run": None,
+    "current_status": "idle",
+    "error_message": None,
+    "results": {},
+    "config": {},
 }
 
 # Global client instance
 client = None
 
+
 def initialize_client():
     """Initialize the Coinbase client with API credentials."""
     global client
-    
+
     try:
         # Read API credentials from screte.ini
         config = configparser.ConfigParser()
-        config.read(os.path.join(os.path.dirname(__file__), 'screte.ini'))
-        
-        CB_API_KEY = config['CONFIG']['COINBASE_API_KEY'].strip('"')
-        CB_API_SECRET = config['CONFIG']['COINBASE_API_SECRET'].strip('"')
-        
+        config.read(os.path.join(os.path.dirname(__file__), "screte.ini"))
+
+        CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
+        CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
+
         client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
         logger.info("Coinbase client initialized successfully")
         return True
     except Exception as e:
         logger.error(f"Failed to initialize client: {e}")
-        trading_state['error_message'] = str(e)
+        trading_state["error_message"] = str(e)
         return False
+
 
 def run_trading_simulation():
     """Run the trading simulation in a separate thread."""
     global trading_state, client
-    
-    if trading_state['is_running']:
+
+    if trading_state["is_running"]:
         logger.warning("Trading simulation already running")
         return
-    
-    trading_state['is_running'] = True
-    trading_state['current_status'] = 'running'
-    trading_state['error_message'] = None
-    trading_state['results'] = {}
-    
+
+    trading_state["is_running"] = True
+    trading_state["current_status"] = "running"
+    trading_state["error_message"] = None
+    trading_state["results"] = {}
+
     try:
         logger.info("Starting trading simulation...")
-        
+
         # Get portfolio value
         try:
-            logger.info('Getting portfolio value...')
+            logger.info("Getting portfolio value...")
             v_c1, v_s1 = client.portfolio_value
-            logger.info(f'Portfolio value before, crypto={v_c1}, stablecoin={v_s1}')
+            logger.info(f"Portfolio value before, crypto={v_c1}, stablecoin={v_s1}")
         except Exception as e:
-            logger.error(f'Error getting portfolio value: {e}')
-            trading_state['error_message'] = f"Portfolio error: {e}"
+            logger.error(f"Error getting portfolio value: {e}")
+            trading_state["error_message"] = f"Portfolio error: {e}"
             return
 
         display_port_msg(v_c=v_c1, v_s=v_s1, before=True)
-        
+
         results = {}
-        
+
         for index, cur_name in enumerate(CURS):
-            logger.info(f'[{index+1}] processing for currency={cur_name}...')
-            
+            logger.info(f"[{index+1}] processing for currency={cur_name}...")
+
             try:
-                cur_rate = client.get_cur_rate(name=cur_name + '-USD')
-                data_stream = client.get_historic_data(name=cur_name + '-USD')
+                cur_rate = client.get_cur_rate(name=cur_name + "-USD")
+                data_stream = client.get_historic_data(name=cur_name + "-USD")
 
                 # cut-off, only want the last X days of data
                 data_stream = data_stream[-TIMESPAN:]
-                logger.info(f'only want the latest {TIMESPAN} days of data!')
+                logger.info(f"only want the latest {TIMESPAN} days of data!")
 
                 # initial cash amount
                 _, cash = client.portfolio_value
@@ -109,11 +112,19 @@ def run_trading_simulation():
 
                 cur_coin, wallet_id = None, None
                 for item in wallet:
-                    if item['currency'] == cur_name and item['type'] == 'ACCOUNT_TYPE_CRYPTO':
-                        cur_coin, wallet_id = float(item['available_balance']['value']), item['uuid']
+                    if (
+                        item["currency"] == cur_name
+                        and item["type"] == "ACCOUNT_TYPE_CRYPTO"
+                    ):
+                        cur_coin, wallet_id = (
+                            float(item["available_balance"]["value"]),
+                            item["uuid"],
+                        )
 
-                logger.info('cur_coin={}, wallet_id={}'.format(cur_coin, wallet_id))
-                assert cur_coin is not None and wallet_id is not None, f'cannot find relevant wallet for {cur_name}!'
+                logger.info("cur_coin={}, wallet_id={}".format(cur_coin, wallet_id))
+                assert (
+                    cur_coin is not None and wallet_id is not None
+                ), f"cannot find relevant wallet for {cur_name}!"
 
                 # run simulation
                 t_driver = TraderDriver(
@@ -128,90 +139,98 @@ def run_trading_simulation():
                     bollinger_tols=BOLLINGER_TOLS,
                     buy_pcts=BUY_PCTS,
                     sell_pcts=SELL_PCTS,
-                    buy_stas=list(BUY_STAS) if isinstance(BUY_STAS, (list, tuple)) else [BUY_STAS],
-                    sell_stas=list(SELL_STAS) if isinstance(SELL_STAS, (list, tuple)) else [SELL_STAS],
-                    mode='normal'
+                    buy_stas=list(BUY_STAS)
+                    if isinstance(BUY_STAS, (list, tuple))
+                    else [BUY_STAS],
+                    sell_stas=list(SELL_STAS)
+                    if isinstance(SELL_STAS, (list, tuple))
+                    else [SELL_STAS],
+                    mode="normal",
                 )
 
                 t_driver.feed_data(data_stream)
 
                 info = t_driver.best_trader_info
                 # best trader
-                best_t = t_driver.traders[info['trader_index']]
+                best_t = t_driver.traders[info["trader_index"]]
 
                 # for a new price, find the trade signal
-                new_p = client.get_cur_rate(cur_name + '-USD')
-                today = datetime.datetime.now().strftime('%m/%d/%Y')
+                new_p = client.get_cur_rate(cur_name + "-USD")
+                today = datetime.datetime.now().strftime("%m/%d/%Y")
                 # add it and compute
                 best_t.add_new_day(
                     new_p=new_p,
                     d=today,
-                    misc_p={'open': new_p, 'low': new_p, 'high': new_p}
+                    misc_p={"open": new_p, "low": new_p, "high": new_p},
                 )
                 signal = best_t.trade_signal
 
                 # Generate visualizations
                 try:
                     logger.info("Generating trading visualizations...")
-                    
+
                     # Ensure plots directory exists
-                    plots_dir = os.path.join(os.path.dirname(__file__), 'plots')
+                    plots_dir = os.path.join(os.path.dirname(__file__), "plots")
                     os.makedirs(plots_dir, exist_ok=True)
-                    
+
                     # Create comprehensive dashboard (relative to project root)
                     dashboard_filename = f"app/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
                     dashboard = create_comprehensive_dashboard(
                         trader_instance=best_t,
                         save_html=True,
-                        filename=dashboard_filename
+                        filename=dashboard_filename,
                     )
                     logger.info(f"Dashboard saved to: {dashboard_filename}")
-                    
+
                 except Exception as e:
                     logger.error(f"Error generating visualizations: {e}")
 
                 # Store results
                 results[cur_name] = {
-                    'best_trader_info': info,
-                    'max_drawdown': best_t.max_drawdown * 100,
-                    'num_transaction': best_t.num_transaction,
-                    'num_buy_action': best_t.num_buy_action,
-                    'num_sell_action': best_t.num_sell_action,
-                    'high_strategy': best_t.high_strategy,
-                    'signal': signal,
-                    'dashboard_file': dashboard_filename if 'dashboard_filename' in locals() else None
+                    "best_trader_info": info,
+                    "max_drawdown": best_t.max_drawdown * 100,
+                    "num_transaction": best_t.num_transaction,
+                    "num_buy_action": best_t.num_buy_action,
+                    "num_sell_action": best_t.num_sell_action,
+                    "high_strategy": best_t.high_strategy,
+                    "signal": signal,
+                    "dashboard_file": dashboard_filename
+                    if "dashboard_filename" in locals()
+                    else None,
                 }
-                
+
             except Exception as e:
                 logger.error(f"Error processing {cur_name}: {e}")
-                results[cur_name] = {'error': str(e)}
-        
+                results[cur_name] = {"error": str(e)}
+
         # Final portfolio value
         try:
             v_c2, v_s2 = client.portfolio_value
             display_port_msg(v_c=v_c2, v_s=v_s2, before=False)
-            results['final_portfolio'] = {'crypto': v_c2, 'stablecoin': v_s2}
+            results["final_portfolio"] = {"crypto": v_c2, "stablecoin": v_s2}
         except Exception as e:
             logger.error(f"Error getting final portfolio: {e}")
-        
-        trading_state['results'] = results
-        trading_state['last_run'] = datetime.datetime.now().isoformat()
-        trading_state['current_status'] = 'completed'
-        
+
+        trading_state["results"] = results
+        trading_state["last_run"] = datetime.datetime.now().isoformat()
+        trading_state["current_status"] = "completed"
+
         logger.info("Trading simulation completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Trading simulation failed: {e}")
-        trading_state['error_message'] = str(e)
-        trading_state['current_status'] = 'failed'
+        trading_state["error_message"] = str(e)
+        trading_state["current_status"] = "failed"
         traceback.print_exc()
-    
+
     finally:
-        trading_state['is_running'] = False
+        trading_state["is_running"] = False
+
 
 # API Routes
 
-@app.route('/')
+
+@app.route("/")
 def index():
     """Main dashboard page."""
     html_template = """
@@ -342,75 +361,86 @@ def index():
     """
     return render_template_string(html_template, trading_state=trading_state)
 
-@app.route('/api/status')
+
+@app.route("/api/status")
 def get_status():
     """Get current trading bot status."""
     return jsonify(trading_state)
 
-@app.route('/api/start', methods=['POST'])
+
+@app.route("/api/start", methods=["POST"])
 def start_trading():
     """Start trading simulation."""
-    if trading_state['is_running']:
-        return jsonify({'message': 'Trading simulation already running'}), 400
-    
+    if trading_state["is_running"]:
+        return jsonify({"message": "Trading simulation already running"}), 400
+
     if not client:
-        return jsonify({'message': 'Client not initialized'}), 500
-    
+        return jsonify({"message": "Client not initialized"}), 500
+
     # Start trading in a separate thread
     thread = threading.Thread(target=run_trading_simulation)
     thread.daemon = True
     thread.start()
-    
-    return jsonify({'message': 'Trading simulation started'})
 
-@app.route('/api/results')
+    return jsonify({"message": "Trading simulation started"})
+
+
+@app.route("/api/results")
 def get_results():
     """Get trading results."""
     return jsonify(trading_state)
 
-@app.route('/api/config')
+
+@app.route("/api/config")
 def get_config():
     """Get current configuration."""
     config = {
-        'currencies': CURS,
-        'strategies': STRATEGIES,
-        'timespan': TIMESPAN,
-        'commit': COMMIT
+        "currencies": CURS,
+        "strategies": STRATEGIES,
+        "timespan": TIMESPAN,
+        "commit": COMMIT,
     }
     return jsonify(config)
 
-@app.route('/api/config', methods=['POST'])
+
+@app.route("/api/config", methods=["POST"])
 def update_config():
     """Update configuration (basic implementation)."""
     data = request.get_json()
     # Note: This is a basic implementation. In production, you'd want to
     # properly validate and persist configuration changes.
-    return jsonify({'message': 'Configuration update not implemented yet'})
+    return jsonify({"message": "Configuration update not implemented yet"})
 
-@app.route('/plots/<filename>')
+
+@app.route("/plots/<filename>")
 def serve_plot(filename):
     """Serve plot files."""
-    plots_dir = os.path.join(os.path.dirname(__file__), 'plots')
+    plots_dir = os.path.join(os.path.dirname(__file__), "plots")
     return send_from_directory(plots_dir, filename)
 
-@app.route('/health')
+
+@app.route("/health")
 def health_check():
     """Health check endpoint."""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.datetime.now().isoformat(),
-        'client_initialized': client is not None
-    })
+    return jsonify(
+        {
+            "status": "healthy",
+            "timestamp": datetime.datetime.now().isoformat(),
+            "client_initialized": client is not None,
+        }
+    )
+
 
 def main():
     """Main function for Poetry script entry point."""
     # Initialize client on startup
     if initialize_client():
         logger.info("Server starting...")
-        app.run(host='0.0.0.0', port=8000, debug=False)
+        app.run(host="0.0.0.0", port=8000, debug=False)
     else:
         logger.error("Failed to initialize client. Server not started.")
         sys.exit(1)
 
-if __name__ == '__main__':
-    main() 
+
+if __name__ == "__main__":
+    main()

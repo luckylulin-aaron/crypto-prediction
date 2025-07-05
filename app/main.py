@@ -24,10 +24,10 @@ logger = get_logger(__name__)
 
 # Read API credentials from screte.ini
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(__file__), 'screte.ini'))
+config.read(os.path.join(os.path.dirname(__file__), "screte.ini"))
 
-CB_API_KEY = config['CONFIG']['COINBASE_API_KEY'].strip('"')
-CB_API_SECRET = config['CONFIG']['COINBASE_API_SECRET'].strip('"')
+CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
+CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
 
 
 def main():
@@ -44,37 +44,34 @@ def main():
         Exception: If there is an error during portfolio value retrieval or trading simulation.
     """
 
-    logger.info(f'COMMIT is set to {COMMIT}')
-    log_file = './log.txt'
+    logger.info(f"COMMIT is set to {COMMIT}")
+    log_file = "./log.txt"
 
     # cbpro client to interact with coinbase
-    client = CBProClient(
-        key=CB_API_KEY,
-        secret=CB_API_SECRET
-    )
+    client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
 
     fake_cur_coin, fake_cash = 5, 3000
-    mode = 'normal'
+    mode = "normal"
 
     # before
     try:
-        logger.info('Getting portfolio value...')
+        logger.info("Getting portfolio value...")
         v_c1, v_s1 = client.portfolio_value
-        logger.info(f'Portfolio value before, crypto={v_c1}, stablecoin={v_s1}')
+        logger.info(f"Portfolio value before, crypto={v_c1}, stablecoin={v_s1}")
     except Exception as e:
-        logger.error(f'Error getting portfolio value: {e}')
+        logger.error(f"Error getting portfolio value: {e}")
         return
 
     display_port_msg(v_c=v_c1, v_s=v_s1, before=True)
 
-    for index,cur_name in enumerate(CURS):
-        logger.info(f'[{index+1}] processing for currency={cur_name}...')
-        cur_rate = client.get_cur_rate(name=cur_name + '-USD')
-        data_stream = client.get_historic_data(name=cur_name + '-USD')
+    for index, cur_name in enumerate(CURS):
+        logger.info(f"[{index+1}] processing for currency={cur_name}...")
+        cur_rate = client.get_cur_rate(name=cur_name + "-USD")
+        data_stream = client.get_historic_data(name=cur_name + "-USD")
 
         # cut-off, only want the last X days of data
         data_stream = data_stream[-TIMESPAN:]
-        logger.info(f'only want the latest {TIMESPAN} days of data!')
+        logger.info(f"only want the latest {TIMESPAN} days of data!")
 
         # initial cash amount
         _, cash = client.portfolio_value
@@ -83,11 +80,18 @@ def main():
 
         cur_coin, wallet_id = None, None
         for item in wallet:
-            if item['currency'] == cur_name and item['type'] == 'ACCOUNT_TYPE_CRYPTO':
-                cur_coin, wallet_id = float(item['available_balance']['value']), item['uuid']
+            if item["currency"] == cur_name and item["type"] == "ACCOUNT_TYPE_CRYPTO":
+                cur_coin, wallet_id = (
+                    float(item["available_balance"]["value"]),
+                    item["uuid"],
+                )
 
-        logger.info('cur_coin={}, wallet_id={}'.format(np.round(cur_coin, 2), wallet_id))
-        assert cur_coin is not None and wallet_id is not None, f'cannot find relevant wallet for {cur_name}!'
+        logger.info(
+            "cur_coin={}, wallet_id={}".format(np.round(cur_coin, 2), wallet_id)
+        )
+        assert (
+            cur_coin is not None and wallet_id is not None
+        ), f"cannot find relevant wallet for {cur_name}!"
 
         # run simulation
         t_driver = TraderDriver(
@@ -102,25 +106,27 @@ def main():
             bollinger_tols=BOLLINGER_TOLS,
             buy_pcts=BUY_PCTS,
             sell_pcts=SELL_PCTS,
-            buy_stas=list(BUY_STAS) if isinstance(BUY_STAS, (list, tuple)) else [BUY_STAS],
-            sell_stas=list(SELL_STAS) if isinstance(SELL_STAS, (list, tuple)) else [SELL_STAS],
-            mode=mode
+            buy_stas=list(BUY_STAS)
+            if isinstance(BUY_STAS, (list, tuple))
+            else [BUY_STAS],
+            sell_stas=list(SELL_STAS)
+            if isinstance(SELL_STAS, (list, tuple))
+            else [SELL_STAS],
+            mode=mode,
         )
 
         t_driver.feed_data(data_stream)
 
         info = t_driver.best_trader_info
         # best trader
-        best_t = t_driver.traders[info['trader_index']]
+        best_t = t_driver.traders[info["trader_index"]]
 
         # for a new price, find the trade signal
-        new_p = client.get_cur_rate(cur_name + '-USD')
-        today = datetime.datetime.now().strftime('%m/%d/%Y')
+        new_p = client.get_cur_rate(cur_name + "-USD")
+        today = datetime.datetime.now().strftime("%m/%d/%Y")
         # add it and compute
         best_t.add_new_day(
-            new_p=new_p,
-            d=today,
-            misc_p={'open': new_p, 'low': new_p, 'high': new_p}
+            new_p=new_p, d=today, misc_p={"open": new_p, "low": new_p, "high": new_p}
         )
         signal = best_t.trade_signal
 
@@ -136,65 +142,77 @@ def main():
         # Generate visualizations for the best trader
         try:
             logger.info("Generating trading visualizations...")
-            
+
             # Create comprehensive dashboard
             dashboard_filename = f"app/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             dashboard = create_comprehensive_dashboard(
-                trader_instance=best_t,
-                save_html=True,
-                filename=dashboard_filename
+                trader_instance=best_t, save_html=True, filename=dashboard_filename
             )
             logger.info(f"Dashboard saved to: {dashboard_filename}")
-            
+
             # Create individual portfolio chart
             portfolio_filename = f"app/plots/portfolio_chart_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             portfolio_chart = create_portfolio_value_chart(
                 trade_history=best_t.trade_history,
-                title=f"Portfolio Value - {cur_name} ({best_t.high_strategy})"
+                title=f"Portfolio Value - {cur_name} ({best_t.high_strategy})",
             )
             portfolio_chart.write_html(portfolio_filename)
             logger.info(f"Portfolio chart saved to: {portfolio_filename}")
-            
+
         except Exception as e:
             logger.error(f"Error generating visualizations: {e}")
 
         # if too less, we leave
         if cash <= EP_CASH and signal == BUY_SIGNAL:
-            logger.warning('too less cash, cannot execute a buy, discard further actions.')
+            logger.warning(
+                "too less cash, cannot execute a buy, discard further actions."
+            )
             continue
-        elif (cur_coin <= EP_COIN or cur_coin * new_p <= EP_CASH) and signal == SELL_SIGNAL:
-            logger.warning('too less crypto, cannot execute a sell, discard further actions.')
+        elif (
+            cur_coin <= EP_COIN or cur_coin * new_p <= EP_CASH
+        ) and signal == SELL_SIGNAL:
+            logger.warning(
+                "too less crypto, cannot execute a sell, discard further actions."
+            )
             continue
 
         # otherwise, execute a transaction
-        if signal['action'] == BUY_SIGNAL:
-            buy_pct = signal['buy_percentage']
+        if signal["action"] == BUY_SIGNAL:
+            buy_pct = signal["buy_percentage"]
             order = client.place_buy_order(
                 wallet_id=wallet_id,
                 amount=buy_pct * cash,
-                currency='USD',
-                commit=COMMIT
+                currency="USD",
+                commit=COMMIT,
             )
-            logger.info('bought {:.5f} {}, used {:.2f} USD, at unit price={}'.format(
-                float(order['amount']['amount']), cur_name,
-                float(order['total']['amount']), float(order['unit_price']['amount'])
-            ))
+            logger.info(
+                "bought {:.5f} {}, used {:.2f} USD, at unit price={}".format(
+                    float(order["amount"]["amount"]),
+                    cur_name,
+                    float(order["total"]["amount"]),
+                    float(order["unit_price"]["amount"]),
+                )
+            )
 
-        elif signal['action'] == SELL_SIGNAL:
-            sell_pct = signal['sell_percentage']
+        elif signal["action"] == SELL_SIGNAL:
+            sell_pct = signal["sell_percentage"]
             order = client.place_sell_order(
                 wallet_id=wallet_id,
                 amount=sell_pct * cur_coin,
                 currency=cur_name,
-                commit=COMMIT
+                commit=COMMIT,
             )
-            logger.info('sold {:.5f} {}, cash out {:.2f} USD, at unit price={}'.format(
-                float(order['amount']['amount']), cur_name,
-                float(order['subtotal']['amount']), float(order['unit_price']['amount'])
-            ))
-        elif signal['action'] == NO_ACTION_SIGNAL:
-            if mode == 'verbose':
-                logger.info('no action performed as simulation suggests.')
+            logger.info(
+                "sold {:.5f} {}, cash out {:.2f} USD, at unit price={}".format(
+                    float(order["amount"]["amount"]),
+                    cur_name,
+                    float(order["subtotal"]["amount"]),
+                    float(order["unit_price"]["amount"]),
+                )
+            )
+        elif signal["action"] == NO_ACTION_SIGNAL:
+            if mode == "verbose":
+                logger.info("no action performed as simulation suggests.")
 
     # after
     v_c2, v_s2 = client.portfolio_value
@@ -202,19 +220,19 @@ def main():
 
     # write to log file
     now = datetime.datetime.now()
-    with open(log_file, 'a') as outfile:
-        outfile.write('Finish job at time {}\n'.format(str(now)))
+    with open(log_file, "a") as outfile:
+        outfile.write("Finish job at time {}\n".format(str(now)))
 
-if __name__ == '__main__':
 
+if __name__ == "__main__":
     # Run one-time
     main()
 
     # Run as a cron-job
-    '''
+    """
     schedule.every().day.at('22:53').do(main)
     while True:
         schedule.run_pending()
         time.sleep(1)
         sys.stdout.flush()
-    '''
+    """

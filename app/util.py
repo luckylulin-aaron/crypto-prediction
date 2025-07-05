@@ -20,6 +20,7 @@ def timer(func: Any) -> Any:
     Returns:
         Any: The wrapped function.
     """
+
     @functools.wraps(func)
     def wrapper_timer(*args, **kwargs):
         start_time = time.perf_counter()
@@ -27,12 +28,15 @@ def timer(func: Any) -> Any:
         value = func(*args, **kwargs)
         end_time = time.perf_counter()
         run_time = end_time - start_time
-        print("--> executed={} using time={:.2f} seconds.".format(func.__name__, run_time))
+        print(
+            "--> executed={} using time={:.2f} seconds.".format(func.__name__, run_time)
+        )
         return value
 
     return wrapper_timer
 
-def load_csv(csv_fn='../models/BTC_HISTORY.csv') -> tuple:
+
+def load_csv(csv_fn="../models/BTC_HISTORY.csv") -> tuple:
     """
     Load a csv file and return dates and prices lists.
 
@@ -43,15 +47,16 @@ def load_csv(csv_fn='../models/BTC_HISTORY.csv') -> tuple:
         tuple: (name (str), l (List[Any]))
     """
     df = pd.read_csv(csv_fn)
-    dates, prices = df['Date'].tolist(), df['Closing Price (USD)'].tolist()
+    dates, prices = df["Date"].tolist(), df["Closing Price (USD)"].tolist()
 
-    name, l = csv_fn.split('.')[0].split('_')[0], []
+    name, l = csv_fn.split(".")[0].split("_")[0], []
     for ind in range(len(dates)):
         l.append([prices[ind], dates[ind]])
 
     return name, l
 
-def display_port_msg(v_c: float, v_s: float, before: bool=True) -> None:
+
+def display_port_msg(v_c: float, v_s: float, before: bool = True) -> None:
     """
     Display portfolio message in a certain format.
 
@@ -64,10 +69,15 @@ def display_port_msg(v_c: float, v_s: float, before: bool=True) -> None:
         None
     """
     now = datetime.datetime.now()
-    stage = 'before' if before else 'after'
+    stage = "before" if before else "after"
     s = v_c + v_s
 
-    print('\n{} transaction, by {}, crypto_value={:.2f}, stablecoin_value={:.2f}, amount to {:.2f}'.format(stage, now, v_c, v_s, s))
+    print(
+        "\n{} transaction, by {}, crypto_value={:.2f}, stablecoin_value={:.2f}, amount to {:.2f}".format(
+            stage, now, v_c, v_s, s
+        )
+    )
+
 
 def max_drawdown_helper(hist_l: List[float]) -> float:
     """
@@ -87,6 +97,7 @@ def max_drawdown_helper(hist_l: List[float]) -> float:
         res = max(res, 1 - value_cur / value_max_pre)
 
     return np.round(res, 4)
+
 
 def ema_helper(new_price: float, old_ema: float, num_of_days: int) -> float:
     """
