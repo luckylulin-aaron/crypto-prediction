@@ -17,7 +17,7 @@ from cbpro_client import CBProClient
 from config import *
 from logger import get_logger
 from trader_driver import TraderDriver
-from util import display_port_msg, load_csv
+from util import display_port_msg, load_csv, calculate_simulation_amounts
 from visualization import create_comprehensive_dashboard, create_portfolio_value_chart
 
 logger = get_logger(__name__)
@@ -50,10 +50,7 @@ def main():
     # cbpro client to interact with coinbase
     client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
 
-    fake_cur_coin, fake_cash = 5, 3000
-    mode = "normal"
-
-    # before
+    # Get actual portfolio values for simulation
     try:
         logger.info("Getting portfolio value...")
         v_c1, v_s1 = client.portfolio_value
@@ -73,11 +70,8 @@ def main():
         data_stream = data_stream[-TIMESPAN:]
         logger.info(f"only want the latest {TIMESPAN} days of data!")
 
-        # initial cash amount
-        _, cash = client.portfolio_value
-        # initial coin at hand
+        # Get actual wallet balances for this currency
         wallet = client.get_wallets(cur_names=[cur_name])
-
         cur_coin, wallet_id = None, None
         for item in wallet:
             if item["currency"] == cur_name and item["type"] == "ACCOUNT_TYPE_CRYPTO":
@@ -93,12 +87,25 @@ def main():
             cur_coin is not None and wallet_id is not None
         ), f"cannot find relevant wallet for {cur_name}!"
 
-        # run simulation
+        # Calculate simulation amounts using configurable method
+        from config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
+        
+        sim_cash, sim_coin = calculate_simulation_amounts(
+            actual_cash=v_s1,
+            actual_coin=cur_coin,
+            method=SIMULATION_METHOD,
+            base_amount=SIMULATION_BASE_AMOUNT,
+            percentage=SIMULATION_PERCENTAGE
+        )
+        
+        logger.info(f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.6f}")
+
+        # run simulation with scaled values
         t_driver = TraderDriver(
             name=cur_name,
-            init_amount=fake_cash,
+            init_amount=int(sim_cash),
             overall_stats=STRATEGIES,
-            cur_coin=fake_cur_coin,
+            cur_coin=sim_coin,
             tol_pcts=TOL_PCTS,
             ma_lengths=MA_LENGTHS,
             ema_lengths=EMA_LENGTHS,
@@ -112,7 +119,7 @@ def main():
             sell_stas=list(SELL_STAS)
             if isinstance(SELL_STAS, (list, tuple))
             else [SELL_STAS],
-            mode=mode,
+            mode="normal",
         )
 
         t_driver.feed_data(data_stream)
@@ -162,8 +169,11 @@ def main():
         except Exception as e:
             logger.error(f"Error generating visualizations: {e}")
 
+        # Get current portfolio values for actual trading
+        _, current_cash = client.portfolio_value
+        
         # if too less, we leave
-        if cash <= EP_CASH and signal == BUY_SIGNAL:
+        if current_cash <= EP_CASH and signal == BUY_SIGNAL:
             logger.warning(
                 "too less cash, cannot execute a buy, discard further actions."
             )
@@ -181,7 +191,7 @@ def main():
             buy_pct = signal["buy_percentage"]
             order = client.place_buy_order(
                 wallet_id=wallet_id,
-                amount=buy_pct * cash,
+                amount=buy_pct * current_cash,
                 currency="USD",
                 commit=COMMIT,
             )
@@ -198,7 +208,7 @@ def main():
             sell_pct = signal["sell_percentage"]
             order = client.place_sell_order(
                 wallet_id=wallet_id,
-                amount=sell_pct * cur_coin,
+                amount=sell_pct * sim_coin,
                 currency=cur_name,
                 commit=COMMIT,
             )
@@ -211,8 +221,7 @@ def main():
                 )
             )
         elif signal["action"] == NO_ACTION_SIGNAL:
-            if mode == "verbose":
-                logger.info("no action performed as simulation suggests.")
+            logger.info("no action performed as simulation suggests.")
 
     # after
     v_c2, v_s2 = client.portfolio_value

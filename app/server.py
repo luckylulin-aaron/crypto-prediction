@@ -23,7 +23,7 @@ from cbpro_client import CBProClient
 from config import *
 from logger import get_logger
 from trader_driver import TraderDriver
-from util import display_port_msg
+from util import display_port_msg, calculate_simulation_amounts
 from visualization import create_comprehensive_dashboard
 
 app = Flask(__name__)
@@ -126,12 +126,25 @@ def run_trading_simulation():
                     cur_coin is not None and wallet_id is not None
                 ), f"cannot find relevant wallet for {cur_name}!"
 
-                # run simulation
+                # Calculate simulation amounts using configurable method
+                from config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
+                
+                sim_cash, sim_coin = calculate_simulation_amounts(
+                    actual_cash=v_s1,
+                    actual_coin=cur_coin,
+                    method=SIMULATION_METHOD,
+                    base_amount=SIMULATION_BASE_AMOUNT,
+                    percentage=SIMULATION_PERCENTAGE
+                )
+                
+                logger.info(f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.6f}")
+
+                # run simulation with scaled values
                 t_driver = TraderDriver(
                     name=cur_name,
-                    init_amount=3000,  # fake_cash
+                    init_amount=int(sim_cash),
                     overall_stats=STRATEGIES,
-                    cur_coin=5,  # fake_cur_coin
+                    cur_coin=sim_coin,
                     tol_pcts=TOL_PCTS,
                     ma_lengths=MA_LENGTHS,
                     ema_lengths=EMA_LENGTHS,

@@ -113,3 +113,48 @@ def ema_helper(new_price: float, old_ema: float, num_of_days: int) -> float:
     """
     k = 2 / (num_of_days + 1)
     return (new_price * k) + (old_ema * (1 - k))
+
+
+def calculate_simulation_amounts(
+    actual_cash: float,
+    actual_coin: float,
+    method: str = "PORTFOLIO_SCALED",
+    base_amount: float = 10000,
+    percentage: float = 0.1
+) -> tuple[float, float]:
+    """
+    Calculate simulation amounts using different methods to eliminate bias.
+    
+    Args:
+        actual_cash: Actual cash amount in portfolio
+        actual_coin: Actual coin amount in portfolio
+        method: Simulation method ("FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED")
+        base_amount: Base amount for scaling (default: 10000)
+        percentage: Percentage of portfolio to use (default: 0.1 = 10%)
+        
+    Returns:
+        tuple: (sim_cash, sim_coin) - Simulation amounts
+    """
+    if method == "FIXED":
+        # Legacy method - fixed amounts (biased)
+        return 3000, 5
+    
+    elif method == "PORTFOLIO_SCALED":
+        # Scale actual portfolio to standard amount
+        actual_portfolio_value = actual_cash + (actual_coin * 1)  # Assuming $1 per coin for scaling
+        if actual_portfolio_value <= 0:
+            return base_amount, base_amount * 0.001  # Default if no portfolio
+        
+        simulation_ratio = base_amount / actual_portfolio_value
+        sim_cash = actual_cash * simulation_ratio
+        sim_coin = actual_coin * simulation_ratio
+        return sim_cash, sim_coin
+    
+    elif method == "PERCENTAGE_BASED":
+        # Use fixed percentage of actual portfolio
+        sim_cash = actual_cash * percentage
+        sim_coin = actual_coin * percentage
+        return sim_cash, sim_coin
+    
+    else:
+        raise ValueError(f"Unknown simulation method: {method}")

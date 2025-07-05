@@ -5,6 +5,7 @@ A sophisticated cryptocurrency trading bot with web interface, built with Python
 ## 🚀 Features
 
 - **Multiple Trading Strategies**: RSI, KDJ, Moving Averages, Bollinger Bands
+- **Bias-Free Simulation**: Configurable simulation methods to eliminate trading bias
 - **Web Dashboard**: Interactive Flask-based web interface
 - **Real-time Monitoring**: Live status updates and performance tracking
 - **Interactive Visualizations**: Plotly-based charts and dashboards
@@ -100,6 +101,132 @@ The web dashboard will be available at: http://localhost:8000
 - `GET /plots/<filename>` - Serve visualization files
 
 ## 🔧 Configuration
+
+### Simulation Methods
+
+The bot supports multiple simulation methods to eliminate trading bias. The original system used fixed values (`fake_cash=3000`, `fake_cur_coin=5`) which created significant biases in performance evaluation.
+
+#### Available Methods
+
+**1. PORTFOLIO_SCALED (Recommended)**
+- **Description**: Scales actual portfolio to a standard simulation amount
+- **Method**: Calculates ratio: `standard_amount / actual_portfolio_value`, then scales both cash and coin
+- **Advantages**:
+  - Eliminates bias from arbitrary starting values
+  - Maintains realistic portfolio proportions
+  - Results are comparable across different portfolio sizes
+  - Standardized simulation amount ($10,000 by default)
+
+**2. PERCENTAGE_BASED**
+- **Description**: Uses a fixed percentage of actual portfolio
+- **Method**: Uses `SIMULATION_PERCENTAGE` of actual cash and coin (default: 10%)
+- **Advantages**: Simple, maintains proportions, results scale with portfolio
+- **Disadvantages**: Results vary with portfolio size, harder to compare across users
+
+**3. FIXED (Legacy - Biased)**
+- **Description**: Uses fixed amounts regardless of actual portfolio
+- **Values**: $3,000 cash, 5 coins
+- **Problem**: Results are biased by arbitrary starting values
+- **Use Case**: Only for backward compatibility
+
+#### Configuration
+
+```python
+# Simulation Configuration
+SIMULATION_METHOD = "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
+SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
+SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method
+```
+
+#### Example Scenarios
+
+**Small Portfolio ($1,000 total)**
+- **Actual**: $800 cash, 0.2 BTC
+- **PORTFOLIO_SCALED**: $8,000 cash, 2 BTC (scaled to $10,000)
+- **PERCENTAGE_BASED**: $80 cash, 0.02 BTC (10% of actual)
+
+**Large Portfolio ($100,000 total)**
+- **Actual**: $50,000 cash, 5 BTC
+- **PORTFOLIO_SCALED**: $5,000 cash, 0.5 BTC (scaled to $10,000)
+- **PERCENTAGE_BASED**: $5,000 cash, 0.5 BTC (10% of actual)
+
+#### Usage
+
+The simulation method is automatically applied in both `main.py` and `server.py`:
+
+```python
+from util import calculate_simulation_amounts
+from config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
+
+# Calculate simulation amounts
+sim_cash, sim_coin = calculate_simulation_amounts(
+    actual_cash=v_s1,
+    actual_coin=cur_coin,
+    method=SIMULATION_METHOD,
+    base_amount=SIMULATION_BASE_AMOUNT,
+    percentage=SIMULATION_PERCENTAGE
+)
+```
+
+#### Implementation Details
+
+The `calculate_simulation_amounts()` function in `util.py` handles all three methods:
+
+```python
+def calculate_simulation_amounts(
+    actual_cash: float,
+    actual_coin: float,
+    method: str = "PORTFOLIO_SCALED",
+    base_amount: float = 10000,
+    percentage: float = 0.1
+) -> tuple[float, float]:
+    """
+    Calculate simulation amounts using different methods to eliminate bias.
+    """
+    if method == "FIXED":
+        return 3000, 5
+    
+    elif method == "PORTFOLIO_SCALED":
+        actual_portfolio_value = actual_cash + (actual_coin * 1)
+        if actual_portfolio_value <= 0:
+            return base_amount, base_amount * 0.001
+        
+        simulation_ratio = base_amount / actual_portfolio_value
+        sim_cash = actual_cash * simulation_ratio
+        sim_coin = actual_coin * simulation_ratio
+        return sim_cash, sim_coin
+    
+    elif method == "PERCENTAGE_BASED":
+        sim_cash = actual_cash * percentage
+        sim_coin = actual_coin * percentage
+        return sim_cash, sim_coin
+    
+    else:
+        raise ValueError(f"Unknown simulation method: {method}")
+```
+
+#### Recommendations
+
+1. **Use PORTFOLIO_SCALED** for most cases:
+   - Provides consistent, comparable results
+   - Eliminates bias from arbitrary starting values
+   - Maintains realistic portfolio proportions
+
+2. **Use PERCENTAGE_BASED** if you want results to scale with portfolio size:
+   - Good for personal use where you want to see actual impact
+   - Results grow/shrink with your portfolio
+
+3. **Avoid FIXED** method:
+   - Only use for backward compatibility
+   - Results are biased and not meaningful
+
+#### Benefits
+
+- **Eliminates Bias**: Results no longer depend on arbitrary starting values
+- **Comparable Results**: Different portfolio sizes can be compared fairly
+- **Realistic Proportions**: Simulation maintains actual cash/coin ratios
+- **Configurable**: Easy to switch between methods based on needs
+- **Backward Compatible**: Old fixed method still available if needed
 
 ### Trading Parameters
 

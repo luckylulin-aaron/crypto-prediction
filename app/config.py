@@ -44,3 +44,8 @@ EP_CASH = 5
 
 # last X days of data to be considered; time span
 TIMESPAN = 60
+
+# Simulation Configuration
+SIMULATION_METHOD = "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
+SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
+SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method
