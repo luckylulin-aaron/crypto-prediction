@@ -9,7 +9,7 @@ from typing import Any, List
 import numpy as np
 
 # customized packages
-from core.config import (
+from app.core.config import (
     BUY_SIGNAL,
     DEA_NUM_OF_DAYS,
     DEPOSIT_CST,
@@ -19,11 +19,11 @@ from core.config import (
     STRATEGIES,
     WITHDRAW_CST,
 )
-from trading.strategies import STRATEGY_REGISTRY
-from utils.util import ema_helper, max_drawdown_helper
+from app.trading.strategies import STRATEGY_REGISTRY
+from app.utils.util import ema_helper, max_drawdown_helper
 
 
-class MATrader:
+class StratTrader:
 
     """Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages."""
 
@@ -50,23 +50,28 @@ class MATrader:
         mode: str = "normal",
     ):
         """
-        Initialize a MATrader instance.
+        Initialize a StratTrader instance.
 
         Args:
-            name (str): Name of the crypto.
-            init_amount (float): Initial cash amount.
-            stat (str): Strategy name.
-            tol_pct (float): Tolerance percentage.
-            ma_lengths (List[int]): Moving average lengths.
-            ema_lengths (List[int]): Exponential moving average lengths.
-            bollinger_mas (List[int]): Bollinger MA lengths.
-            bollinger_sigma (int): Bollinger sigma value.
-            buy_pct (float): Buy percentage.
-            sell_pct (float): Sell percentage.
-            cur_coin (float, optional): Initial coin amount. Defaults to 0.0.
-            buy_stas (List[str], optional): Buy strategies. Defaults to ['by_percentage'].
-            sell_stas (List[str], optional): Sell strategies. Defaults to ['by_percentage'].
-            mode (str, optional): Mode. Defaults to 'normal'.
+            name (str): Name of the cryptocurrency
+            init_amount (float): Initial amount of cash
+            stat (str): Strategy type (MA-SELVES, RSI, KDJ, etc.)
+            tol_pct (float): Tolerance percentage for moving averages
+            ma_lengths (List[int]): List of moving average lengths
+            ema_lengths (List[int]): List of exponential moving average lengths
+            bollinger_mas (List[int]): List of Bollinger Bands moving average lengths
+            bollinger_sigma (int): Bollinger Bands standard deviation multiplier
+            buy_pct (float): Percentage of cash to buy
+            sell_pct (float): Percentage of crypto to sell
+            cur_coin (float): Current amount of cryptocurrency
+            buy_stas (List[str]): List of buy execution strategies
+            sell_stas (List[str]): List of sell execution strategies
+            rsi_period (int): RSI calculation period
+            rsi_oversold (float): RSI oversold threshold
+            rsi_overbought (float): RSI overbought threshold
+            kdj_oversold (float): KDJ oversold threshold
+            kdj_overbought (float): KDJ overbought threshold
+            mode (str): Trading mode (normal, verbose)
 
         Returns:
             None

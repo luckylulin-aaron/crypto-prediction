@@ -23,7 +23,7 @@ def create_portfolio_value_chart(
     Create an interactive portfolio value chart with buy/sell markers.
 
     Args:
-        trade_history: List of trade history dictionaries from MATrader
+        trade_history: List of trade history dictionaries from StratTrader
         title: Chart title
 
     Returns:
@@ -448,15 +448,15 @@ def create_comprehensive_dashboard(
     trader_instance, save_html: bool = True, filename: str = "trading_dashboard.html"
 ) -> go.Figure:
     """
-    Create a comprehensive dashboard with all charts.
+    Create a comprehensive trading dashboard with multiple charts.
 
     Args:
-        trader_instance: MATrader instance with trade history and crypto prices
-        save_html: Whether to save as HTML file
-        filename: HTML filename
+        trader_instance: StratTrader instance with trade history and crypto prices
+        save_html: Whether to save the dashboard as HTML file
+        filename: HTML filename to save
 
     Returns:
-        plotly.graph_objects.Figure: Dashboard figure
+        plotly.graph_objects.Figure: Comprehensive dashboard
     """
     # Get strategy name for subplot titles
     strategy_name = getattr(trader_instance, "high_strategy", "Unknown Strategy")

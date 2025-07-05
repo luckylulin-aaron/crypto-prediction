@@ -6,7 +6,7 @@ from typing import Any, List
 import numpy as np
 
 # customized packages
-from core.config import (
+from app.core.config import (
     KDJ_OVERBOUGHT_THRESHOLDS,
     KDJ_OVERSOLD_THRESHOLDS,
     ROUND_PRECISION,
@@ -14,8 +14,8 @@ from core.config import (
     RSI_OVERSOLD_THRESHOLDS,
     RSI_PERIODS,
 )
-from trading.ma_trader import MATrader
-from utils.util import timer
+from app.trading.strat_trader import StratTrader
+from app.utils.util import timer
 
 
 class TraderDriver:
@@ -79,7 +79,7 @@ class TraderDriver:
                                 for rsi_period in rsi_periods:
                                     for oversold in rsi_oversold_thresholds:
                                         for overbought in rsi_overbought_thresholds:
-                                            t = MATrader(
+                                            t = StratTrader(
                                                 name=name,
                                                 init_amount=init_amount,
                                                 stat=stat,
@@ -102,7 +102,7 @@ class TraderDriver:
                             elif stat == "KDJ":
                                 for oversold in kdj_oversold_thresholds:
                                     for overbought in kdj_overbought_thresholds:
-                                        t = MATrader(
+                                        t = StratTrader(
                                             name=name,
                                             init_amount=init_amount,
                                             stat=stat,
@@ -123,7 +123,7 @@ class TraderDriver:
                                         self.traders.append(t)
                             else:
                                 # For non-RSI/KDJ strategies, use default parameters
-                                t = MATrader(
+                                t = StratTrader(
                                     name=name,
                                     init_amount=init_amount,
                                     stat=stat,

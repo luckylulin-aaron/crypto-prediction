@@ -5,10 +5,10 @@ Test script for strategy performance visualization.
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from trading.trader_driver import TraderDriver
-from core.config import *
+from app.trading.trader_driver import TraderDriver
+from app.core.config import *
 
 def test_strategy_performance():
     """Test the strategy performance collection."""
