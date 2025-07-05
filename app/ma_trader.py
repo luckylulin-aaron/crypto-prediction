@@ -25,22 +25,25 @@ from util import ema_helper, max_drawdown_helper
 
 class MATrader:
 
-    '''Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages.'''
+    """Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages."""
 
-    def __init__(self, name: str,
-            init_amount: float,
-            stat: str,
-            tol_pct: float,
-            ma_lengths: List[int],
-            ema_lengths: List[int],
-            bollinger_mas: List[int],
-            bollinger_sigma: int,
-            buy_pct: float,
-            sell_pct: float,
-            cur_coin: float=0.0,
-            buy_stas: List[str]=['by_percentage'],
-            sell_stas: List[str]=['by_percentage'],
-            mode: str='normal'):
+    def __init__(
+        self,
+        name: str,
+        init_amount: float,
+        stat: str,
+        tol_pct: float,
+        ma_lengths: List[int],
+        ema_lengths: List[int],
+        bollinger_mas: List[int],
+        bollinger_sigma: int,
+        buy_pct: float,
+        sell_pct: float,
+        cur_coin: float = 0.0,
+        buy_stas: List[str] = ["by_percentage"],
+        sell_stas: List[str] = ["by_percentage"],
+        mode: str = "normal",
+    ):
         """
         Initialize a MATrader instance.
 
@@ -65,9 +68,11 @@ class MATrader:
         """
         # check
         if stat not in STRATEGIES:
-            raise ValueError('Unknown high-level trading strategy!')
+            raise ValueError("Unknown high-level trading strategy!")
         if not all([x in ma_lengths for x in bollinger_mas]):
-            raise ValueError('cannot initialize Bollinger Band strategy if some of moving averages are not available!')
+            raise ValueError(
+                "cannot initialize Bollinger Band strategy if some of moving averages are not available!"
+            )
         # 1. Basic
         # crypto-currency name, tolerance percentage
         self.crypto_name, self.tol_pct = name, tol_pct
@@ -79,11 +84,13 @@ class MATrader:
         self.trade_history = []
         self.crypto_prices = []
         # moving average (type: dictionary)
-        self.moving_averages = dict(zip([str(x) for x in ma_lengths],
-                                        [[] for _ in range(len(ma_lengths))]))
+        self.moving_averages = dict(
+            zip([str(x) for x in ma_lengths], [[] for _ in range(len(ma_lengths))])
+        )
         # exponential moving average queues and related items (type: dictionary)
-        self.exp_moving_averages = dict(zip([str(x) for x in ema_lengths],
-                                            [[] for _ in range(len(ema_lengths))]))
+        self.exp_moving_averages = dict(
+            zip([str(x) for x in ema_lengths], [[] for _ in range(len(ema_lengths))])
+        )
         # MACD_DIFF = EMA12- EMA26; MACD_DEA = 9_DAY_EMA_OF_MACD_DIFF
         self.macd_diff, self.macd_dea = [], []
         # KDJ index related
@@ -97,11 +104,11 @@ class MATrader:
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
         self.buy_pct, self.sell_pct = buy_pct, sell_pct
-        self.strategies = {'buy': buy_stas, 'sell': sell_stas}
+        self.strategies = {"buy": buy_stas, "sell": sell_stas}
         # high-level strategy
         self.high_strategy = stat
         # debug mode
-        self.mode = mode # normal, verbose
+        self.mode = mode  # normal, verbose
         # brokerage percentage
         self.broker_pct = 0.02
         # strategy signal lists
@@ -119,7 +126,7 @@ class MATrader:
         Returns:
             None
         """
-        open, low, high = misc_p['open'], misc_p['low'], misc_p['high']
+        open, low, high = misc_p["open"], misc_p["low"], misc_p["high"]
 
         self.crypto_prices.append((new_p, d, open, low, high))
 
@@ -135,8 +142,8 @@ class MATrader:
         # Execute trading strategy using the strategy registry
         if self.high_strategy in STRATEGY_REGISTRY:
             strategy_func = STRATEGY_REGISTRY[self.high_strategy]
-            
-            if self.high_strategy == 'MA-SELVES':
+
+            if self.high_strategy == "MA-SELVES":
                 for queue_name in self.moving_averages:
                     # if we don't have a moving average yet, skip
                     if self.moving_averages[queue_name][-1] is None:
@@ -148,40 +155,38 @@ class MATrader:
                         today=d,
                         tol_pct=self.tol_pct,
                         buy_pct=self.buy_pct,
-                        sell_pct=self.sell_pct
+                        sell_pct=self.sell_pct,
                     )
 
-            elif self.high_strategy == 'DOUBLE-MA':
+            elif self.high_strategy == "DOUBLE-MA":
                 mas = [int(x) for x in list(self.moving_averages.keys())]
                 mas = sorted(mas, reverse=False)
 
                 for i in range(0, len(mas)):
-                    for j in range(i+1, len(mas)):
+                    for j in range(i + 1, len(mas)):
                         # if too close, skip
                         if j - i <= 2:
                             continue
                         s_qn, l_qn = str(mas[i]), str(mas[j])
                         # if either of the two MAs does not have enough lengths, respectively, skip
-                        if (self.moving_averages[s_qn][-1] is None or
-                            self.moving_averages[l_qn][-1] is None):
+                        if (
+                            self.moving_averages[s_qn][-1] is None
+                            or self.moving_averages[l_qn][-1] is None
+                        ):
                             continue
                         strategy_func(
                             trader=self,
                             shorter_queue_name=s_qn,
                             longer_queue_name=l_qn,
                             new_p=new_p,
-                            today=d
+                            today=d,
                         )
 
-            elif self.high_strategy == 'MACD':
+            elif self.high_strategy == "MACD":
                 self.compute_macd_related()
-                strategy_func(
-                    trader=self,
-                    new_p=new_p,
-                    today=d
-                )
+                strategy_func(trader=self, new_p=new_p, today=d)
 
-            elif self.high_strategy == 'BOLL-BANDS':
+            elif self.high_strategy == "BOLL-BANDS":
                 for queue_name in self.bollinger_mas:
                     # if we don't have a moving average yet, skip
                     if self.moving_averages[queue_name][-1] is None:
@@ -191,22 +196,14 @@ class MATrader:
                         queue_name=queue_name,
                         new_p=new_p,
                         today=d,
-                        bollinger_sigma=self.bollinger_sigma
+                        bollinger_sigma=self.bollinger_sigma,
                     )
 
-            elif self.high_strategy == 'RSI':
-                strategy_func(
-                    trader=self,
-                    new_p=new_p,
-                    today=d
-                )
+            elif self.high_strategy == "RSI":
+                strategy_func(trader=self, new_p=new_p, today=d)
 
-            elif self.high_strategy == 'KDJ':
-                strategy_func(
-                    trader=self,
-                    new_p=new_p,
-                    today=d
-                )
+            elif self.high_strategy == "KDJ":
+                strategy_func(trader=self, new_p=new_p, today=d)
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         """
@@ -267,9 +264,11 @@ class MATrader:
             None
         """
         # when shorter than required, simply add None
-        ema12, ema26 = self.exp_moving_averages['12'][-1], self.exp_moving_averages['26'][-1]
-        if (ema12 is None or
-            ema26 is None):
+        ema12, ema26 = (
+            self.exp_moving_averages["12"][-1],
+            self.exp_moving_averages["26"][-1],
+        )
+        if ema12 is None or ema26 is None:
             self.macd_diff.append(None)
             self.macd_dea.append(None)
             return
@@ -286,15 +285,14 @@ class MATrader:
             self.macd_dea.append(self.macd_diff[-1])
         else:
             old_dea = self.macd_dea[-1]
-            new_dea = ema_helper(new_price=macd_diff, old_ema=old_dea, num_of_days=DEA_NUM_OF_DAYS)
+            new_dea = ema_helper(
+                new_price=macd_diff, old_ema=old_dea, num_of_days=DEA_NUM_OF_DAYS
+            )
             self.macd_dea.append(new_dea)
 
-    def compute_kdj_related(self,
-        d: datetime.datetime,
-        low: float,
-        high: float,
-        open: float,
-        close: float):
+    def compute_kdj_related(
+        self, d: datetime.datetime, low: float, high: float, open: float, close: float
+    ):
         """
         Compute KDJ related arrays with dates, prices of lows, highs, opens and closes.
 
@@ -308,23 +306,26 @@ class MATrader:
         Returns:
             None
         """
-        assert hasattr(self, 'nine_day_rsv') and hasattr(self, 'kdj_dct'), \
-            "Incorrect initialization, KDJ related attributes missing!"
+        assert hasattr(self, "nine_day_rsv") and hasattr(
+            self, "kdj_dct"
+        ), "Incorrect initialization, KDJ related attributes missing!"
 
         def_KnD = 50
         # if only have at most 8 days' data, then append 0 to nine_days_rsv,
         # and use 50 for K and D
         if len(self.crypto_prices) <= 8:
             self.nine_day_rsv.append(0)
-            self.kdj_dct['K'].append(def_KnD)
-            self.kdj_dct['D'].append(def_KnD)
+            self.kdj_dct["K"].append(def_KnD)
+            self.kdj_dct["D"].append(def_KnD)
         else:
             highest_within_9 = max(x[4] for x in self.crypto_prices[-9:])
             lowest_within_9 = min(x[3] for x in self.crypto_prices[-9:])
-            new_rsv = 100 * (close - lowest_within_9) / (highest_within_9 - lowest_within_9)
+            new_rsv = (
+                100 * (close - lowest_within_9) / (highest_within_9 - lowest_within_9)
+            )
             self.nine_day_rsv.append(new_rsv)
 
-    def compute_rsi(self, period: int=14):
+    def compute_rsi(self, period: int = 14):
         """
         Compute the Relative Strength Index (RSI) for the given period.
 
@@ -337,7 +338,7 @@ class MATrader:
         if len(self.crypto_prices) < period + 1:
             return None
         closes = [x[0] for x in self.crypto_prices]
-        deltas = np.diff(closes[-(period+1):])
+        deltas = np.diff(closes[-(period + 1) :])
         gains = np.where(deltas > 0, deltas, 0)
         losses = np.where(deltas < 0, -deltas, 0)
         avg_gain = np.mean(gains)
@@ -363,14 +364,14 @@ class MATrader:
         Returns:
             bool: Whether a buy action is executed.
         """
-        if method not in self.strategies['buy']:
-            raise ValueError('unknown buy strategy!')
+        if method not in self.strategies["buy"]:
+            raise ValueError("unknown buy strategy!")
         if self.cash <= 0:
-            if self.mode == 'verbose':
-                print('no more cash left, cannot buy anymore!')
+            if self.mode == "verbose":
+                print("no more cash left, cannot buy anymore!")
             return False
         # execution body
-        if method == 'by_percentage':
+        if method == "by_percentage":
             out_cash = self.cash * self.sell_pct
             self.cur_coin += out_cash * (1 - self.broker_pct) / new_p
             self.cash -= out_cash
@@ -387,14 +388,14 @@ class MATrader:
         Returns:
             bool: Whether a sell action is executed.
         """
-        if method not in self.strategies['sell']:
-            raise ValueError('unknown sell strategy!')
+        if method not in self.strategies["sell"]:
+            raise ValueError("unknown sell strategy!")
         if self.cur_coin <= 0:
-            if self.mode == 'verbose':
-                print('no coin left, cannot sell anymore!')
+            if self.mode == "verbose":
+                print("no coin left, cannot sell anymore!")
             return False
         # execution body
-        if method == 'by_percentage':
+        if method == "by_percentage":
             out_coin = self.cur_coin * self.sell_pct
             self.cur_coin -= out_coin
             self.cash += out_coin * new_p * (1 - self.broker_pct)
@@ -413,16 +414,16 @@ class MATrader:
             None
         """
         item = {
-            'action': action,
-            'price': new_p,
-            'date': d,
-            'coin': self.cur_coin,
-            'cash': self.cash,
-            'portfolio': self.portfolio_value
+            "action": action,
+            "price": new_p,
+            "date": d,
+            "coin": self.cur_coin,
+            "cash": self.cash,
+            "portfolio": self.portfolio_value,
         }
         self.trade_history.append(item)
 
-        if self.mode == 'verbose':
+        if self.mode == "verbose":
             print(item)
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
@@ -440,7 +441,7 @@ class MATrader:
             ValueError: If c <= 0.
         """
         if c <= 0:
-            raise ValueError('Should deposit a positive amount!')
+            raise ValueError("Should deposit a positive amount!")
 
         self.cash += c
         self.record_history(new_p, d, DEPOSIT_CST)
@@ -460,7 +461,7 @@ class MATrader:
             ValueError: If c > self.cash.
         """
         if c > self.cash:
-            raise ValueError('Not enough cash to withdraw!')
+            raise ValueError("Not enough cash to withdraw!")
 
         self.cash -= c
         self._record_history(new_p, d, WITHDRAW_CST)
@@ -468,7 +469,7 @@ class MATrader:
     # properties, built upon functions defined above
     @property
     def all_history(self):
-        '''Returns all histories in complete fashion.'''
+        """Returns all histories in complete fashion."""
         if len(self.trade_history) == 0:
             return []
 
@@ -476,23 +477,25 @@ class MATrader:
         # for logs on the same day, if all logs are 'no action' take only 1; o/w, return all actions
         day_to_action = collections.defaultdict(list)
         for t in tmps:
-            day_to_action[t['date']].append(t)
+            day_to_action[t["date"]].append(t)
 
         all_hist = []
         for d in day_to_action:
-            if all([x['action'] == NO_ACTION_SIGNAL for x in day_to_action[d]]):
+            if all([x["action"] == NO_ACTION_SIGNAL for x in day_to_action[d]]):
                 all_hist.append(day_to_action[d][-1])
             else:
-                today_trades = list(filter(lambda x: x['action'] != NO_ACTION_SIGNAL, day_to_action[d]))
+                today_trades = list(
+                    filter(lambda x: x["action"] != NO_ACTION_SIGNAL, day_to_action[d])
+                )
                 all_hist.extend(today_trades)
 
         return all_hist
 
     @property
     def all_history_trade_only(self):
-        '''Returns all histories, filter out NO_ACTION items.'''
+        """Returns all histories, filter out NO_ACTION items."""
         all_hist = self.all_history
-        return list(filter(lambda x: x['action'] != NO_ACTION_SIGNAL, all_hist))
+        return list(filter(lambda x: x["action"] != NO_ACTION_SIGNAL, all_hist))
 
     @property
     def num_transaction(self):
@@ -501,23 +504,23 @@ class MATrader:
     @property
     def num_buy_action(self):
         trades_only = self.all_history_trade_only
-        return len([x for x in trades_only if x['action'] == BUY_SIGNAL])
+        return len([x for x in trades_only if x["action"] == BUY_SIGNAL])
 
     @property
     def num_sell_action(self):
         trades_only = self.all_history_trade_only
-        return len([x for x in trades_only if x['action'] == SELL_SIGNAL])
+        return len([x for x in trades_only if x["action"] == SELL_SIGNAL])
 
     @property
     def max_drawdown(self):
-        '''Utilizes history to compute max draw-down.'''
+        """Utilizes history to compute max draw-down."""
         all_hist = []
         if len(self.all_history) > 0:
-            all_hist = list(map(lambda x: x['portfolio'], self.all_history))
+            all_hist = list(map(lambda x: x["portfolio"], self.all_history))
         else:
             # no transaction happened at all
             # free to grab all this currency's data, re-compute
-            for (price, _) in self.crypto_prices:
+            for price, _ in self.crypto_prices:
                 port_value = self.cur_coin * price + self.cash
                 all_hist.append(port_value)
 
@@ -525,14 +528,14 @@ class MATrader:
 
     @property
     def baseline_rate_of_return(self):
-        '''Computes for baseline gain percentage (i.e. hold all coins, have 0 transaction).'''
-        init_p = self.all_history[0]['portfolio']
-        final_p = self.init_coin * self.all_history[-1]['price'] + self.init_cash
+        """Computes for baseline gain percentage (i.e. hold all coins, have 0 transaction)."""
+        init_p = self.all_history[0]["portfolio"]
+        final_p = self.init_coin * self.all_history[-1]["price"] + self.init_cash
         return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
     def rate_of_return(self):
-        '''Computes for the rate of return = (V_final - V_init) / V_init.'''
+        """Computes for the rate of return = (V_final - V_init) / V_init."""
         # compute init portfolio value
         init_p = self.init_coin * self.crypto_prices[0][0] + self.init_cash
         # compute final portfolio value
@@ -542,13 +545,16 @@ class MATrader:
 
     @property
     def coin_rate_of_return(self):
-        '''How much the price of the currency has gone up.'''
-        init_price, final_price = self.all_history[0]['price'], self.all_history[-1]['price']
+        """How much the price of the currency has gone up."""
+        init_price, final_price = (
+            self.all_history[0]["price"],
+            self.all_history[-1]["price"],
+        )
         return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
 
     @property
     def trade_signal(self):
-        '''Given a new day\'s price, determine if there\'s a suggested transaction.
+        """Given a new day\'s price, determine if there\'s a suggested transaction.
 
         :argument
 
@@ -556,19 +562,19 @@ class MATrader:
             (str)
 
         :raise
-        '''
+        """
         res = {
-            'action': NO_ACTION_SIGNAL,
-            'buy_percentage': self.buy_pct,
-            'sell_percentage': self.sell_pct
+            "action": NO_ACTION_SIGNAL,
+            "buy_percentage": self.buy_pct,
+            "sell_percentage": self.sell_pct,
         }
         # find last date on which a transaction occurs
         last_evt = self.trade_history[-1] if len(self.trade_history) > 0 else {}
-        last_date_str = last_evt.get('date', None)
+        last_date_str = last_evt.get("date", None)
         if last_date_str is None:
             return res
 
-        fmts = ['%Y-%m-%d', '%m/%d/%Y']
+        fmts = ["%Y-%m-%d", "%m/%d/%Y"]
         for fmt in fmts:
             try:
                 last_date_dt_obj = datetime.datetime.strptime(last_date_str, fmt)
@@ -580,31 +586,31 @@ class MATrader:
         diff = td - last_date_dt_obj
 
         if diff.days <= 1:
-            res['action'] = last_evt['action']
+            res["action"] = last_evt["action"]
 
         return res
 
     @property
     def portfolio_value(self):
-        '''Returns your latest portfolio value.'''
+        """Returns your latest portfolio value."""
         latest_price = self.crypto_prices[-1][0]
         p = latest_price * self.cur_coin + self.cash
         if p < 0:
-            raise ValueError('portfolio value cannot be negative!')
+            raise ValueError("portfolio value cannot be negative!")
         return p
 
     @property
     def brokerage_pct(self):
-        '''Returns brokerage percentage.'''
+        """Returns brokerage percentage."""
         return self.broker_pct
 
     @property
     def trading_strategy(self):
-        '''Returns this object\'s trading strategy.'''
+        """Returns this object\'s trading strategy."""
         basic = {
-            'buy_pct': self.buy_pct,
-            'sell_pct': self.sell_pct,
-            'tol_pct': self.tol_pct,
-            'bollinger_sigma': self.bollinger_sigma
+            "buy_pct": self.buy_pct,
+            "sell_pct": self.sell_pct,
+            "tol_pct": self.tol_pct,
+            "bollinger_sigma": self.bollinger_sigma,
         }
         return {**basic, **self.strategies}

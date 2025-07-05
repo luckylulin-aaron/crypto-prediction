@@ -6,7 +6,7 @@ import os
 import sys
 
 # Add the app directory to the Python path for testing
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 
 def test_imports():
@@ -21,6 +21,7 @@ def test_imports():
         import trader_driver
         import util
         import visualization
+
         print("✅ All modules imported successfully")
         return True
     except ImportError as e:
@@ -32,6 +33,7 @@ def test_config():
     """Test that configuration can be loaded."""
     try:
         from config import CURS, STRATEGIES, TIMESPAN
+
         assert isinstance(CURS, list), "CURS should be a list"
         assert isinstance(STRATEGIES, list), "STRATEGIES should be a list"
         assert isinstance(TIMESPAN, int), "TIMESPAN should be an integer"
@@ -46,6 +48,7 @@ def test_logger():
     """Test that logger can be initialized."""
     try:
         from logger import get_logger
+
         logger = get_logger("test")
         assert logger is not None, "Logger should not be None"
         print("✅ Logger initialized successfully")
@@ -63,6 +66,7 @@ def test_poetry_dependencies():
         import pandas
         import plotly
         import requests
+
         print("✅ Poetry dependencies available")
         return True
     except ImportError as e:
@@ -72,26 +76,26 @@ def test_poetry_dependencies():
 
 if __name__ == "__main__":
     print("🧪 Testing Poetry setup...")
-    
+
     tests = [
         test_poetry_dependencies,
         test_imports,
         test_config,
         test_logger,
     ]
-    
+
     passed = 0
     total = len(tests)
-    
+
     for test in tests:
         if test():
             passed += 1
-    
+
     print(f"\n📊 Test Results: {passed}/{total} tests passed")
-    
+
     if passed == total:
         print("🎉 All tests passed! Poetry setup is working correctly.")
         sys.exit(0)
     else:
         print("❌ Some tests failed. Please check the setup.")
-        sys.exit(1) 
+        sys.exit(1)
