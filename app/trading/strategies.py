@@ -367,7 +367,7 @@ def strategy_ma_macd_combined(
     # Get MACD signal
     macd_buy_signal = False
     macd_sell_signal = False
-    
+
     if trader.macd_dea[-1] is not None:
         diff = trader.macd_diff[-1] - trader.macd_dea[-1]
         macd_buy_signal = diff > 0
@@ -425,7 +425,7 @@ def strategy_macd_kdj_combined(
     # Get MACD signal
     macd_buy_signal = False
     macd_sell_signal = False
-    
+
     if trader.macd_dea[-1] is not None:
         diff = trader.macd_diff[-1] - trader.macd_dea[-1]
         macd_buy_signal = diff > 0
@@ -434,7 +434,7 @@ def strategy_macd_kdj_combined(
     # Get KDJ signal
     kdj_buy_signal = False
     kdj_sell_signal = False
-    
+
     if (
         hasattr(trader, "kdj_dct")
         and "K" in trader.kdj_dct
@@ -503,7 +503,7 @@ def strategy_rsi_bollinger_combined(
     rsi = trader.compute_rsi(rsi_period)
     rsi_buy_signal = False
     rsi_sell_signal = False
-    
+
     if rsi is not None:
         rsi_buy_signal = rsi < rsi_oversold
         rsi_sell_signal = rsi > rsi_overbought
@@ -511,7 +511,7 @@ def strategy_rsi_bollinger_combined(
     # Get Bollinger Bands signal
     boll_buy_signal = False
     boll_sell_signal = False
-    
+
     not_null_values = list(
         filter(lambda x: x is not None, trader.moving_averages[queue_name])
     )
@@ -520,7 +520,7 @@ def strategy_rsi_bollinger_combined(
         ma_mean, ma_std = np.mean(mas), np.std(mas)
         boll_upper = ma_mean + bollinger_sigma * ma_std
         boll_lower = ma_mean - bollinger_sigma * ma_std
-        
+
         boll_buy_signal = new_p <= boll_lower
         boll_sell_signal = new_p >= boll_upper
 
@@ -585,7 +585,7 @@ def strategy_triple_signal(
     # Get MACD signal
     macd_buy_signal = False
     macd_sell_signal = False
-    
+
     if trader.macd_dea[-1] is not None:
         diff = trader.macd_diff[-1] - trader.macd_dea[-1]
         macd_buy_signal = diff > 0
@@ -595,7 +595,7 @@ def strategy_triple_signal(
     rsi = trader.compute_rsi(14)
     rsi_buy_signal = False
     rsi_sell_signal = False
-    
+
     if rsi is not None:
         rsi_buy_signal = rsi < 30
         rsi_sell_signal = rsi > 70
@@ -662,9 +662,12 @@ def strategy_conservative_ma(
     # Get recent prices and MAs for confirmation
     recent_prices = trader.crypto_prices[-confirmation_periods:]
     recent_mas = trader.moving_averages[queue_name][-confirmation_periods:]
-    
+
     # Check if we have enough data
-    if len(recent_prices) < confirmation_periods or len(recent_mas) < confirmation_periods:
+    if (
+        len(recent_prices) < confirmation_periods
+        or len(recent_mas) < confirmation_periods
+    ):
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
@@ -672,11 +675,11 @@ def strategy_conservative_ma(
     # Count how many periods price was above/below MA with tolerance
     above_ma_count = 0
     below_ma_count = 0
-    
+
     for i in range(confirmation_periods):
         price = recent_prices[i][0]
         ma = recent_mas[i]
-        
+
         if ma is not None:
             if price >= (1 + tol_pct) * ma:
                 above_ma_count += 1

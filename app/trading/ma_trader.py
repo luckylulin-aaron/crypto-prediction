@@ -215,21 +215,21 @@ class MATrader:
 
             elif self.high_strategy == "RSI":
                 strategy_func(
-                    trader=self, 
-                    new_p=new_p, 
+                    trader=self,
+                    new_p=new_p,
                     today=d,
                     period=self.rsi_period,
                     oversold=self.rsi_oversold,
-                    overbought=self.rsi_overbought
+                    overbought=self.rsi_overbought,
                 )
 
             elif self.high_strategy == "KDJ":
                 strategy_func(
-                    trader=self, 
-                    new_p=new_p, 
+                    trader=self,
+                    new_p=new_p,
                     today=d,
                     oversold=self.kdj_oversold,
-                    overbought=self.kdj_overbought
+                    overbought=self.kdj_overbought,
                 )
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
@@ -397,32 +397,34 @@ class MATrader:
             if self.mode == "verbose":
                 print("no more cash left, cannot buy anymore!")
             return False
-        
+
         # execution body
         if method == "by_percentage":
             # Use percentage of available cash
             out_cash = self.cash * self.sell_pct
             self.cur_coin += out_cash * (1 - self.broker_pct) / new_p
             self.cash -= out_cash
-            
+
         elif method == "fixed_amount":
             # Use fixed amount (buy_pct represents fixed USD amount)
-            fixed_amount = self.buy_pct  # In this context, buy_pct is the fixed USD amount
+            fixed_amount = (
+                self.buy_pct
+            )  # In this context, buy_pct is the fixed USD amount
             if fixed_amount > self.cash:
                 fixed_amount = self.cash  # Can't spend more than we have
             self.cur_coin += fixed_amount * (1 - self.broker_pct) / new_p
             self.cash -= fixed_amount
-            
+
         elif method == "market_order":
             # Market order - use all available cash
             out_cash = self.cash
             self.cur_coin += out_cash * (1 - self.broker_pct) / new_p
             self.cash = 0  # Spend all cash
-            
+
         # Track the buy price for stop loss and take profit strategies
         if method in ["by_percentage", "fixed_amount", "market_order"]:
             self.last_buy_price = new_p
-            
+
         return True
 
     def _execute_one_sell(self, method: str, new_p: float):
@@ -442,18 +444,18 @@ class MATrader:
             if self.mode == "verbose":
                 print("no coin left, cannot sell anymore!")
             return False
-        
+
         # execution body
         if method == "by_percentage":
             # Use percentage of available crypto
             out_coin = self.cur_coin * self.sell_pct
             self.cur_coin -= out_coin
             self.cash += out_coin * new_p * (1 - self.broker_pct)
-            
+
         elif method == "stop_loss":
             # Stop loss - sell if price drops below threshold
             # sell_pct represents the stop loss percentage below purchase price
-            if hasattr(self, 'last_buy_price') and self.last_buy_price:
+            if hasattr(self, "last_buy_price") and self.last_buy_price:
                 stop_loss_price = self.last_buy_price * (1 - self.sell_pct)
                 if new_p <= stop_loss_price:
                     # Trigger stop loss - sell all crypto
@@ -467,11 +469,11 @@ class MATrader:
                 out_coin = self.cur_coin * self.sell_pct
                 self.cur_coin -= out_coin
                 self.cash += out_coin * new_p * (1 - self.broker_pct)
-                
+
         elif method == "take_profit":
             # Take profit - sell if price rises above threshold
             # sell_pct represents the take profit percentage above purchase price
-            if hasattr(self, 'last_buy_price') and self.last_buy_price:
+            if hasattr(self, "last_buy_price") and self.last_buy_price:
                 take_profit_price = self.last_buy_price * (1 + self.sell_pct)
                 if new_p >= take_profit_price:
                     # Trigger take profit - sell all crypto
@@ -485,7 +487,7 @@ class MATrader:
                 out_coin = self.cur_coin * self.sell_pct
                 self.cur_coin -= out_coin
                 self.cash += out_coin * new_p * (1 - self.broker_pct)
-                
+
         return True
 
     def _record_history(self, new_p: float, d: datetime.datetime, action: str):

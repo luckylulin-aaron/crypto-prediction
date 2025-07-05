@@ -10,8 +10,8 @@ from coinbase.rest import RESTClient
 
 # customized packages
 from core.config import CURS, STABLECOIN, TIMESPAN
-from db.database import db_manager
 from core.logger import get_logger
+from db.database import db_manager
 from utils.util import timer
 
 
@@ -54,10 +54,14 @@ class CBProClient:
         if use_cache:
             cached_data = db_manager.get_historical_data(name, TIMESPAN)
             if cached_data and db_manager.is_data_fresh(name, max_age_hours=24):
-                self.logger.info(f"Using cached data for {name} ({len(cached_data)} records)")
+                self.logger.info(
+                    f"Using cached data for {name} ({len(cached_data)} records)"
+                )
                 return cached_data
             elif cached_data:
-                self.logger.info(f"Cached data for {name} is stale, fetching fresh data")
+                self.logger.info(
+                    f"Cached data for {name} is stale, fetching fresh data"
+                )
             else:
                 self.logger.info(f"No cached data found for {name}, fetching from API")
 
@@ -89,17 +93,19 @@ class CBProClient:
                 except (KeyError, ValueError, TypeError):
                     volume = 0.0  # Default to 0 if volume data is not available
                 # append
-                parsed.append([closing_price, fmt_dt_str, open_price, low, high, volume])
+                parsed.append(
+                    [closing_price, fmt_dt_str, open_price, low, high, volume]
+                )
             # Sort by date ascending
             parsed = sorted(parsed, key=lambda x: x[1])
             # Remove today's data if present
             today_str = datetime.utcnow().strftime("%Y-%m-%d")
             parsed = [x for x in parsed if x[1] != today_str]
-            
+
             # Store data in database for future use
             if use_cache and parsed:
                 db_manager.store_historical_data(name, parsed)
-            
+
             return parsed
 
         except Exception as e:
@@ -150,7 +156,7 @@ class CBProClient:
             accounts = self.rest_client.get_accounts()
             all_currencies = sorted([x["currency"] for x in accounts.accounts])
             self.logger.info(f"All available currencies in account: {all_currencies}")
-            
+
             if cur_names is None:
                 # Return all accounts if no specific currencies requested
                 wallets = accounts.accounts
@@ -158,14 +164,18 @@ class CBProClient:
             else:
                 # Filter by requested currencies
                 wallets = [x for x in accounts.accounts if x["currency"] in cur_names]
-                self.logger.info(f"Filtered to {len(wallets)} accounts for currencies: {cur_names}")
-            
+                self.logger.info(
+                    f"Filtered to {len(wallets)} accounts for currencies: {cur_names}"
+                )
+
             # Log details of returned wallets
             for wallet in wallets:
                 balance = float(wallet["available_balance"]["value"])
                 if balance > 0:  # Only log wallets with non-zero balance
-                    self.logger.info(f"Wallet: {wallet['currency']} - Balance: {balance:.3f}")
-            
+                    self.logger.info(
+                        f"Wallet: {wallet['currency']} - Balance: {balance:.3f}"
+                    )
+
             return wallets
         except Exception as e:
             self.logger.error(f"Exception when calling get_accounts: {e}")
@@ -190,20 +200,22 @@ class CBProClient:
         """
         try:
             # For now, just log the order since COMMIT is False
-            self.logger.info(f"Would place BUY order: {amount} {currency} from wallet {wallet_id}")
-            
+            self.logger.info(
+                f"Would place BUY order: {amount} {currency} from wallet {wallet_id}"
+            )
+
             # Mock order response for simulation
             order = {
                 "amount": {"amount": str(amount), "currency": currency},
                 "total": {"amount": str(amount), "currency": "USD"},
                 "unit_price": {"amount": "1.00", "currency": "USD"},
-                "status": "simulated"
+                "status": "simulated",
             }
-            
+
             # TODO: Implement actual Coinbase Advanced Trade API call
             # The correct method might be something like:
             # order = self.rest_client.create_order(...)
-            
+
         except Exception as e:
             self.logger.error(f"Error placing buy order: {e}")
             raise e
@@ -229,20 +241,22 @@ class CBProClient:
         """
         try:
             # For now, just log the order since COMMIT is False
-            self.logger.info(f"Would place SELL order: {amount} {currency} from wallet {wallet_id}")
-            
+            self.logger.info(
+                f"Would place SELL order: {amount} {currency} from wallet {wallet_id}"
+            )
+
             # Mock order response for simulation
             order = {
                 "amount": {"amount": str(amount), "currency": currency},
                 "subtotal": {"amount": str(amount), "currency": "USD"},
                 "unit_price": {"amount": "1.00", "currency": "USD"},
-                "status": "simulated"
+                "status": "simulated",
             }
-            
+
             # TODO: Implement actual Coinbase Advanced Trade API call
             # The correct method might be something like:
             # order = self.rest_client.create_order(...)
-            
+
         except Exception as e:
             self.logger.error(f"Error placing sell order: {e}")
             raise e

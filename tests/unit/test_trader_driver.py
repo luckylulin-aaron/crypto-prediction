@@ -13,7 +13,7 @@ sys.path.insert(0, "../../app")
 from cbpro_client import CBProClient
 from config import *
 from trader_driver import TraderDriver
-from util import (load_csv)
+from util import load_csv
 
 
 class TestMADriver(unittest.TestCase):
@@ -29,13 +29,13 @@ class TestMADriver(unittest.TestCase):
 
         # Use simulation amounts for testing
         from util import calculate_simulation_amounts
-        
+
         sim_cash, sim_coin = calculate_simulation_amounts(
             actual_cash=3000,
             actual_coin=5,
             method="FIXED",  # Use fixed for testing
             base_amount=10000,
-            percentage=0.1
+            percentage=0.1,
         )
 
         t_driver = TraderDriver(
@@ -70,14 +70,14 @@ class TestMADriver(unittest.TestCase):
     def test_run_with_cbpro(self):
         """Test running with CBProClient that requires internet connection."""
         return
-        
+
         # Read API credentials from screte.ini
         config = configparser.ConfigParser()
         config.read(os.path.join(os.path.dirname(__file__), "../../app/screte.ini"))
-        
+
         CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
         CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
-        
+
         client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
 
         for cur_name in CURS:
@@ -92,7 +92,7 @@ class TestMADriver(unittest.TestCase):
                 actual_coin=5,
                 method="FIXED",  # Use fixed for testing
                 base_amount=10000,
-                percentage=0.1
+                percentage=0.1,
             )
 
             t_driver = TraderDriver(

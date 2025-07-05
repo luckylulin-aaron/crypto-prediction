@@ -87,7 +87,7 @@ def create_portfolio_value_chart(
         full_title = f"{title}<br><sub>{execution_strategies}</sub>"
     else:
         full_title = title
-        
+
     fig.update_layout(
         title=full_title,
         xaxis_title="Date",
@@ -459,19 +459,29 @@ def create_comprehensive_dashboard(
         plotly.graph_objects.Figure: Dashboard figure
     """
     # Get strategy name for subplot titles
-    strategy_name = getattr(trader_instance, 'high_strategy', 'Unknown Strategy')
-    
+    strategy_name = getattr(trader_instance, "high_strategy", "Unknown Strategy")
+
     # Get execution strategies
-    buy_strategies = getattr(trader_instance, 'strategies', {}).get('buy', ['Unknown'])
-    sell_strategies = getattr(trader_instance, 'strategies', {}).get('sell', ['Unknown'])
-    
+    buy_strategies = getattr(trader_instance, "strategies", {}).get("buy", ["Unknown"])
+    sell_strategies = getattr(trader_instance, "strategies", {}).get(
+        "sell", ["Unknown"]
+    )
+
     # Format execution strategies for display
-    buy_strat_display = ', '.join(buy_strategies) if isinstance(buy_strategies, list) else str(buy_strategies)
-    sell_strat_display = ', '.join(sell_strategies) if isinstance(sell_strategies, list) else str(sell_strategies)
-    
+    buy_strat_display = (
+        ", ".join(buy_strategies)
+        if isinstance(buy_strategies, list)
+        else str(buy_strategies)
+    )
+    sell_strat_display = (
+        ", ".join(sell_strategies)
+        if isinstance(sell_strategies, list)
+        else str(sell_strategies)
+    )
+
     # Create execution strategy subtitle
     execution_subtitle = f"Buy: {buy_strat_display} | Sell: {sell_strat_display}"
-    
+
     # Create subplots
     fig = make_subplots(
         rows=3,
@@ -500,34 +510,32 @@ def create_comprehensive_dashboard(
 
     # 1. Portfolio Value Chart
     portfolio_fig = create_portfolio_value_chart(
-        trade_history, 
+        trade_history,
         title=f"Portfolio Value Over Time - {strategy_name}",
-        execution_strategies=execution_subtitle
+        execution_strategies=execution_subtitle,
     )
     for trace in portfolio_fig.data:
         fig.add_trace(trace, row=1, col=1)
 
     # 2. Asset Allocation Chart
     allocation_fig = create_asset_allocation_chart(
-        trade_history,
-        title=f"Asset Allocation - {strategy_name}"
+        trade_history, title=f"Asset Allocation - {strategy_name}"
     )
     for trace in allocation_fig.data:
         fig.add_trace(trace, row=1, col=2)
 
     # 3. Price and Signals Chart
     price_fig = create_price_and_signals_chart(
-        crypto_prices, 
+        crypto_prices,
         trade_history,
-        title=f"Price History with Signals - {strategy_name}"
+        title=f"Price History with Signals - {strategy_name}",
     )
     for trace in price_fig.data:
         fig.add_trace(trace, row=2, col=1)
 
     # 4. Drawdown Chart
     drawdown_fig = create_drawdown_chart(
-        trade_history,
-        title=f"Drawdown Analysis - {strategy_name}"
+        trade_history, title=f"Drawdown Analysis - {strategy_name}"
     )
     for trace in drawdown_fig.data:
         fig.add_trace(trace, row=2, col=2)
@@ -549,14 +557,13 @@ def create_comprehensive_dashboard(
 
     # 6. Returns Distribution
     returns_fig = create_returns_distribution_chart(
-        trade_history,
-        title=f"Returns Distribution - {strategy_name}"
+        trade_history, title=f"Returns Distribution - {strategy_name}"
     )
     for trace in returns_fig.data:
         fig.add_trace(trace, row=3, col=2)
 
     # Update layout with strategy name and execution strategies
-    strategy_name = getattr(trader_instance, 'high_strategy', 'Unknown Strategy')
+    strategy_name = getattr(trader_instance, "high_strategy", "Unknown Strategy")
     fig.update_layout(
         title=f"Trading Strategy Dashboard - {trader_instance.crypto_name} ({strategy_name})<br><sub>{execution_subtitle}</sub>",
         height=1200,
