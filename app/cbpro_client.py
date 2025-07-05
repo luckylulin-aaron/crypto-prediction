@@ -10,6 +10,7 @@ from coinbase.rest import RESTClient
 
 # customized packages
 from config import CURS, STABLECOIN, TIMESPAN
+from database import db_manager
 from logger import get_logger
 from util import timer
 
@@ -36,11 +37,12 @@ class CBProClient:
         return float(res)
 
     @timer
-    def get_historic_data(self, name: str):
-        """Get historic rates using Advanced Trade API.
+    def get_historic_data(self, name: str, use_cache: bool = True):
+        """Get historic rates using Advanced Trade API with database caching.
 
         Args:
             name (str): The product_id or currency pair (e.g., 'BTC-USD').
+            use_cache (bool): Whether to use cached data if available and fresh.
 
         Returns:
             list: Each element is [closing_price (float), date (str, 'YYYY-MM-DD'), open_price (float), low (float), high (float), volume (float)].
@@ -48,6 +50,18 @@ class CBProClient:
         Raises:
             ConnectionError: If the API call fails or the response is invalid.
         """
+        # Try to get data from cache first
+        if use_cache:
+            cached_data = db_manager.get_historical_data(name, TIMESPAN)
+            if cached_data and db_manager.is_data_fresh(name, max_age_hours=24):
+                self.logger.info(f"Using cached data for {name} ({len(cached_data)} records)")
+                return cached_data
+            elif cached_data:
+                self.logger.info(f"Cached data for {name} is stale, fetching fresh data")
+            else:
+                self.logger.info(f"No cached data found for {name}, fetching from API")
+
+        # Fetch fresh data from API
         try:
             end = datetime.utcnow()
             start = end - timedelta(days=TIMESPAN)
@@ -81,6 +95,11 @@ class CBProClient:
             # Remove today's data if present
             today_str = datetime.utcnow().strftime("%Y-%m-%d")
             parsed = [x for x in parsed if x[1] != today_str]
+            
+            # Store data in database for future use
+            if use_cache and parsed:
+                db_manager.store_historical_data(name, parsed)
+            
             return parsed
 
         except Exception as e:
