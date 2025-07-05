@@ -1,0 +1,90 @@
+[tool.poetry]
+name = "crypto-prediction"
+version = "0.1.0"
+description = "Cryptocurrency trading bot with web interface"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+flask = "^2.0.0"
+plotly = "^5.0.0"
+pandas = "^2.0.0"
+numpy = "^1.24.0"
+requests = "^2.31.0"
+coinbase-advanced-py = "^1.8.2"
+pycryptodome = "^3.9.8"
+websocket-client = "^0.40.0"
+schedule = "^0.6.0"
+pymongo = "^3.5.1"
+python-dateutil = "^2.8.2"
+colorama = "^0.4.3"
+jupyter = "^1.0.0"
+ipykernel = "^5.2.0"
+ipython = "^7.13.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+black = "^23.0.0"
+flake8 = "^6.0.0"
+mypy = "^1.0.0"
+isort = "^5.12.0"
+
+[tool.poetry.scripts]
+start-server = "app.server:main"
+trading-bot = "app.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["app"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "flask.*",
+    "plotly.*",
+    "coinbase_advanced_py.*",
+    "websocket.*",
+    "schedule.*",
+    "pymongo.*"
+]
+ignore_missing_imports = true 
