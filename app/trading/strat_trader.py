@@ -25,7 +25,7 @@ from app.utils.util import ema_helper, max_drawdown_helper
 
 class StratTrader:
 
-    """A trategic-trading implementation that focus and relies on multiple technical signals."""
+    """Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages."""
 
     def __init__(
         self,
