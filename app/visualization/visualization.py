@@ -17,6 +17,7 @@ from plotly.subplots import make_subplots
 def create_portfolio_value_chart(
     trade_history: List[Dict],
     title: str = "Portfolio Value Over Time with Buy/Sell Signals",
+    execution_strategies: str = "",
 ) -> go.Figure:
     """
     Create an interactive portfolio value chart with buy/sell markers.
@@ -82,8 +83,13 @@ def create_portfolio_value_chart(
         )
 
     # Update layout
+    if execution_strategies:
+        full_title = f"{title}<br><sub>{execution_strategies}</sub>"
+    else:
+        full_title = title
+        
     fig.update_layout(
-        title=title,
+        title=full_title,
         xaxis_title="Date",
         yaxis_title="Portfolio Value ($)",
         hovermode="x unified",
@@ -455,6 +461,17 @@ def create_comprehensive_dashboard(
     # Get strategy name for subplot titles
     strategy_name = getattr(trader_instance, 'high_strategy', 'Unknown Strategy')
     
+    # Get execution strategies
+    buy_strategies = getattr(trader_instance, 'strategies', {}).get('buy', ['Unknown'])
+    sell_strategies = getattr(trader_instance, 'strategies', {}).get('sell', ['Unknown'])
+    
+    # Format execution strategies for display
+    buy_strat_display = ', '.join(buy_strategies) if isinstance(buy_strategies, list) else str(buy_strategies)
+    sell_strat_display = ', '.join(sell_strategies) if isinstance(sell_strategies, list) else str(sell_strategies)
+    
+    # Create execution strategy subtitle
+    execution_subtitle = f"Buy: {buy_strat_display} | Sell: {sell_strat_display}"
+    
     # Create subplots
     fig = make_subplots(
         rows=3,
@@ -484,7 +501,8 @@ def create_comprehensive_dashboard(
     # 1. Portfolio Value Chart
     portfolio_fig = create_portfolio_value_chart(
         trade_history, 
-        title=f"Portfolio Value Over Time - {strategy_name}"
+        title=f"Portfolio Value Over Time - {strategy_name}",
+        execution_strategies=execution_subtitle
     )
     for trace in portfolio_fig.data:
         fig.add_trace(trace, row=1, col=1)
@@ -537,10 +555,10 @@ def create_comprehensive_dashboard(
     for trace in returns_fig.data:
         fig.add_trace(trace, row=3, col=2)
 
-    # Update layout with strategy name
+    # Update layout with strategy name and execution strategies
     strategy_name = getattr(trader_instance, 'high_strategy', 'Unknown Strategy')
     fig.update_layout(
-        title=f"Trading Strategy Dashboard - {trader_instance.crypto_name} ({strategy_name})",
+        title=f"Trading Strategy Dashboard - {trader_instance.crypto_name} ({strategy_name})<br><sub>{execution_subtitle}</sub>",
         height=1200,
         showlegend=True,
         template="plotly_white",
