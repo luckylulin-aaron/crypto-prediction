@@ -7,16 +7,29 @@ COMMIT = False
 # strategies
 # MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)
 # DOUBLE-MA: create several moving averages; trades are made via pair-wise comparison
-STRATEGIES = ["MA-SELVES", "DOUBLE-MA", "MACD", "BOLL-BANDS", "COMPOUND", "KDJ", "RSI"]
+# Advanced composite strategies combine multiple signals for better decision-making
+STRATEGIES = [
+    "MA-SELVES",      # Original moving average strategy
+    "DOUBLE-MA",      # Double moving average crossover
+    "MACD",           # MACD momentum indicator
+    "BOLL-BANDS",     # Bollinger Bands volatility strategy
+    "RSI",            # Relative Strength Index
+    "KDJ",            # KDJ oscillator
+    "MA-MACD",        # Combined MA + MACD (requires both signals)
+    "MACD-KDJ",       # Combined MACD + KDJ (momentum + oscillator)
+    "RSI-BOLL",       # Combined RSI + Bollinger Bands
+    "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
+    "CONSERVATIVE-MA" # MA with multiple period confirmation
+]
 
 # simulation configuration
 TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
 BUY_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
 SELL_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
 
-MA_LENGTHS = [10, 20, 30]
+MA_LENGTHS = [6, 12, 30]
 EMA_LENGTHS = [12, 26]
-BOLLINGER_MAS = [10]
+BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4]
 
 BUY_STAS = "by_percentage"
@@ -43,7 +56,7 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 60
+TIMESPAN = 90
 
 # Simulation Configuration
 SIMULATION_METHOD = "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
