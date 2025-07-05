@@ -11,14 +11,14 @@ from curses import nocbreak
 import numpy as np
 import pandas as pd
 import schedule
+
 # customized packages
 from cbpro_client import CBProClient
 from config import *
 from logger import get_logger
 from trader_driver import TraderDriver
 from util import display_port_msg, load_csv
-from visualization import (create_comprehensive_dashboard,
-                           create_portfolio_value_chart)
+from visualization import create_comprehensive_dashboard, create_portfolio_value_chart
 
 logger = get_logger(__name__)
 
@@ -138,7 +138,7 @@ def main():
             logger.info("Generating trading visualizations...")
             
             # Create comprehensive dashboard
-            dashboard_filename = f"trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            dashboard_filename = f"app/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             dashboard = create_comprehensive_dashboard(
                 trader_instance=best_t,
                 save_html=True,
@@ -147,7 +147,7 @@ def main():
             logger.info(f"Dashboard saved to: {dashboard_filename}")
             
             # Create individual portfolio chart
-            portfolio_filename = f"portfolio_chart_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            portfolio_filename = f"app/plots/portfolio_chart_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             portfolio_chart = create_portfolio_value_chart(
                 trade_history=best_t.trade_history,
                 title=f"Portfolio Value - {cur_name} ({best_t.high_strategy})"

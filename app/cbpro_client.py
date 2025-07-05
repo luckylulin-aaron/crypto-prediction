@@ -1,16 +1,17 @@
 # built-in packages
 import datetime
 import time
-from typing import Any, List
 from datetime import datetime, timedelta
+from typing import Any, List
 
 # third-party packages
 import numpy as np
 from coinbase.rest import RESTClient
+
 # customized packages
-from config import (TIMESPAN, CURS, STABLECOIN)
-from util import timer
+from config import CURS, STABLECOIN, TIMESPAN
 from logger import get_logger
+from util import timer
 
 
 class CBProClient:

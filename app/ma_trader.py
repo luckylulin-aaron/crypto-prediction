@@ -1,19 +1,27 @@
 # built-in packages
+import collections
 import copy
 import datetime
-import collections
 import time
-
-from typing import List, Any
+from typing import Any, List
 
 # third-party packages
 import numpy as np
 
 # customized packages
-from config import (BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL,
-    DEPOSIT_CST, WITHDRAW_CST, STRATEGIES, ROUND_PRECISION, DEA_NUM_OF_DAYS)
-from util import (max_drawdown_helper, ema_helper)
+from config import (
+    BUY_SIGNAL,
+    DEA_NUM_OF_DAYS,
+    DEPOSIT_CST,
+    NO_ACTION_SIGNAL,
+    ROUND_PRECISION,
+    SELL_SIGNAL,
+    STRATEGIES,
+    WITHDRAW_CST,
+)
 from strategies import STRATEGY_REGISTRY
+from util import ema_helper, max_drawdown_helper
+
 
 class MATrader:
 

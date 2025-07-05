@@ -4,6 +4,7 @@ from typing import Any, List
 
 # third-party packages
 import numpy as np
+
 # customized packages
 from config import ROUND_PRECISION
 from ma_trader import MATrader
