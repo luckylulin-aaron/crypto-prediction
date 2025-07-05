@@ -62,7 +62,7 @@ def main():
     display_port_msg(v_c=v_c1, v_s=v_s1, before=True)
 
     for index, cur_name in enumerate(CURS):
-        logger.info(f"[{index+1}] processing for currency={cur_name}...")
+        logger.info(f"\n\n[{index+1}] processing for currency={cur_name}...")
         cur_rate = client.get_cur_rate(name=cur_name + "-USD")
         data_stream = client.get_historic_data(name=cur_name + "-USD")
 
@@ -79,13 +79,13 @@ def main():
                     float(item["available_balance"]["value"]),
                     item["uuid"],
                 )
+        # check if the wallet is found
+        assert cur_coin is not None and wallet_id is not None, \
+            f"cannot find relevant wallet for {cur_name}!"
 
         logger.info(
             "cur_coin={}, wallet_id={}".format(np.round(cur_coin, 2), wallet_id)
         )
-        assert (
-            cur_coin is not None and wallet_id is not None
-        ), f"cannot find relevant wallet for {cur_name}!"
 
         # Calculate simulation amounts using configurable method
         from config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
@@ -98,7 +98,7 @@ def main():
             percentage=SIMULATION_PERCENTAGE
         )
         
-        logger.info(f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.6f}")
+        logger.info(f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.2f}")
 
         # run simulation with scaled values
         t_driver = TraderDriver(

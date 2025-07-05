@@ -14,16 +14,16 @@ TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
 BUY_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
 SELL_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
 
-MA_LENGTHS = [10, 20, 30]
+MA_LENGTHS = [6, 12, 30]
 EMA_LENGTHS = [12, 26]
-BOLLINGER_MAS = [10]
+BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4]
 
 BUY_STAS = "by_percentage"
 SELL_STAS = "by_percentage"
 
 # currencies (crptocurrency + stablecoin + fiat)
-CURS = ["SOL"]
+CURS = ["SOL", "ETH"]
 FIAT = ["USD", "SGD"]
 STABLECOIN = ["USDC", "USDT"]  # Stablecoins for trading with cryptos
 
@@ -43,7 +43,7 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 60
+TIMESPAN = 120
 
 # Simulation Configuration
 SIMULATION_METHOD = "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
