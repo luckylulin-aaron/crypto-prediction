@@ -4,7 +4,7 @@ A sophisticated cryptocurrency trading bot with web interface, built with Python
 
 ## 🚀 Features
 
-- **Multiple Trading Strategies**: 12 strategies including 5 advanced composite strategies and Fear & Greed Index sentiment strategy
+- **Multiple Trading Strategies**: 13 strategies including 5 advanced composite strategies and Fear & Greed Index sentiment strategy
 - **Bias-Free Simulation**: Configurable simulation methods to eliminate trading bias
 - **Web Dashboard**: Interactive Flask-based web interface
 - **Real-time Monitoring**: Live status updates and performance tracking
@@ -632,6 +632,12 @@ The Fear & Greed Index strategy uses market sentiment to make trading decisions:
 - **Buy Signal**: Price < MA * (1 - tolerance)
 - **Sell Signal**: Price > MA * (1 + tolerance)
 - **Parameters**: Configurable MA lengths and tolerance percentages
+
+**Exponential Moving Average Strategy (EXP-MA-SELVES)**
+- **Buy Signal**: Price < EMA * (1 - tolerance)
+- **Sell Signal**: Price > EMA * (1 + tolerance)
+- **Parameters**: Configurable EMA lengths and tolerance percentages
+- **Advantage**: EMA gives more weight to recent prices, making it more responsive to recent price changes compared to simple moving averages
 
 **Bollinger Bands Strategy**
 - **Buy Signal**: Price touches lower band

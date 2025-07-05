@@ -10,6 +10,7 @@ COMMIT = False
 # Advanced composite strategies combine multiple signals for better decision-making
 STRATEGIES = [
     "MA-SELVES",  # Original moving average strategy
+    "EXP-MA-SELVES",  # Exponential moving average strategy
     #"DOUBLE-MA",  # Double moving average crossover
     #"MACD",  # MACD momentum indicator
     #"BOLL-BANDS",  # Bollinger Bands volatility strategy
