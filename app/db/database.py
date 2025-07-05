@@ -20,8 +20,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from config import TIMESPAN
-from logger import get_logger
+from core.config import TIMESPAN
+from core.logger import get_logger
 
 # Create base class for declarative models
 Base = declarative_base()

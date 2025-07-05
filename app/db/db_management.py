@@ -6,8 +6,8 @@ import os
 import sys
 from datetime import datetime, timedelta
 
-from database import db_manager, engine, Base
-from logger import get_logger
+from db.database import db_manager, engine, Base
+from core.logger import get_logger
 
 
 def init_database():

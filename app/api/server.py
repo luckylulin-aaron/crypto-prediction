@@ -19,13 +19,13 @@ from flask import Flask, jsonify, render_template_string, request, send_from_dir
 sys.path.insert(0, os.path.dirname(__file__))
 
 # Import trading bot components
-from cbpro_client import CBProClient
-from config import *
-from database import db_manager
-from logger import get_logger
-from trader_driver import TraderDriver
-from util import display_port_msg, calculate_simulation_amounts
-from visualization import create_comprehensive_dashboard
+from trading.cbpro_client import CBProClient
+from core.config import *
+from db.database import db_manager
+from core.logger import get_logger
+from trading.trader_driver import TraderDriver
+from utils.util import display_port_msg, calculate_simulation_amounts
+from visualization.visualization import create_comprehensive_dashboard
 
 app = Flask(__name__)
 logger = get_logger(__name__)
@@ -51,7 +51,7 @@ def initialize_client():
     try:
         # Read API credentials from screte.ini
         config = configparser.ConfigParser()
-        config.read(os.path.join(os.path.dirname(__file__), "screte.ini"))
+        config.read(os.path.join(os.path.dirname(__file__), "..", "core", "screte.ini"))
 
         CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
         CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
@@ -128,7 +128,7 @@ def run_trading_simulation():
                 ), f"cannot find relevant wallet for {cur_name}!"
 
                 # Calculate simulation amounts using configurable method
-                from config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
+                from core.config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
                 
                 sim_cash, sim_coin = calculate_simulation_amounts(
                     actual_cash=v_s1,
