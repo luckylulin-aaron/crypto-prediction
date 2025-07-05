@@ -16,6 +16,7 @@ import schedule
 try:
     from core.config import *
     from core.logger import get_logger
+    from data.fear_greed_client import FearGreedClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
@@ -32,6 +33,7 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from core.config import *
     from core.logger import get_logger
+    from data.fear_greed_client import FearGreedClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
@@ -71,6 +73,9 @@ def main():
     # cbpro client to interact with coinbase
     client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
 
+    # Fear & Greed Index client for market sentiment data
+    fear_greed_client = FearGreedClient()
+
     # Get actual portfolio values for simulation
     try:
         logger.info("Getting portfolio value...")
@@ -90,6 +95,19 @@ def main():
         # cut-off, only want the last X days of data
         data_stream = data_stream[-TIMESPAN:]
         logger.info(f"only want the latest {TIMESPAN} days of data!")
+
+        # Fetch Fear & Greed Index data for the same time period
+        try:
+            fear_greed_data = fear_greed_client.get_historical_fear_greed(days=TIMESPAN)
+            logger.info(f"Fetched {len(fear_greed_data)} days of Fear & Greed Index data")
+            
+            # Log current fear & greed sentiment
+            if fear_greed_data:
+                current_sentiment = fear_greed_data[0]
+                logger.info(f"Current Fear & Greed Index: {current_sentiment['value']} ({current_sentiment['value_classification']})")
+        except Exception as e:
+            logger.warning(f"Failed to fetch Fear & Greed Index data: {e}")
+            fear_greed_data = []
 
         # Get actual wallet balances for this currency
         wallet = client.get_wallets(cur_names=[cur_name])
@@ -183,6 +201,17 @@ def main():
             f"Today's signal: {signal} for crypto={best_t.crypto_name}\n"
             f"{'★'*36}\n"
         )
+
+        # Log Fear & Greed Index information
+        if fear_greed_data:
+            current_sentiment = fear_greed_data[0]
+            sentiment_desc = fear_greed_client.get_classification_description(int(current_sentiment['value']))
+            logger.info(
+                f"\n{'='*10} MARKET SENTIMENT {'='*10}\n"
+                f"Fear & Greed Index: {current_sentiment['value']} ({current_sentiment['value_classification']})\n"
+                f"Sentiment: {sentiment_desc}\n"
+                f"{'='*30}\n"
+            )
 
         # Generate visualizations for the best trader
         try:

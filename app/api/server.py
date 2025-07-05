@@ -26,7 +26,10 @@ try:
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg
-    from visualization.visualization import create_comprehensive_dashboard, create_strategy_performance_chart
+    from visualization.visualization import (
+        create_comprehensive_dashboard,
+        create_strategy_performance_chart,
+    )
 except ImportError:
     # Fallback for when running as script
     import os
@@ -38,7 +41,10 @@ except ImportError:
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg
-    from visualization.visualization import create_comprehensive_dashboard, create_strategy_performance_chart
+    from visualization.visualization import (
+        create_comprehensive_dashboard,
+        create_strategy_performance_chart,
+    )
 
 app = Flask(__name__)
 logger = get_logger(__name__)

@@ -6,6 +6,7 @@ import datetime
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+
 from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES
 
 

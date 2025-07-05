@@ -3,12 +3,14 @@
 Test script for strategy performance visualization.
 """
 
-import sys
 import os
+import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from app.trading.trader_driver import TraderDriver
 from app.core.config import *
+from app.trading.trader_driver import TraderDriver
+
 
 def test_strategy_performance():
     """Test the strategy performance collection."""

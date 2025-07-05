@@ -3,11 +3,13 @@
 Test script for Fear & Greed Index client.
 """
 
-import sys
 import os
+import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from app.data.fear_greed_client import FearGreedClient
+
 
 def test_fear_greed_client():
     """Test the Fear & Greed Index client functionality."""
