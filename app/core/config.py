@@ -24,14 +24,23 @@ STRATEGIES = [
 ]
 
 # simulation configuration
-TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5]
-BUY_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
-SELL_PCTS = [0.3, 0.4, 0.5, 0.6, 0.7]
+TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
+BUY_PCTS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+SELL_PCTS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
 
 MA_LENGTHS = [6, 12, 30]
-EMA_LENGTHS = [12, 26]
+EMA_LENGTHS = [6, 12, 26, 30]
 BOLLINGER_MAS = [6, 12]
-BOLLINGER_TOLS = [2, 3, 4]
+BOLLINGER_TOLS = [2, 3, 4, 5]
+
+# RSI Strategy Configuration
+RSI_PERIODS = [7, 14, 21]  # RSI calculation periods
+RSI_OVERSOLD_THRESHOLDS = [10, 20, 30]  # Oversold thresholds (buy signals)
+RSI_OVERBOUGHT_THRESHOLDS = [70, 80, 90]  # Overbought thresholds (sell signals)
+
+# KDJ Strategy Configuration
+KDJ_OVERSOLD_THRESHOLDS = [10, 20, 30]  # Oversold thresholds (buy signals)
+KDJ_OVERBOUGHT_THRESHOLDS = [70, 80, 90]  # Overbought thresholds (sell signals)
 
 # Trading execution strategies
 BUY_STAS = ["by_percentage", "fixed_amount", "market_order"]
@@ -61,7 +70,7 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 90
+TIMESPAN = 120
 
 # Simulation Configuration
 SIMULATION_METHOD = "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"

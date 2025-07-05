@@ -101,7 +101,16 @@ def main():
         )
 
         # Calculate simulation amounts using configurable method
-        from core.config import SIMULATION_METHOD, SIMULATION_BASE_AMOUNT, SIMULATION_PERCENTAGE
+        from core.config import (
+            SIMULATION_METHOD, 
+            SIMULATION_BASE_AMOUNT, 
+            SIMULATION_PERCENTAGE,
+            RSI_PERIODS,
+            RSI_OVERSOLD_THRESHOLDS,
+            RSI_OVERBOUGHT_THRESHOLDS,
+            KDJ_OVERSOLD_THRESHOLDS,
+            KDJ_OVERBOUGHT_THRESHOLDS
+        )
         
         sim_cash, sim_coin = calculate_simulation_amounts(
             actual_cash=v_s1,
@@ -132,6 +141,11 @@ def main():
             sell_stas=list(SELL_STAS)
             if isinstance(SELL_STAS, (list, tuple))
             else [SELL_STAS],
+            rsi_periods=RSI_PERIODS,
+            rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
+            rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
+            kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
+            kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
             mode="normal",
         )
 
@@ -151,12 +165,14 @@ def main():
         signal = best_t.trade_signal
 
         logger.info(
+            f"\n{'★'*10} BEST TRADER SUMMARY {'★'*10}\n"
             f"Best trader performance: {info}\n"
             f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
             f"Transactions: {best_t.num_transaction}, "
             f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
             f"Strategy: {best_t.high_strategy}\n"
-            f"Today's signal: {signal} for crypto={best_t.crypto_name}"
+            f"Today's signal: {signal} for crypto={best_t.crypto_name}\n"
+            f"{'★'*36}\n"
         )
 
         # Generate visualizations for the best trader

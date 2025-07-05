@@ -6,7 +6,7 @@ from typing import Any, List
 import numpy as np
 
 # customized packages
-from core.config import ROUND_PRECISION
+from core.config import ROUND_PRECISION, RSI_PERIODS, RSI_OVERSOLD_THRESHOLDS, RSI_OVERBOUGHT_THRESHOLDS, KDJ_OVERSOLD_THRESHOLDS, KDJ_OVERBOUGHT_THRESHOLDS
 from trading.ma_trader import MATrader
 from utils.util import timer
 
@@ -30,6 +30,11 @@ class TraderDriver:
         sell_pcts: List[float],
         buy_stas: List[str] = ["by_percentage"],
         sell_stas: List[str] = ["by_percentage"],
+        rsi_periods: List[int] = [14],
+        rsi_oversold_thresholds: List[float] = [30],
+        rsi_overbought_thresholds: List[float] = [70],
+        kdj_oversold_thresholds: List[float] = [20],
+        kdj_overbought_thresholds: List[float] = [80],
         mode: str = "normal",
     ):
         """
@@ -62,33 +67,93 @@ class TraderDriver:
                 for tol_pct in tol_pcts:
                     for buy_pct in buy_pcts:
                         for sell_pct in sell_pcts:
-                            t = MATrader(
-                                name=name,
-                                init_amount=init_amount,
-                                stat=stat,
-                                tol_pct=tol_pct,
-                                ma_lengths=ma_lengths,
-                                ema_lengths=ema_lengths,
-                                bollinger_mas=bollinger_mas,
-                                bollinger_sigma=bollinger_sigma,
-                                buy_pct=buy_pct,
-                                sell_pct=sell_pct,
-                                cur_coin=cur_coin,
-                                buy_stas=buy_stas,
-                                sell_stas=sell_stas,
-                                mode=mode,
-                            )
-                            self.traders.append(t)
+                            # For RSI strategy, iterate through RSI parameters
+                            if stat == "RSI":
+                                for rsi_period in rsi_periods:
+                                    for oversold in rsi_oversold_thresholds:
+                                        for overbought in rsi_overbought_thresholds:
+                                            t = MATrader(
+                                                name=name,
+                                                init_amount=init_amount,
+                                                stat=stat,
+                                                tol_pct=tol_pct,
+                                                ma_lengths=ma_lengths,
+                                                ema_lengths=ema_lengths,
+                                                bollinger_mas=bollinger_mas,
+                                                bollinger_sigma=bollinger_sigma,
+                                                buy_pct=buy_pct,
+                                                sell_pct=sell_pct,
+                                                cur_coin=cur_coin,
+                                                buy_stas=buy_stas,
+                                                sell_stas=sell_stas,
+                                                rsi_period=rsi_period,
+                                                rsi_oversold=oversold,
+                                                rsi_overbought=overbought,
+                                                mode=mode,
+                                            )
+                                            self.traders.append(t)
+                            elif stat == "KDJ":
+                                for oversold in kdj_oversold_thresholds:
+                                    for overbought in kdj_overbought_thresholds:
+                                        t = MATrader(
+                                            name=name,
+                                            init_amount=init_amount,
+                                            stat=stat,
+                                            tol_pct=tol_pct,
+                                            ma_lengths=ma_lengths,
+                                            ema_lengths=ema_lengths,
+                                            bollinger_mas=bollinger_mas,
+                                            bollinger_sigma=bollinger_sigma,
+                                            buy_pct=buy_pct,
+                                            sell_pct=sell_pct,
+                                            cur_coin=cur_coin,
+                                            buy_stas=buy_stas,
+                                            sell_stas=sell_stas,
+                                            kdj_oversold=oversold,
+                                            kdj_overbought=overbought,
+                                            mode=mode,
+                                        )
+                                        self.traders.append(t)
+                            else:
+                                # For non-RSI/KDJ strategies, use default parameters
+                                t = MATrader(
+                                    name=name,
+                                    init_amount=init_amount,
+                                    stat=stat,
+                                    tol_pct=tol_pct,
+                                    ma_lengths=ma_lengths,
+                                    ema_lengths=ema_lengths,
+                                    bollinger_mas=bollinger_mas,
+                                    bollinger_sigma=bollinger_sigma,
+                                    buy_pct=buy_pct,
+                                    sell_pct=sell_pct,
+                                    cur_coin=cur_coin,
+                                    buy_stas=buy_stas,
+                                    sell_stas=sell_stas,
+                                    mode=mode,
+                                )
+                                self.traders.append(t)
 
         # check
-        if len(self.traders) != (
-            len(tol_pcts)
-            * len(buy_pcts)
-            * len(sell_pcts)
-            * len(overall_stats)
-            * len(bollinger_tols)
-        ):
-            raise ValueError("trader creation is wrong!")
+        expected_traders = 0
+        
+        # Calculate for each strategy type
+        for stat in overall_stats:
+            if stat == "RSI":
+                # RSI: tol_pcts * buy_pcts * sell_pcts * bollinger_tols * rsi_periods * rsi_oversold * rsi_overbought
+                rsi_combinations = len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols) * len(rsi_periods) * len(rsi_oversold_thresholds) * len(rsi_overbought_thresholds)
+                expected_traders += rsi_combinations
+            elif stat == "KDJ":
+                # KDJ: tol_pcts * buy_pcts * sell_pcts * bollinger_tols * kdj_oversold * kdj_overbought
+                kdj_combinations = len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols) * len(kdj_oversold_thresholds) * len(kdj_overbought_thresholds)
+                expected_traders += kdj_combinations
+            else:
+                # Other strategies: tol_pcts * buy_pcts * sell_pcts * bollinger_tols
+                other_combinations = len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols)
+                expected_traders += other_combinations
+        
+        if len(self.traders) != expected_traders:
+            raise ValueError(f"trader creation is wrong! Expected {expected_traders}, got {len(self.traders)}")
         # unknown, without data
         self.best_trader = None
 
