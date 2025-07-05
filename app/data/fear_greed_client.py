@@ -5,11 +5,12 @@ Uses the Alternative.me API to get daily fear and greed index values.
 
 import json
 import logging
-import requests
+import os
+import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import sqlite3
-import os
+
+import requests
 
 logger = logging.getLogger(__name__)
 
