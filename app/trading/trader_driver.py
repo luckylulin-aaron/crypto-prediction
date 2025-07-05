@@ -183,6 +183,19 @@ class TraderDriver:
         # unknown, without data
         self.best_trader = None
 
+    def set_fear_greed_data(self, fear_greed_data: List[dict]):
+        """
+        Set fear & greed index data for all traders.
+        
+        Args:
+            fear_greed_data (List[dict]): List of fear & greed index data dictionaries.
+            
+        Returns:
+            None
+        """
+        for trader in self.traders:
+            trader.fear_greed_data = fear_greed_data
+
     @timer
     def feed_data(self, data_stream: List[tuple]):
         """

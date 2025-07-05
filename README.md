@@ -4,12 +4,13 @@ A sophisticated cryptocurrency trading bot with web interface, built with Python
 
 ## 🚀 Features
 
-- **Multiple Trading Strategies**: 11 strategies including 5 advanced composite strategies
+- **Multiple Trading Strategies**: 12 strategies including 5 advanced composite strategies and Fear & Greed Index sentiment strategy
 - **Bias-Free Simulation**: Configurable simulation methods to eliminate trading bias
 - **Web Dashboard**: Interactive Flask-based web interface
 - **Real-time Monitoring**: Live status updates and performance tracking
 - **Enhanced Visualizations**: Plotly-based charts with winning strategy names and execution strategies
 - **API Integration**: Coinbase Advanced Trade API
+- **Fear & Greed Index Integration**: Market sentiment analysis using Bitcoin Fear & Greed Index
 - **Automated Trading**: Configurable trading parameters and risk management
 - **Comprehensive Logging**: Detailed logging and error tracking
 - **PostgreSQL Database**: Cached historical data to avoid redundant API calls
@@ -611,6 +612,21 @@ The KDJ strategy uses the KDJ oscillator to identify momentum and trend changes:
 - **Parameters**:
   - Oversold thresholds: [10, 20, 30]
   - Overbought thresholds: [70, 80, 90]
+
+**Fear & Greed Index Strategy (FEAR-GREED-SENTIMENT)**
+The Fear & Greed Index strategy uses market sentiment to make trading decisions:
+- **Buy Signal**: When Fear & Greed Index is below buy thresholds (extreme fear/fear)
+- **Sell Signal**: When Fear & Greed Index is above sell thresholds (extreme greed/greed)
+- **Parameters**:
+  - Buy thresholds: [20, 30] (buy when index ≤ 20 or ≤ 30)
+  - Sell thresholds: [70, 80] (sell when index ≥ 70 or ≥ 80)
+- **Logic**: 
+  - **Extreme Fear (0-25)**: Market panic, good buying opportunity
+  - **Fear (26-45)**: Market uncertainty, potential buying opportunity
+  - **Neutral (46-55)**: No clear sentiment, no action
+  - **Greed (56-75)**: Market optimism, potential selling opportunity
+  - **Extreme Greed (76-100)**: Market euphoria, good selling opportunity
+- **Advantage**: Contrarian approach based on market psychology and sentiment
 
 **Moving Average Strategy (MA-SELVES)**
 - **Buy Signal**: Price < MA * (1 - tolerance)

@@ -331,6 +331,17 @@ class StratTrader:
                         momentum_threshold=0.01,
                     )
 
+            elif self.high_strategy == "FEAR-GREED-SENTIMENT":
+                # Import config for Fear & Greed thresholds
+                from app.core.config import FEAR_GREED_BUY_THRESHOLDS, FEAR_GREED_SELL_THRESHOLDS
+                strategy_func(
+                    trader=self,
+                    new_p=new_p,
+                    today=d,
+                    buy_thresholds=FEAR_GREED_BUY_THRESHOLDS,
+                    sell_thresholds=FEAR_GREED_SELL_THRESHOLDS,
+                )
+
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         """
         Compute and append a new moving average price.
