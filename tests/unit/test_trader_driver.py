@@ -71,9 +71,9 @@ class TestMADriver(unittest.TestCase):
         """Test running with CBProClient that requires internet connection."""
         return
 
-        # Read API credentials from screte.ini
+        # Read API credentials from secret.ini
         config = configparser.ConfigParser()
-        config.read(os.path.join(os.path.dirname(__file__), "../../app/screte.ini"))
+        config.read(os.path.join(os.path.dirname(__file__), "../../app/secret.ini"))
 
         CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
         CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')

@@ -62,9 +62,9 @@ def initialize_client():
     global client
 
     try:
-        # Read API credentials from screte.ini
+        # Read API credentials from secret.ini
         config = configparser.ConfigParser()
-        config.read(os.path.join(os.path.dirname(__file__), "..", "core", "screte.ini"))
+        config.read(os.path.join(os.path.dirname(__file__), "..", "core", "secret.ini"))
 
         CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
         CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')

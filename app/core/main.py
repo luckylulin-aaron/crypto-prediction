@@ -41,9 +41,9 @@ except ImportError:
 
 logger = get_logger(__name__)
 
-# Read API credentials from screte.ini
+# Read API credentials from secret.ini
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(__file__), "screte.ini"))
+config.read(os.path.join(os.path.dirname(__file__), "secret.ini"))
 
 CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
 CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')

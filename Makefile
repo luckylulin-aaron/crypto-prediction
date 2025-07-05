@@ -94,6 +94,6 @@ check-all: format lint type-check test
 quick-start: install-dev
 	@echo "Quick start setup complete!"
 	@echo "Next steps:"
-	@echo "1. Configure API credentials in app/screte.ini"
+	@echo "1. Configure API credentials in app/secret.ini"
 	@echo "2. Run: make run-server"
 	@echo "3. Open: http://localhost:8000" 

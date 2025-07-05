@@ -50,17 +50,17 @@ cd crypto-prediction
 3. **Configure API credentials**:
    ```bash
    # Copy the template and add your credentials
-   cp app/core/screte.ini.template app/core/screte.ini
+   cp app/core/secret.ini.template app/core/secret.ini
    ```
    
-   Then edit `app/core/screte.ini` with your Coinbase API credentials:
+   Then edit `app/core/secret.ini` with your Coinbase API credentials:
    ```ini
    [CONFIG]
    COINBASE_API_KEY = "your_actual_api_key_here"
    COINBASE_API_SECRET = "your_actual_api_secret_here"
    ```
    
-   ⚠️ **IMPORTANT**: Never commit your actual `screte.ini` file to Git!
+   ⚠️ **IMPORTANT**: Never commit your actual `secret.ini` file to Git!
 
 4. **Set up PostgreSQL (Optional)**:
    ```bash
@@ -310,7 +310,7 @@ crypto-prediction/
 │   │   ├── logger.py      # Logging utilities
 │   │   ├── main.py        # Main trading bot logic
 │   │   ├── log.txt        # Application logs
-│   │   └── screte.ini     # API credentials (not in git)
+│   │   └── secret.ini     # API credentials (not in git)
 │   ├── trading/           # Trading logic
 │   │   ├── __init__.py
 │   │   ├── cbpro_client.py    # Coinbase API client
@@ -796,7 +796,7 @@ Buy: by_percentage, fixed_amount, market_order | Sell: by_percentage, stop_loss,
 ## 🔒 Security
 
 ### API Security
-- Store API credentials in `app/screte.ini` (not committed to git)
+- Store API credentials in `app/secret.ini` (not committed to git)
 - Use environment variables in production
 - Implement rate limiting for production use
 
@@ -821,7 +821,7 @@ Buy: by_percentage, fixed_amount, market_order | Sell: by_percentage, stop_loss,
 ### Common Issues
 
 1. **API Connection Errors**
-   - Verify API credentials in `screte.ini`
+   - Verify API credentials in `secret.ini`
    - Check Coinbase API status
    - Ensure proper permissions
 
