@@ -1281,6 +1281,66 @@ def strategy_fear_greed_sentiment(
     return r_buy, r_sell
 
 
+def strategy_exponential_moving_average_w_tolerance(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+) -> Tuple[bool, bool]:
+    """
+    For a new day's price, if beyond tolerance level, execute a buy or sell action using exponential moving averages.
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the EMA queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "EXP-MA-SELVES"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # retrieve the most recent exponential moving average
+    last_ema = trader.exp_moving_averages[queue_name][-1]
+
+    # Check for None values
+    if last_ema is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # (1) if too high, we do a sell
+    r_sell = False
+    if new_p >= (1 + tol_pct) * last_ema:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    # (2) if too low, we do a buy
+    r_buy = False
+    if new_p <= (1 - tol_pct) * last_ema:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    return r_buy, r_sell
+
+
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "MA-SELVES": strategy_moving_average_w_tolerance,
@@ -1301,5 +1361,6 @@ STRATEGY_REGISTRY = {
     "ADAPTIVE-MA-SELVES": strategy_adaptive_ma_selves,
     "MOMENTUM-MA-SELVES": strategy_momentum_enhanced_ma_selves,
     "FEAR-GREED-SENTIMENT": strategy_fear_greed_sentiment,
+    "EXP-MA-SELVES": strategy_exponential_moving_average_w_tolerance,
 }
 # ----------------------------- #

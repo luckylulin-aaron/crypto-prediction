@@ -187,6 +187,21 @@ class StratTrader:
                         sell_pct=self.sell_pct,
                     )
 
+            elif self.high_strategy == "EXP-MA-SELVES":
+                for queue_name in self.exp_moving_averages:
+                    # if we don't have an exponential moving average yet, skip
+                    if self.exp_moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                    )
+
             elif self.high_strategy == "DOUBLE-MA":
                 mas = [int(x) for x in list(self.moving_averages.keys())]
                 mas = sorted(mas, reverse=False)
@@ -427,9 +442,7 @@ class StratTrader:
             )
             self.macd_dea.append(new_dea)
 
-    def compute_kdj_related(
-        self, d: datetime.datetime, low: float, high: float, open: float, close: float
-    ):
+    def compute_kdj_related(self, d: datetime.datetime, low: float, high: float, open: float, close: float):
         """
         Compute KDJ related arrays with dates, prices of lows, highs, opens and closes.
 
@@ -485,9 +498,6 @@ class StratTrader:
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
         return rsi
-
-    # Core Section: TRADING STRATEGY
-    # Strategy implementations have been moved to strategies.py for better maintainability
 
     # basic functionality
     def _execute_one_buy(self, method: str, new_p: float):
