@@ -19,13 +19,26 @@ from flask import Flask, jsonify, render_template_string, request, send_from_dir
 sys.path.insert(0, os.path.dirname(__file__))
 
 # Import trading bot components
-from trading.cbpro_client import CBProClient
-from core.config import *
-from db.database import db_manager
-from core.logger import get_logger
-from trading.trader_driver import TraderDriver
-from utils.util import display_port_msg, calculate_simulation_amounts
-from visualization.visualization import create_comprehensive_dashboard
+try:
+    from trading.cbpro_client import CBProClient
+    from core.config import *
+    from db.database import db_manager
+    from core.logger import get_logger
+    from trading.trader_driver import TraderDriver
+    from utils.util import display_port_msg, calculate_simulation_amounts
+    from visualization.visualization import create_comprehensive_dashboard
+except ImportError:
+    # Fallback for when running as script
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from trading.cbpro_client import CBProClient
+    from core.config import *
+    from db.database import db_manager
+    from core.logger import get_logger
+    from trading.trader_driver import TraderDriver
+    from utils.util import display_port_msg, calculate_simulation_amounts
+    from visualization.visualization import create_comprehensive_dashboard
 
 app = Flask(__name__)
 logger = get_logger(__name__)

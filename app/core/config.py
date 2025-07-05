@@ -33,11 +33,15 @@ EMA_LENGTHS = [12, 26]
 BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4]
 
-BUY_STAS = "by_percentage"
-SELL_STAS = "by_percentage"
+# Trading execution strategies
+BUY_STAS = ["by_percentage", "fixed_amount", "market_order"]
+SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 
 # currencies (crptocurrency + stablecoin + fiat)
-CURS = ["SOL"]
+# Updated to match actual account holdings
+CURS = ["SOL", "AMP", "CLV", "FORTH", "RNDR"]  # Tradeable cryptocurrencies with balance
+# Note: ETH2 exists in account but ETH2-USD is not a valid trading pair
+# LTC and ADA are not in the account
 FIAT = ["USD", "SGD"]
 STABLECOIN = ["USDC", "USDT"]  # Stablecoins for trading with cryptos
 

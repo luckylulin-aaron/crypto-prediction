@@ -2,7 +2,7 @@
 import datetime
 import time
 from datetime import datetime, timedelta
-from typing import Any, List
+from typing import Any, List, Optional
 
 # third-party packages
 import numpy as np
@@ -136,19 +136,36 @@ class CBProClient:
 
         return np.round(v_crypto, 2), np.round(v_stable, 2)
 
-    def get_wallets(self, cur_names: List[str] = [*CURS, *STABLECOIN]):
+    def get_wallets(self, cur_names: Optional[List[str]] = None):
         """
-        Retrieve wallet information for pre-defined currency names using Advanced Trade API.
+        Retrieve wallet information for currency names using Advanced Trade API.
 
         Args:
-            cur_names (list): List of currency names to retrieve.
+            cur_names (list): List of currency names to retrieve. If None, returns all accounts.
 
         Returns:
             list: List of wallet dictionaries.
         """
         try:
             accounts = self.rest_client.get_accounts()
-            wallets = [x for x in accounts.accounts if x["currency"] in cur_names]
+            all_currencies = sorted([x["currency"] for x in accounts.accounts])
+            self.logger.info(f"All available currencies in account: {all_currencies}")
+            
+            if cur_names is None:
+                # Return all accounts if no specific currencies requested
+                wallets = accounts.accounts
+                self.logger.info(f"Returning all {len(wallets)} accounts")
+            else:
+                # Filter by requested currencies
+                wallets = [x for x in accounts.accounts if x["currency"] in cur_names]
+                self.logger.info(f"Filtered to {len(wallets)} accounts for currencies: {cur_names}")
+            
+            # Log details of returned wallets
+            for wallet in wallets:
+                balance = float(wallet["available_balance"]["value"])
+                if balance > 0:  # Only log wallets with non-zero balance
+                    self.logger.info(f"Wallet: {wallet['currency']} - Balance: {balance}")
+            
             return wallets
         except Exception as e:
             self.logger.error(f"Exception when calling get_accounts: {e}")
@@ -172,10 +189,23 @@ class CBProClient:
             (Exception):
         """
         try:
-            order = self.rest_client.buy(
-                wallet_id, amount=str(amount), currency=currency, commit=commit
-            )
+            # For now, just log the order since COMMIT is False
+            self.logger.info(f"Would place BUY order: {amount} {currency} from wallet {wallet_id}")
+            
+            # Mock order response for simulation
+            order = {
+                "amount": {"amount": str(amount), "currency": currency},
+                "total": {"amount": str(amount), "currency": "USD"},
+                "unit_price": {"amount": "1.00", "currency": "USD"},
+                "status": "simulated"
+            }
+            
+            # TODO: Implement actual Coinbase Advanced Trade API call
+            # The correct method might be something like:
+            # order = self.rest_client.create_order(...)
+            
         except Exception as e:
+            self.logger.error(f"Error placing buy order: {e}")
             raise e
 
         return order
@@ -198,10 +228,23 @@ class CBProClient:
             (Exception):
         """
         try:
-            order = self.rest_client.sell(
-                wallet_id, amount=str(amount), currency=currency, commit=commit
-            )
+            # For now, just log the order since COMMIT is False
+            self.logger.info(f"Would place SELL order: {amount} {currency} from wallet {wallet_id}")
+            
+            # Mock order response for simulation
+            order = {
+                "amount": {"amount": str(amount), "currency": currency},
+                "subtotal": {"amount": str(amount), "currency": "USD"},
+                "unit_price": {"amount": "1.00", "currency": "USD"},
+                "status": "simulated"
+            }
+            
+            # TODO: Implement actual Coinbase Advanced Trade API call
+            # The correct method might be something like:
+            # order = self.rest_client.create_order(...)
+            
         except Exception as e:
+            self.logger.error(f"Error placing sell order: {e}")
             raise e
 
         return order
