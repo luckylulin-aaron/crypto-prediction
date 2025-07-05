@@ -88,6 +88,8 @@ class MATrader:
         # 2. Transactions
         self.trade_history = []
         self.crypto_prices = []
+        self.volume_history = []  # Track volume for volume-based strategies
+        self.price_history = []  # Track price history for volatility calculations
         # moving average (type: dictionary)
         self.moving_averages = dict(
             zip([str(x) for x in ma_lengths], [[] for _ in range(len(ma_lengths))])
@@ -143,6 +145,14 @@ class MATrader:
         open, low, high = misc_p["open"], misc_p["low"], misc_p["high"]
 
         self.crypto_prices.append((new_p, d, open, low, high))
+        self.price_history.append(new_p)  # Track price for volatility calculations
+        
+        # Track volume if available in misc_p
+        if "volume" in misc_p:
+            self.volume_history.append(misc_p["volume"])
+        else:
+            # Use a default volume if not available
+            self.volume_history.append(1000.0)
 
         # add new moving averages and exponential moving averages, get_historic_data respectively
         for queue_name in self.moving_averages:
@@ -215,22 +225,106 @@ class MATrader:
 
             elif self.high_strategy == "RSI":
                 strategy_func(
-                    trader=self, 
-                    new_p=new_p, 
+                    trader=self,
+                    new_p=new_p,
                     today=d,
                     period=self.rsi_period,
                     oversold=self.rsi_oversold,
-                    overbought=self.rsi_overbought
+                    overbought=self.rsi_overbought,
                 )
 
             elif self.high_strategy == "KDJ":
                 strategy_func(
-                    trader=self, 
-                    new_p=new_p, 
+                    trader=self,
+                    new_p=new_p,
                     today=d,
                     oversold=self.kdj_oversold,
-                    overbought=self.kdj_overbought
+                    overbought=self.kdj_overbought,
                 )
+
+            elif self.high_strategy == "MULTI-MA-SELVES":
+                # Use short, medium, and long MAs for confirmation
+                ma_lengths_int = [int(x) for x in self.moving_averages.keys()]
+                short_queue = str(min(ma_lengths_int))
+                medium_queue = str(sorted(ma_lengths_int)[len(ma_lengths_int)//2])
+                long_queue = str(max(ma_lengths_int))
+                
+                strategy_func(
+                    trader=self,
+                    short_queue=short_queue,
+                    medium_queue=medium_queue,
+                    long_queue=long_queue,
+                    new_p=new_p,
+                    today=d,
+                    tol_pct=self.tol_pct,
+                    buy_pct=self.buy_pct,
+                    sell_pct=self.sell_pct,
+                    confirmation_required=2,
+                )
+
+            elif self.high_strategy == "TREND-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        trend_period=50,
+                        trend_threshold=0.02,
+                    )
+
+            elif self.high_strategy == "VOLUME-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        volume_period=20,
+                        volume_threshold=1.5,
+                    )
+
+            elif self.high_strategy == "ADAPTIVE-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        base_tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        volatility_period=20,
+                        volatility_multiplier=1.0,
+                    )
+
+            elif self.high_strategy == "MOMENTUM-MA-SELVES":
+                for queue_name in self.moving_averages.keys():
+                    if self.moving_averages[queue_name][-1] is None:
+                        continue
+                    strategy_func(
+                        trader=self,
+                        queue_name=queue_name,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        momentum_period=14,
+                        momentum_threshold=0.01,
+                    )
 
     def add_new_moving_averages(self, queue_name: str, new_p: float):
         """
@@ -397,32 +491,34 @@ class MATrader:
             if self.mode == "verbose":
                 print("no more cash left, cannot buy anymore!")
             return False
-        
+
         # execution body
         if method == "by_percentage":
             # Use percentage of available cash
             out_cash = self.cash * self.sell_pct
             self.cur_coin += out_cash * (1 - self.broker_pct) / new_p
             self.cash -= out_cash
-            
+
         elif method == "fixed_amount":
             # Use fixed amount (buy_pct represents fixed USD amount)
-            fixed_amount = self.buy_pct  # In this context, buy_pct is the fixed USD amount
+            fixed_amount = (
+                self.buy_pct
+            )  # In this context, buy_pct is the fixed USD amount
             if fixed_amount > self.cash:
                 fixed_amount = self.cash  # Can't spend more than we have
             self.cur_coin += fixed_amount * (1 - self.broker_pct) / new_p
             self.cash -= fixed_amount
-            
+
         elif method == "market_order":
             # Market order - use all available cash
             out_cash = self.cash
             self.cur_coin += out_cash * (1 - self.broker_pct) / new_p
             self.cash = 0  # Spend all cash
-            
+
         # Track the buy price for stop loss and take profit strategies
         if method in ["by_percentage", "fixed_amount", "market_order"]:
             self.last_buy_price = new_p
-            
+
         return True
 
     def _execute_one_sell(self, method: str, new_p: float):
@@ -442,18 +538,18 @@ class MATrader:
             if self.mode == "verbose":
                 print("no coin left, cannot sell anymore!")
             return False
-        
+
         # execution body
         if method == "by_percentage":
             # Use percentage of available crypto
             out_coin = self.cur_coin * self.sell_pct
             self.cur_coin -= out_coin
             self.cash += out_coin * new_p * (1 - self.broker_pct)
-            
+
         elif method == "stop_loss":
             # Stop loss - sell if price drops below threshold
             # sell_pct represents the stop loss percentage below purchase price
-            if hasattr(self, 'last_buy_price') and self.last_buy_price:
+            if hasattr(self, "last_buy_price") and self.last_buy_price:
                 stop_loss_price = self.last_buy_price * (1 - self.sell_pct)
                 if new_p <= stop_loss_price:
                     # Trigger stop loss - sell all crypto
@@ -467,11 +563,11 @@ class MATrader:
                 out_coin = self.cur_coin * self.sell_pct
                 self.cur_coin -= out_coin
                 self.cash += out_coin * new_p * (1 - self.broker_pct)
-                
+
         elif method == "take_profit":
             # Take profit - sell if price rises above threshold
             # sell_pct represents the take profit percentage above purchase price
-            if hasattr(self, 'last_buy_price') and self.last_buy_price:
+            if hasattr(self, "last_buy_price") and self.last_buy_price:
                 take_profit_price = self.last_buy_price * (1 + self.sell_pct)
                 if new_p >= take_profit_price:
                     # Trigger take profit - sell all crypto
@@ -485,7 +581,7 @@ class MATrader:
                 out_coin = self.cur_coin * self.sell_pct
                 self.cur_coin -= out_coin
                 self.cash += out_coin * new_p * (1 - self.broker_pct)
-                
+
         return True
 
     def _record_history(self, new_p: float, d: datetime.datetime, action: str):

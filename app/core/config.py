@@ -9,18 +9,23 @@ COMMIT = False
 # DOUBLE-MA: create several moving averages; trades are made via pair-wise comparison
 # Advanced composite strategies combine multiple signals for better decision-making
 STRATEGIES = [
-    "MA-SELVES",      # Original moving average strategy
-    "DOUBLE-MA",      # Double moving average crossover
-    "MACD",           # MACD momentum indicator
-    "BOLL-BANDS",     # Bollinger Bands volatility strategy
-    "RSI",            # Relative Strength Index
-    "KDJ",            # KDJ oscillator
-    "MA-MACD",        # Combined MA + MACD (requires both signals)
-    "MACD-KDJ",       # Combined MACD + KDJ (momentum + oscillator)
-    "RSI-BOLL",       # Combined RSI + Bollinger Bands
-    "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
-    "CONSERVATIVE-MA", # MA with multiple period confirmation
-    "VOLUME-BREAKOUT" # Volume-based breakout strategy
+    "MA-SELVES",  # Original moving average strategy
+    #"DOUBLE-MA",  # Double moving average crossover
+    #"MACD",  # MACD momentum indicator
+    #"BOLL-BANDS",  # Bollinger Bands volatility strategy
+    #"RSI",  # Relative Strength Index
+    #"KDJ",  # KDJ oscillator
+    #"MA-MACD",  # Combined MA + MACD (requires both signals)
+    #"MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
+    #"RSI-BOLL",  # Combined RSI + Bollinger Bands
+    #"TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
+    "CONSERVATIVE-MA",  # MA with multiple period confirmation
+    #"VOLUME-BREAKOUT",  # Volume-based breakout strategy
+    "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
+    "TREND-MA-SELVES",  # Trend-aware MA strategy
+    "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
+    "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
+    "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
 ]
 
 # simulation configuration
@@ -48,7 +53,9 @@ SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 
 # currencies (crptocurrency + stablecoin + fiat)
 # Updated to match actual account holdings
-CURS = ["SOL"] # "AMP", "CLV", "FORTH", "RNDR"]  # Tradeable cryptocurrencies with balance
+CURS = [
+    "SOL"
+]  # "AMP", "CLV", "FORTH", "RNDR"]  # Tradeable cryptocurrencies with balance
 # Note: ETH2 exists in account but ETH2-USD is not a valid trading pair
 # LTC and ADA are not in the account
 FIAT = ["USD", "SGD"]
@@ -73,6 +80,8 @@ EP_CASH = 5
 TIMESPAN = 120
 
 # Simulation Configuration
-SIMULATION_METHOD = "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
+SIMULATION_METHOD = (
+    "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
+)
 SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
 SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method

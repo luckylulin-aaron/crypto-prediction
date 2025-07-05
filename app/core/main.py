@@ -14,29 +14,36 @@ import schedule
 
 # customized packages
 try:
-    from trading.cbpro_client import CBProClient
     from core.config import *
     from core.logger import get_logger
+    from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
-    from utils.util import display_port_msg, load_csv, calculate_simulation_amounts
-    from visualization.visualization import create_comprehensive_dashboard, create_portfolio_value_chart
+    from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
+    from visualization.visualization import (
+        create_comprehensive_dashboard,
+        create_portfolio_value_chart,
+    )
 except ImportError:
     # Fallback for when running as script
-    import sys
     import os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-    from trading.cbpro_client import CBProClient
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from core.config import *
     from core.logger import get_logger
+    from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
-    from utils.util import display_port_msg, load_csv, calculate_simulation_amounts
-    from visualization.visualization import create_comprehensive_dashboard, create_portfolio_value_chart
+    from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
+    from visualization.visualization import (
+        create_comprehensive_dashboard,
+        create_portfolio_value_chart,
+    )
 
 logger = get_logger(__name__)
 
-# Read API credentials from screte.ini
+# Read API credentials from secret.ini
 config = configparser.ConfigParser()
-config.read(os.path.join(os.path.dirname(__file__), "screte.ini"))
+config.read(os.path.join(os.path.dirname(__file__), "secret.ini"))
 
 CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
 CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
@@ -96,31 +103,31 @@ def main():
             logger.error(f"cannot find relevant wallet for {cur_name}!")
             return
 
-        logger.info(
-            "cur_coin={:.3f}, wallet_id={}".format(cur_coin, wallet_id)
-        )
+        logger.info("cur_coin={:.3f}, wallet_id={}".format(cur_coin, wallet_id))
 
         # Calculate simulation amounts using configurable method
         from core.config import (
-            SIMULATION_METHOD, 
-            SIMULATION_BASE_AMOUNT, 
-            SIMULATION_PERCENTAGE,
-            RSI_PERIODS,
-            RSI_OVERSOLD_THRESHOLDS,
-            RSI_OVERBOUGHT_THRESHOLDS,
+            KDJ_OVERBOUGHT_THRESHOLDS,
             KDJ_OVERSOLD_THRESHOLDS,
-            KDJ_OVERBOUGHT_THRESHOLDS
+            RSI_OVERBOUGHT_THRESHOLDS,
+            RSI_OVERSOLD_THRESHOLDS,
+            RSI_PERIODS,
+            SIMULATION_BASE_AMOUNT,
+            SIMULATION_METHOD,
+            SIMULATION_PERCENTAGE,
         )
-        
+
         sim_cash, sim_coin = calculate_simulation_amounts(
             actual_cash=v_s1,
             actual_coin=cur_coin,
             method=SIMULATION_METHOD,
             base_amount=SIMULATION_BASE_AMOUNT,
-            percentage=SIMULATION_PERCENTAGE
+            percentage=SIMULATION_PERCENTAGE,
         )
-        
-        logger.info(f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.2f}")
+
+        logger.info(
+            f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.2f}"
+        )
 
         # run simulation with scaled values
         t_driver = TraderDriver(
@@ -200,7 +207,7 @@ def main():
 
         # Get current portfolio values for actual trading
         _, current_cash = client.portfolio_value
-        
+
         # if too less, we leave
         if current_cash <= EP_CASH and signal == BUY_SIGNAL:
             logger.warning(

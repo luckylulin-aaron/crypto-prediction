@@ -30,7 +30,7 @@ def main():
         app.run(host="0.0.0.0", port=8000, debug=False)
     else:
         print("❌ Failed to initialize Coinbase client")
-        print("Please check your API credentials in app/screte.ini")
+        print("Please check your API credentials in app/secret.ini")
         sys.exit(1)
 
 

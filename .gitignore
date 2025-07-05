@@ -4,8 +4,8 @@ __pycache__
 /app/credentials.py
 /notebooks/.ipynb_checkpoints
 *.DS_store
-/app/screte.ini
-/app/core/screte.ini
+/app/secret.ini
+/app/core/secret.ini
 /app/plots
 
 # Byte-compiled / optimized / DLL files
@@ -128,7 +128,7 @@ log.txt
 crypto_trading.db
 
 # Credentials and secrets - NEVER commit these!
-screte.ini
+secret.ini
 *.ini
 credentials.py
 secrets.py

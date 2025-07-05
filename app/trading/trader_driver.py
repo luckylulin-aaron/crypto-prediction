@@ -6,7 +6,14 @@ from typing import Any, List
 import numpy as np
 
 # customized packages
-from core.config import ROUND_PRECISION, RSI_PERIODS, RSI_OVERSOLD_THRESHOLDS, RSI_OVERBOUGHT_THRESHOLDS, KDJ_OVERSOLD_THRESHOLDS, KDJ_OVERBOUGHT_THRESHOLDS
+from core.config import (
+    KDJ_OVERBOUGHT_THRESHOLDS,
+    KDJ_OVERSOLD_THRESHOLDS,
+    ROUND_PRECISION,
+    RSI_OVERBOUGHT_THRESHOLDS,
+    RSI_OVERSOLD_THRESHOLDS,
+    RSI_PERIODS,
+)
 from trading.ma_trader import MATrader
 from utils.util import timer
 
@@ -136,24 +143,43 @@ class TraderDriver:
 
         # check
         expected_traders = 0
-        
+
         # Calculate for each strategy type
         for stat in overall_stats:
             if stat == "RSI":
                 # RSI: tol_pcts * buy_pcts * sell_pcts * bollinger_tols * rsi_periods * rsi_oversold * rsi_overbought
-                rsi_combinations = len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols) * len(rsi_periods) * len(rsi_oversold_thresholds) * len(rsi_overbought_thresholds)
+                rsi_combinations = (
+                    len(tol_pcts)
+                    * len(buy_pcts)
+                    * len(sell_pcts)
+                    * len(bollinger_tols)
+                    * len(rsi_periods)
+                    * len(rsi_oversold_thresholds)
+                    * len(rsi_overbought_thresholds)
+                )
                 expected_traders += rsi_combinations
             elif stat == "KDJ":
                 # KDJ: tol_pcts * buy_pcts * sell_pcts * bollinger_tols * kdj_oversold * kdj_overbought
-                kdj_combinations = len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols) * len(kdj_oversold_thresholds) * len(kdj_overbought_thresholds)
+                kdj_combinations = (
+                    len(tol_pcts)
+                    * len(buy_pcts)
+                    * len(sell_pcts)
+                    * len(bollinger_tols)
+                    * len(kdj_oversold_thresholds)
+                    * len(kdj_overbought_thresholds)
+                )
                 expected_traders += kdj_combinations
             else:
                 # Other strategies: tol_pcts * buy_pcts * sell_pcts * bollinger_tols
-                other_combinations = len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols)
+                other_combinations = (
+                    len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols)
+                )
                 expected_traders += other_combinations
-        
+
         if len(self.traders) != expected_traders:
-            raise ValueError(f"trader creation is wrong! Expected {expected_traders}, got {len(self.traders)}")
+            raise ValueError(
+                f"trader creation is wrong! Expected {expected_traders}, got {len(self.traders)}"
+            )
         # unknown, without data
         self.best_trader = None
 

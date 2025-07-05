@@ -7,15 +7,17 @@ import sys
 from datetime import datetime, timedelta
 
 try:
-    from database import db_manager, engine, Base
+    from database import Base, db_manager, engine
+
     from ..core.logger import get_logger
 except ImportError:
     # Fallback for when running as script
-    import sys
     import os
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-    from db.database import db_manager, engine, Base
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from core.logger import get_logger
+    from db.database import Base, db_manager, engine
 
 
 def init_database():
@@ -50,16 +52,18 @@ def show_statistics():
         if not stats:
             print("No cached data found in database.")
             return
-        
+
         print("\n=== Database Statistics ===")
         print(f"{'Symbol':<15} {'Records':<10} {'Last Updated':<20}")
         print("-" * 50)
-        
+
         for symbol, count, last_updated in stats:
-            print(f"{symbol:<15} {count:<10} {last_updated.strftime('%Y-%m-%d %H:%M:%S')}")
-        
+            print(
+                f"{symbol:<15} {count:<10} {last_updated.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
         print(f"\nTotal symbols: {len(stats)}")
-        
+
     except Exception as e:
         logger.error(f"Failed to show statistics: {e}")
 
@@ -84,7 +88,7 @@ def test_connection():
         with engine.connect() as conn:
             result = conn.execute("SELECT 1")
             result.fetchone()
-        
+
         print("Database connection successful!")
         return True
     except Exception as e:
@@ -95,46 +99,48 @@ def test_connection():
 
 def main():
     """Main function for database management CLI."""
-    parser = argparse.ArgumentParser(description="Database management for crypto trading bot")
+    parser = argparse.ArgumentParser(
+        description="Database management for crypto trading bot"
+    )
     parser.add_argument(
         "command",
         choices=["init", "drop", "stats", "clear", "test"],
-        help="Command to execute"
+        help="Command to execute",
     )
     parser.add_argument(
         "--days",
         type=int,
         default=365,
-        help="Number of days to keep when clearing old data (default: 365)"
+        help="Number of days to keep when clearing old data (default: 365)",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "init":
         success = init_database()
         sys.exit(0 if success else 1)
-    
+
     elif args.command == "drop":
         confirm = input("Are you sure you want to drop all tables? (y/N): ")
-        if confirm.lower() == 'y':
+        if confirm.lower() == "y":
             success = drop_database()
             sys.exit(0 if success else 1)
         else:
             print("Operation cancelled.")
             sys.exit(0)
-    
+
     elif args.command == "stats":
         show_statistics()
         sys.exit(0)
-    
+
     elif args.command == "clear":
         success = clear_old_data(args.days)
         sys.exit(0 if success else 1)
-    
+
     elif args.command == "test":
         success = test_connection()
         sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":
-    main() 
+    main()

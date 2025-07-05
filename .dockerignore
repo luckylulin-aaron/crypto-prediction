@@ -52,7 +52,7 @@ Thumbs.db
 # Project specific
 app/plots/*.html
 app/log.txt
-app/screte.ini
+app/secret.ini
 *.html
 tests/
 notebooks/
