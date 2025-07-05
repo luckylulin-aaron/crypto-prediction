@@ -120,6 +120,7 @@ app/plots/
 app/visualization/plots/
 *.html
 log.txt
+app/log.txt
 
 # Database files
 *.db
