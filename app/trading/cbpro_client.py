@@ -275,9 +275,9 @@ class CBProClient:
                 "LINK": 0.1,   # Minimum 0.1 LINK
             }
             
-            # For USD amounts (buy orders), convert to crypto amount first
+            # For USDT amounts (buy orders), convert to crypto amount first
             if side == "BUY":
-                product_id = f"{currency}-USD"
+                product_id = f"{currency}-USDT"
                 current_price = self.get_cur_rate(product_id)
                 crypto_amount = amount / current_price
             else:
@@ -304,7 +304,7 @@ class CBProClient:
 
         Args:
             wallet_id (str): The wallet ID to use for the order.
-            amount (float): The amount to buy in USD.
+            amount (float): The amount to buy in USDT.
             currency (str): The cryptocurrency to buy (e.g., 'BTC', 'ETH').
             commit (bool): Whether to commit this transaction.
 
@@ -320,14 +320,14 @@ class CBProClient:
             if not commit:
                 # For simulation mode, just log the order
                 self.logger.info(
-                    f"Would place BUY order: {amount} USD for {currency} from wallet {wallet_id}"
+                    f"Would place BUY order: {amount} USDT for {currency} from wallet {wallet_id}"
                 )
 
                 # Mock order response for simulation
                 order = {
                     "amount": {"amount": str(amount), "currency": currency},
-                    "total": {"amount": str(amount), "currency": "USD"},
-                    "unit_price": {"amount": "1.00", "currency": "USD"},
+                    "total": {"amount": str(amount), "currency": "USDT"},
+                    "unit_price": {"amount": "1.00", "currency": "USDT"},
                     "status": "simulated",
                 }
             else:
@@ -337,37 +337,51 @@ class CBProClient:
                 if not currency or currency not in CURS:
                     raise ValueError(f"Invalid currency: {currency}")
                 
-                # Check if we have enough USD balance
-                usd_balance = self.get_account_balance("USD")
-                if usd_balance < amount:
-                    raise ValueError(f"Insufficient USD balance. Required: {amount}, Available: {usd_balance}")
+                # Check if we have enough USDT balance
+                usdt_balance = self.get_account_balance("USDT")
+                if usdt_balance < amount:
+                    raise ValueError(f"Insufficient USDT balance. Required: {amount}, Available: {usdt_balance}")
                 
                 # Validate order size
                 if not self.validate_order_size(amount, currency, "BUY"):
-                    raise ValueError(f"Order size {amount} USD for {currency} is below minimum requirements")
+                    raise ValueError(f"Order size {amount} USDT for {currency} is below minimum requirements")
                 
                 # Get current price for the currency pair
-                product_id = f"{currency}-USD"
+                product_id = f"{currency}-USDT"
                 current_price = self.get_cur_rate(product_id)
                 
-                # Calculate the quantity to buy based on USD amount
+                # Calculate the quantity to buy based on USDT amount
                 quantity = amount / current_price
+                
+                # Round USDT amount to 2 decimal places to avoid precision errors
+                rounded_amount = round(amount, 2)
                 
                 # Create the order using Coinbase Advanced Trade API
                 # Using market order with immediate-or-cancel (IOC) for immediate execution
+                import uuid
+                client_order_id = f"buy_{currency}_{uuid.uuid4().hex[:8]}"
+                
                 order = self.rest_client.create_order(
+                    client_order_id=client_order_id,
                     product_id=product_id,
                     side="BUY",
                     order_configuration={
                         "market_market_ioc": {
-                            "quote_size": str(amount)
+                            "quote_size": str(rounded_amount)
                         }
                     }
                 )
                 
-                self.logger.info(
-                    f"Placed BUY order: {quantity:.6f} {currency} for {amount} USD at ~{current_price:.2f} USD"
-                )
+                # Check if the order was successful
+                if hasattr(order, 'success') and order.success:
+                    self.logger.info(
+                        f"Placed BUY order: {quantity:.6f} {currency} for {rounded_amount} USDT at ~{current_price:.2f} USDT"
+                    )
+                else:
+                    error_msg = getattr(order, 'error_response', 'Unknown error')
+                    if hasattr(error_msg, 'message'):
+                        error_msg = error_msg.message
+                    raise Exception(f"Buy order failed: {error_msg}")
 
         except ValueError as e:
             self.logger.error(f"Validation error in buy order: {e}")
@@ -410,8 +424,8 @@ class CBProClient:
                 # Mock order response for simulation
                 order = {
                     "amount": {"amount": str(amount), "currency": currency},
-                    "subtotal": {"amount": str(amount), "currency": "USD"},
-                    "unit_price": {"amount": "1.00", "currency": "USD"},
+                    "subtotal": {"amount": str(amount), "currency": "USDT"},
+                    "unit_price": {"amount": "1.00", "currency": "USDT"},
                     "status": "simulated",
                 }
             else:
@@ -431,12 +445,16 @@ class CBProClient:
                     raise ValueError(f"Order size {amount} {currency} is below minimum requirements")
                 
                 # Get current price for the currency pair
-                product_id = f"{currency}-USD"
+                product_id = f"{currency}-USDT"
                 current_price = self.get_cur_rate(product_id)
                 
                 # Create the order using Coinbase Advanced Trade API
                 # Using market order with immediate-or-cancel (IOC) for immediate execution
+                import uuid
+                client_order_id = f"sell_{currency}_{uuid.uuid4().hex[:8]}"
+                
                 order = self.rest_client.create_order(
+                    client_order_id=client_order_id,
                     product_id=product_id,
                     side="SELL",
                     order_configuration={
@@ -446,10 +464,17 @@ class CBProClient:
                     }
                 )
                 
-                estimated_usd_value = amount * current_price
-                self.logger.info(
-                    f"Placed SELL order: {amount:.6f} {currency} for ~{estimated_usd_value:.2f} USD at ~{current_price:.2f} USD"
-                )
+                # Check if the order was successful
+                if hasattr(order, 'success_response'):
+                    estimated_usdt_value = amount * current_price
+                    self.logger.info(
+                        f"Placed SELL order: {amount:.6f} {currency} for ~{estimated_usdt_value:.2f} USDT at ~{current_price:.2f} USDT"
+                    )
+                else:
+                    error_msg = getattr(order, 'error_response', 'Unknown error')
+                    if hasattr(error_msg, 'message'):
+                        error_msg = error_msg.message
+                    raise Exception(f"Sell order failed: {error_msg}")
 
         except ValueError as e:
             self.logger.error(f"Validation error in sell order: {e}")

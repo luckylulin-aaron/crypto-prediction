@@ -61,30 +61,30 @@ def test_buy_order(client, wallet_id, currency="SOL"):
         current_price = client.get_cur_rate(f"{currency}-USD")
         print(f"Current {currency} price: ${current_price:.2f}")
         
-        # Calculate minimum USD amount for 0.1 SOL
+        # Calculate minimum USDT amount for 0.1 SOL
         min_sol_amount = 0.1
-        min_usd_amount = min_sol_amount * current_price
+        min_usdt_amount = min_sol_amount * current_price
         
-        # Ensure minimum USD amount is at least $10
-        if min_usd_amount < 10.0:
-            min_usd_amount = 10.0
-            min_sol_amount = min_usd_amount / current_price
+        # Ensure minimum USDT amount is at least 10 USDT
+        if min_usdt_amount < 10.0:
+            min_usdt_amount = 10.0
+            min_sol_amount = min_usdt_amount / current_price
         
-        print(f"Minimum order: {min_sol_amount:.6f} {currency} (${min_usd_amount:.2f})")
+        print(f"Minimum order: {min_sol_amount:.6f} {currency} ({min_usdt_amount:.2f} USDT)")
         
-        # Check USD balance
-        usd_balance = client.get_account_balance("USD")
-        print(f"USD balance: ${usd_balance:.2f}")
+        # Check USDT balance
+        usdt_balance = client.get_account_balance("USDT")
+        print(f"USDT balance: {usdt_balance:.2f} USDT")
         
-        if usd_balance < min_usd_amount:
-            print(f"❌ Insufficient USD balance. Need ${min_usd_amount:.2f}, have ${usd_balance:.2f}")
+        if usdt_balance < min_usdt_amount:
+            print(f"❌ Insufficient USDT balance. Need {min_usdt_amount:.2f} USDT, have {usdt_balance:.2f} USDT")
             return False
         
         # Place buy order
-        print(f"Placing buy order for ${min_usd_amount:.2f} worth of {currency}...")
+        print(f"Placing buy order for {min_usdt_amount:.2f} USDT worth of {currency}...")
         order = client.place_buy_order(
             wallet_id=wallet_id,
-            amount=min_usd_amount,
+            amount=min_usdt_amount,
             currency=currency,
             commit=True  # Set to True for actual execution
         )

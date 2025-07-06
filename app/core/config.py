@@ -72,10 +72,11 @@ SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 CURS = [
     "SOL"
 ]  # "AMP", "CLV", "FORTH", "RNDR"]  # Tradeable cryptocurrencies with balance
-# Note: ETH2 exists in account but ETH2-USD is not a valid trading pair
+# Note: ETH2 exists in account but ETH2-USDT is not a valid trading pair
 # LTC and ADA are not in the account
-FIAT = ["USD", "SGD"]
+FIAT = ["USD", "SGD"]  # Fiat currencies (not used for trading)
 STABLECOIN = ["USDC", "USDT"]  # Stablecoins for trading with cryptos
+# Primary trading currency: USDT
 
 # signals
 NO_ACTION_SIGNAL = "NO ACTION"

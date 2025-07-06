@@ -59,23 +59,23 @@ class APITester:
             print(f"❌ Error getting status: {e}")
             return None
     
-    def test_buy_order(self, currency="SOL", amount_usd=10.0):
+    def test_buy_order(self, currency="SOL", amount_usdt=10.0):
         """Test a buy order endpoint (if it exists).
         
         Args:
             currency (str): Currency to buy.
-            amount_usd (float): Amount in USD to spend.
+            amount_usdt (float): Amount in USDT to spend.
         """
         print(f"\n=== Testing BUY Order API ===")
         print(f"Currency: {currency}")
-        print(f"Amount: ${amount_usd}")
+        print(f"Amount: {amount_usdt} USDT")
         
         # This would be the endpoint if it existed
         endpoint = f"{self.base_url}/api/buy"
         
         payload = {
             "currency": currency,
-            "amount_usd": amount_usd,
+            "amount_usdt": amount_usdt,
             "commit": True
         }
         
@@ -218,7 +218,7 @@ def main():
     print("="*50)
     
     # Test buy order
-    buy_result = tester.test_buy_order(currency="SOL", amount_usd=10.0)
+    buy_result = tester.test_buy_order(currency="SOL", amount_usdt=10.0)
     
     if buy_result:
         print("\n⏳ Waiting 5 seconds before testing sell order...")

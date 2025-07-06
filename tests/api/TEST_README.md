@@ -23,7 +23,7 @@ This directory contains test files for testing the buy and sell order functional
 
 For SOL cryptocurrency:
 - **Minimum SOL amount**: 0.1 SOL
-- **Minimum USD amount**: $10.00 (or equivalent in SOL at current price)
+- **Minimum USDT amount**: 10.00 USDT (or equivalent in SOL at current price)
 
 ## Running the Tests
 
@@ -31,7 +31,7 @@ For SOL cryptocurrency:
 
 ```bash
 cd crypto-prediction
-python tests/test_buy_sell_endpoints.py
+python tests/api/test_buy_sell_endpoints.py
 ```
 
 This will run comprehensive unit tests with mocked API calls.
@@ -47,7 +47,7 @@ python tests/api/test_buy_sell_execution.py
 
 **Prerequisites:**
 - Valid API credentials in `app/core/secret.ini`
-- Sufficient USD balance for buy orders
+- Sufficient USDT balance for buy orders
 - Sufficient SOL balance for sell orders
 - Understanding that real money will be spent
 
@@ -75,7 +75,7 @@ python tests/api/test_api_endpoints.py
 ### Currency
 - **Default**: SOL (Solana)
 - **Minimum SOL order**: 0.1 SOL
-- **Minimum USD order**: $10.00
+- **Minimum USDT order**: 10.00 USDT
 
 ### Order Types
 - **Buy orders**: Market orders with immediate-or-cancel (IOC)
@@ -115,7 +115,7 @@ def place_buy_order():
     """Place a buy order."""
     data = request.get_json()
     currency = data.get("currency", "SOL")
-    amount_usd = data.get("amount_usd", 10.0)
+    amount_usdt = data.get("amount_usdt", 10.0)
     commit = data.get("commit", False)
     
     try:
@@ -127,7 +127,7 @@ def place_buy_order():
         # Place order
         order = client.place_buy_order(
             wallet_id=wallet_info["wallet_id"],
-            amount=amount_usd,
+            amount=amount_usdt,
             currency=currency,
             commit=commit
         )

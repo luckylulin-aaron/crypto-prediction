@@ -187,7 +187,7 @@ def main():
         best_t = t_driver.traders[info["trader_index"]]
 
         # for a new price, find the trade signal
-        new_p = client.get_cur_rate(cur_name + "-USD")
+        new_p = client.get_cur_rate(cur_name + "-USDT")
         today = datetime.datetime.now().strftime("%m/%d/%Y")
         # add it and compute
         best_t.add_new_day(
@@ -252,12 +252,12 @@ def main():
             logger.error(f"Error generating visualizations: {e}")
 
         # Get current portfolio values for actual trading
-        _, current_cash = client.portfolio_value
+        _, current_usdt = client.portfolio_value
 
         # if too less, we leave
-        if current_cash <= EP_CASH and signal == BUY_SIGNAL:
+        if current_usdt <= EP_CASH and signal == BUY_SIGNAL:
             logger.warning(
-                "too less cash, cannot execute a buy, discard further actions."
+                "too less USDT, cannot execute a buy, discard further actions."
             )
             continue
         elif (
@@ -271,37 +271,59 @@ def main():
         # otherwise, execute a transaction
         if signal["action"] == BUY_SIGNAL:
             buy_pct = signal["buy_percentage"]
+            buy_amount_usdt = buy_pct * current_usdt
             order = client.place_buy_order(
                 wallet_id=wallet_id,
-                amount=buy_pct * current_cash,
-                currency="USD",
-                commit=COMMIT,
-            )
-            logger.info(
-                "bought {:.5f} {}, used {:.2f} USD, at unit price={}".format(
-                    float(order["amount"]["amount"]),
-                    cur_name,
-                    float(order["total"]["amount"]),
-                    float(order["unit_price"]["amount"]),
-                )
-            )
-
-        elif signal["action"] == SELL_SIGNAL:
-            sell_pct = signal["sell_percentage"]
-            order = client.place_sell_order(
-                wallet_id=wallet_id,
-                amount=sell_pct * sim_coin,
+                amount=buy_amount_usdt,
                 currency=cur_name,
                 commit=COMMIT,
             )
-            logger.info(
-                "sold {:.5f} {}, cash out {:.2f} USD, at unit price={}".format(
-                    float(order["amount"]["amount"]),
-                    cur_name,
-                    float(order["subtotal"]["amount"]),
-                    float(order["unit_price"]["amount"]),
+            
+            # Handle different response formats (simulated vs real)
+            if hasattr(order, 'success_response'):
+                # Real order response
+                logger.info(
+                    f"bought {cur_name} using {buy_amount_usdt:.2f} USDT (order_id: {order.success_response.order_id})"
                 )
+            else:
+                # Simulated order response
+                logger.info(
+                    "bought {:.5f} {}, used {:.2f} USDT, at unit price={}".format(
+                        float(order["amount"]["amount"]),
+                        cur_name,
+                        float(order["total"]["amount"]),
+                        float(order["unit_price"]["amount"]),
+                    )
+                )
+
+        elif signal["action"] == SELL_SIGNAL:
+            sell_pct = signal["sell_percentage"]
+            # Use actual crypto balance, not simulation balance
+            sell_amount_crypto = sell_pct * cur_coin
+            order = client.place_sell_order(
+                wallet_id=wallet_id,
+                amount=sell_amount_crypto,
+                currency=cur_name,
+                commit=COMMIT,
             )
+            
+            # Handle different response formats (simulated vs real)
+            if hasattr(order, 'success_response'):
+                # Real order response
+                estimated_usdt_value = sell_amount_crypto * new_p
+                logger.info(
+                    f"sold {sell_amount_crypto:.6f} {cur_name} for ~{estimated_usdt_value:.2f} USDT (order_id: {order.success_response.order_id})"
+                )
+            else:
+                # Simulated order response
+                logger.info(
+                    "sold {:.5f} {}, cash out {:.2f} USDT, at unit price={}".format(
+                        float(order["amount"]["amount"]),
+                        cur_name,
+                        float(order["subtotal"]["amount"]),
+                        float(order["unit_price"]["amount"]),
+                    )
+                )
         elif signal["action"] == NO_ACTION_SIGNAL:
             logger.info("no action performed as simulation suggests.")
 
