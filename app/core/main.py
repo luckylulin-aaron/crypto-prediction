@@ -338,14 +338,28 @@ def main():
 
 
 if __name__ == "__main__":
-    # Run one-time
-    main()
+    # Check if running as cronjob or one-time
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "--cronjob":
+        # Run as a daily cronjob with following command:
+        # ```python app/core/main.py --cronjob```
+        logger.info("Starting trading bot in cronjob mode...")
+        
+        # Schedule daily execution at 9:00 PM SGT (1:00 PM UTC)
+        schedule.every().day.at('13:00').do(main)
+        
+        logger.info("Trading bot scheduled to run daily at 9:00 PM SGT (1:00 PM UTC)")
+        logger.info("Press Ctrl+C to stop the bot")
 
-    # Run as a cron-job
-    """
-    schedule.every().day.at('22:53').do(main)
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-        sys.stdout.flush()
-    """
+        try:
+            while True:
+                schedule.run_pending()
+                time.sleep(60)  # Check every minute
+                sys.stdout.flush()
+        except KeyboardInterrupt:
+            logger.info("Trading bot stopped by user")
+    else:
+        # Run one-time
+        logger.info("Starting trading bot in one-time mode...")
+        main()

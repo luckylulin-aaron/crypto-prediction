@@ -2,7 +2,7 @@
 SECONDS_IN_ONE_DAY = 86400
 
 # whether commit transaction
-COMMIT = False
+COMMIT = True  # Set to True for actual trading deployment
 
 # strategies
 # MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)

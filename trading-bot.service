@@ -1,0 +1,27 @@
+[Unit]
+Description=Cryptocurrency Trading Bot
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/crypto-prediction
+ExecStart=/usr/bin/python3 /path/to/crypto-prediction/app/core/main.py --cronjob
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment=PYTHONPATH=/path/to/crypto-prediction/app
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/path/to/crypto-prediction/logs
+
+[Install]
+WantedBy=multi-user.target 
