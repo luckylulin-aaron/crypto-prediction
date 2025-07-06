@@ -188,7 +188,7 @@ def main():
 
         # for a new price, find the trade signal
         new_p = client.get_cur_rate(cur_name + "-USDT")
-        today = datetime.datetime.now().strftime("%m/%d/%Y")
+        today = datetime.now().strftime("%m/%d/%Y")
         # add it and compute
         best_t.add_new_day(
             new_p=new_p, d=today, misc_p={"open": new_p, "low": new_p, "high": new_p}
@@ -222,14 +222,14 @@ def main():
             logger.info("Generating trading visualizations...")
 
             # Create comprehensive dashboard
-            dashboard_filename = f"app/visualization/plots/trading_dashboard_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            dashboard_filename = f"app/visualization/plots/trading_dashboard_{cur_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             dashboard = create_comprehensive_dashboard(
                 trader_instance=best_t, save_html=True, filename=dashboard_filename
             )
             logger.info(f"Dashboard saved to: {dashboard_filename}")
 
             # Create individual portfolio chart
-            portfolio_filename = f"app/visualization/plots/portfolio_chart_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            portfolio_filename = f"app/visualization/plots/portfolio_chart_{cur_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             portfolio_chart = create_portfolio_value_chart(
                 trade_history=best_t.trade_history,
                 title=f"Portfolio Value - {cur_name} ({best_t.high_strategy})",
@@ -239,7 +239,7 @@ def main():
 
             # Create strategy performance comparison chart
             strategy_performance = t_driver.get_all_strategy_performance()
-            strategy_filename = f"app/visualization/plots/strategy_performance_{cur_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            strategy_filename = f"app/visualization/plots/strategy_performance_{cur_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             strategy_chart = create_strategy_performance_chart(
                 strategy_performance=strategy_performance,
                 title=f"Strategy Performance Comparison - {cur_name}",
@@ -332,7 +332,7 @@ def main():
     display_port_msg(v_c=v_c2, v_s=v_s2, before=False)
 
     # write to log file
-    now = datetime.datetime.now()
+    now = datetime.now()
     with open(log_file, "a") as outfile:
         outfile.write("Finish job at time {}\n".format(str(now)))
 
