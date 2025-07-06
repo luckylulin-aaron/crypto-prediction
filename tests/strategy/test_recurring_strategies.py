@@ -8,7 +8,7 @@ import sys
 import datetime
 from unittest.mock import Mock
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
 from app.trading.strategies import (
     strategy_simple_recurring_investment,
