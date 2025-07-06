@@ -342,23 +342,37 @@ if __name__ == "__main__":
     import sys
     
     if len(sys.argv) > 1 and sys.argv[1] == "--cronjob":
-        # Run as a daily cronjob with following command:
-        # ```python app/core/main.py --cronjob```
-        logger.info("Starting trading bot in cronjob mode...")
+        # Run as a continuous service - executes daily at 1:00 PM UTC (9:00 PM SGT)
+        logger.info("Starting trading bot in continuous service mode...")
+        logger.info("Will execute trading daily at 1:00 PM UTC (9:00 PM SGT)")
+        logger.info("Press Ctrl+C to stop the service")
         
-        # Schedule daily execution at 9:00 PM SGT (1:00 PM UTC)
-        schedule.every().day.at('13:00').do(main)
-        
-        logger.info("Trading bot scheduled to run daily at 9:00 PM SGT (1:00 PM UTC)")
-        logger.info("Press Ctrl+C to stop the bot")
-
         try:
             while True:
-                schedule.run_pending()
-                time.sleep(60)  # Check every minute
-                sys.stdout.flush()
+                # Check current time
+                current_time = datetime.now().time()
+                target_time = datetime.strptime('13:00', '%H:%M').time()
+                
+                if current_time >= target_time:
+                    # Time to execute trading
+                    logger.info("Executing daily trading at 1:00 PM UTC...")
+                    main()
+                    
+                    # Wait until tomorrow (add 24 hours)
+                    tomorrow = datetime.now() + timedelta(days=1)
+                    next_run = datetime.combine(tomorrow.date(), target_time)
+                    wait_seconds = (next_run - datetime.now()).total_seconds()
+                    
+                    logger.info(f"Trading completed. Next execution in {wait_seconds/3600:.1f} hours")
+                    time.sleep(wait_seconds)
+                else:
+                    # Wait until today's target time
+                    time_diff = datetime.combine(datetime.today(), target_time) - datetime.combine(datetime.today(), current_time)
+                    logger.info(f"Waiting {time_diff} until next execution at 1:00 PM UTC...")
+                    time.sleep(time_diff.total_seconds())
+                    
         except KeyboardInterrupt:
-            logger.info("Trading bot stopped by user")
+            logger.info("Trading service stopped by user")
     else:
         # Run one-time
         logger.info("Starting trading bot in one-time mode...")
