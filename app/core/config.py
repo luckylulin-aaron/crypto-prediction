@@ -11,17 +11,17 @@ COMMIT = False
 STRATEGIES = [
     "MA-SELVES",  # Original moving average strategy
     "EXP-MA-SELVES",  # Exponential moving average strategy
-    #"DOUBLE-MA",  # Double moving average crossover
-    #"MACD",  # MACD momentum indicator
-    #"BOLL-BANDS",  # Bollinger Bands volatility strategy
-    #"RSI",  # Relative Strength Index
-    #"KDJ",  # KDJ oscillator
-    #"MA-MACD",  # Combined MA + MACD (requires both signals)
-    #"MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
-    #"RSI-BOLL",  # Combined RSI + Bollinger Bands
-    #"TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
+    "DOUBLE-MA",  # Double moving average crossover
+    "MACD",  # MACD momentum indicator
+    "BOLL-BANDS",  # Bollinger Bands volatility strategy
+    "RSI",  # Relative Strength Index
+    "KDJ",  # KDJ oscillator
+    "MA-MACD",  # Combined MA + MACD (requires both signals)
+    "MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
+    "RSI-BOLL",  # Combined RSI + Bollinger Bands
+    "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
     "CONSERVATIVE-MA",  # MA with multiple period confirmation
-    #"VOLUME-BREAKOUT",  # Volume-based breakout strategy
+    "VOLUME-BREAKOUT",  # Volume-based breakout strategy
     "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
     "TREND-MA-SELVES",  # Trend-aware MA strategy
     "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
