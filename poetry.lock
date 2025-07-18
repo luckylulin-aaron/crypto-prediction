@@ -219,6 +219,22 @@ html5lib = ["html5lib"]
 lxml = ["lxml"]
 
 [[package]]
+name = "binance-connector"
+version = "3.12.0"
+description = "This is a lightweight library that works as a connector to Binance public API."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "binance-connector-3.12.0.tar.gz", hash = "sha256:33bf03052e2f1be3ced1196a36c51a736a50aaae07f7922640c7ebc017c6011f"},
+    {file = "binance_connector-3.12.0-py3-none-any.whl", hash = "sha256:b6706426acd2089f6cd3cb1516a8c47210805eac1f855bc8574b01f52cab218b"},
+]
+
+[package.dependencies]
+pycryptodome = ">=3.15.0"
+requests = ">=2.31.0"
+websocket-client = ">=1.6.3"
+
+[[package]]
 name = "black"
 version = "23.12.1"
 description = "The uncompromising code formatter."
@@ -3167,16 +3183,19 @@ files = [
 
 [[package]]
 name = "websocket-client"
-version = "0.40.0"
-description = "WebSocket client for python. hybi13 is supported."
+version = "1.8.0"
+description = "WebSocket client for Python with low level API options"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 files = [
-    {file = "websocket_client-0.40.0.tar.gz", hash = "sha256:40ac14a0c54e14d22809a5c8d553de5a2ae45de3c60105fae53bcb281b3fe6fb"},
+    {file = "websocket_client-1.8.0-py3-none-any.whl", hash = "sha256:17b44cc997f5c498e809b22cdf2d9c7a9e71c02c8cc2b6c56e7c2d1239bfa526"},
+    {file = "websocket_client-1.8.0.tar.gz", hash = "sha256:3239df9f44da632f96012472805d40a23281a991027ce11d2f45a6f24ac4c3da"},
 ]
 
-[package.dependencies]
-six = "*"
+[package.extras]
+docs = ["Sphinx (>=6.0)", "myst-parser (>=2.0.0)", "sphinx-rtd-theme (>=1.1.0)"]
+optional = ["python-socks", "wsaccel"]
+test = ["websockets"]
 
 [[package]]
 name = "websockets"
@@ -3323,4 +3342,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8.1"
-content-hash = "338fbb2a85666f59a622827494ecf1fd28dd02792b505fbebd32a3ba1d5934d6"
+content-hash = "ad3ea6b5e99a53557c87e93eee0732951563d231228e01474877308d5a69c901"
