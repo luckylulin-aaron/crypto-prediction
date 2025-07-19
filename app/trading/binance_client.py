@@ -5,7 +5,6 @@ from typing import Any, List, Optional
 
 import numpy as np
 from binance.spot import Spot
-
 from core.config import CURS, STABLECOIN, TIMESPAN
 from core.logger import get_logger
 from db.database import db_manager
@@ -20,7 +19,6 @@ class BinanceClient:
         else:
             self.client = Spot()
 
-    @timer
     def get_cur_rate(self, symbol: str) -> float:
         """
         Get the latest price for a given symbol (e.g., 'BTCUSDT').
@@ -100,11 +98,12 @@ class BinanceClient:
             try:
                 free = float(item["free"])
                 asset = item["asset"]
-                if asset in CURS:
-                    symbol = asset + "USDT"
+                asset_name_clean = asset.replace('LD','')
+                if asset_name_clean in CURS:
+                    symbol = asset_name_clean + "USDT"
                     coin_cur_rate = self.get_cur_rate(symbol=symbol)
                     v_crypto += coin_cur_rate * free
-                elif asset in STABLECOIN:
+                elif asset_name_clean in STABLECOIN:
                     v_stable += free
             except Exception as e:
                 self.logger.error(f"Exception processing wallet item: {item}, error: {e}")
@@ -130,7 +129,11 @@ class BinanceClient:
             else:
                 wallets = [b for b in balances if b["asset"] in asset_names and float(b["free"]) > 0]
             for wallet in wallets:
-                self.logger.info(f"Wallet: {wallet['asset']} - Balance: {float(wallet['free']):.3f}")
+                asset_name_clean = wallet['asset'].replace('LD','')
+                asset_balance = float(wallet['free'])
+                # log it
+                if asset_balance > 0.05:
+                    self.logger.info(f"Wallet: {asset_name_clean} - Balance: {asset_balance:.3f}")
             return wallets
         except Exception as e:
             self.logger.error(f"Exception when calling get_wallets: {e}")

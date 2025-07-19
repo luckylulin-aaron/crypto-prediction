@@ -1,7 +1,9 @@
-import os
 import configparser
+import os
 import unittest
+
 from app.trading.binance_client import BinanceClient
+
 
 class TestBinanceCredentials(unittest.TestCase):
     @classmethod

@@ -3,16 +3,16 @@
 Test script for FEAR-GREED-SENTIMENT (Fear & Greed Index) strategy.
 """
 
+import datetime
 import os
 import sys
-import datetime
 import unittest
 from unittest.mock import Mock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
+from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL
 from app.trading.strategies import strategy_fear_greed_sentiment
-from app.core.config import BUY_SIGNAL, SELL_SIGNAL, NO_ACTION_SIGNAL
 
 
 def create_mock_trader():

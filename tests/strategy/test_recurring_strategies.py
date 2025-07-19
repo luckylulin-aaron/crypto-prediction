@@ -3,18 +3,18 @@
 Test script for recurring investment strategies.
 """
 
+import datetime
 import os
 import sys
-import datetime
 from unittest.mock import Mock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
+from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL
 from app.trading.strategies import (
     strategy_simple_recurring_investment,
-    strategy_weighted_recurring_investment
+    strategy_weighted_recurring_investment,
 )
-from app.core.config import BUY_SIGNAL, SELL_SIGNAL, NO_ACTION_SIGNAL
 
 
 def create_mock_trader():
@@ -156,7 +156,7 @@ def test_strategy_registry():
     print("Testing Strategy Registry...")
     
     from app.trading.strategies import STRATEGY_REGISTRY
-    
+
     # Check if strategies are in registry
     assert "SIMPLE-RECURRING" in STRATEGY_REGISTRY, "SIMPLE-RECURRING not in registry"
     assert "WEIGHTED-RECURRING" in STRATEGY_REGISTRY, "WEIGHTED-RECURRING not in registry"
@@ -173,7 +173,7 @@ def test_config_integration():
     print("Testing Config Integration...")
     
     from app.core.config import STRATEGIES
-    
+
     # Check if strategies are in config
     assert "SIMPLE-RECURRING" in STRATEGIES, "SIMPLE-RECURRING not in config"
     assert "WEIGHTED-RECURRING" in STRATEGIES, "WEIGHTED-RECURRING not in config"

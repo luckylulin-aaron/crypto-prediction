@@ -1,11 +1,9 @@
 # built-in packages
 import configparser
-from datetime import datetime, timedelta
-import json
 import os
 import sys
 import time
-from curses import nocbreak
+from datetime import datetime, timedelta
 
 # third-party packages
 import numpy as np
@@ -17,6 +15,7 @@ try:
     from core.config import *
     from core.logger import get_logger
     from data.fear_greed_client import FearGreedClient
+    from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
@@ -34,6 +33,7 @@ except ImportError:
     from core.config import *
     from core.logger import get_logger
     from data.fear_greed_client import FearGreedClient
+    from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
@@ -51,6 +51,8 @@ config.read(os.path.join(os.path.dirname(__file__), "secret.ini"))
 
 CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
 CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
+BINANCE_API_KEY = config["CONFIG"]["BINANCE_API_KEY"].strip('"')
+BINANCE_API_SECRET = config["CONFIG"]["BINANCE_API_SECRET"].strip('"')
 
 
 def main():
@@ -73,19 +75,32 @@ def main():
     # cbpro client to interact with coinbase
     client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
 
+    # Binance client to interact with Binance
+    binance_client = BinanceClient(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
+
     # Fear & Greed Index client for market sentiment data
     fear_greed_client = FearGreedClient()
 
     # Get actual portfolio values for simulation
     try:
-        logger.info("Getting portfolio value...")
-        v_c1, v_s1 = client.portfolio_value
-        logger.info(f"Portfolio value before, crypto={v_c1}, stablecoin={v_s1}")
+        logger.info("Getting portfolio value (Coinbase)...")
+        coinbase_crypto_value, coinbase_stablecoin_value = client.portfolio_value
+        logger.info(f"Portfolio value before, crypto={coinbase_crypto_value}, stablecoin={coinbase_stablecoin_value}")
     except Exception as e:
         logger.error(f"Error getting portfolio value: {e}")
         return
 
-    display_port_msg(v_c=v_c1, v_s=v_s1, before=True)
+    display_port_msg(v_c=coinbase_crypto_value, v_s=coinbase_stablecoin_value, before=True)
+
+    # Get Binance portfolio value
+    try:
+        logger.info("Getting portfolio value (Binance)...")
+        binance_crypto_value, binance_stablecoin_value = binance_client.portfolio_value
+        logger.info(f"Binance portfolio value, crypto={binance_crypto_value}, stablecoin={binance_stablecoin_value}")
+    except Exception as e:
+        logger.error(f"Error getting Binance portfolio value: {e}")
+
+    display_port_msg(v_c=binance_crypto_value, v_s=binance_stablecoin_value, before=True)
 
     for index, cur_name in enumerate(CURS):
         logger.info(f"\n\n[{index+1}] processing for currency={cur_name}...")
@@ -138,7 +153,7 @@ def main():
         )
 
         sim_cash, sim_coin = calculate_simulation_amounts(
-            actual_cash=v_s1,
+            actual_cash=coinbase_stablecoin_value,
             actual_coin=cur_coin,
             method=SIMULATION_METHOD,
             base_amount=SIMULATION_BASE_AMOUNT,
