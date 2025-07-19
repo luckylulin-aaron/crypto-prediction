@@ -7,7 +7,7 @@ sys.path.insert(0, "../../app")
 
 from app.core.config import *
 from app.trading.trader_driver import TraderDriver
-from app.utils.util import load_csv, calculate_simulation_amounts
+from app.utils.util import calculate_simulation_amounts, load_csv
 
 
 class TestMADriver(unittest.TestCase):

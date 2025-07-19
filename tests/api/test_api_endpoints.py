@@ -6,11 +6,12 @@ This script demonstrates how to test buy and sell endpoints
 that could be added to the Flask API server.
 """
 
-import requests
 import json
-import time
-import sys
 import os
+import sys
+import time
+
+import requests
 
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'app'))

@@ -70,7 +70,7 @@ SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 # currencies (crptocurrency + stablecoin + fiat)
 # Updated to match actual account holdings
 CURS = [
-    "SOL"
+    "SOL", "UNI", "LTC", "ETH", "ETC", "DOT", "DOGE", "AAVE", "PEOPLE", "USUAL",
 ]  # "AMP", "CLV", "FORTH", "RNDR"]  # Tradeable cryptocurrencies with balance
 # Note: ETH2 exists in account but ETH2-USDT is not a valid trading pair
 # LTC and ADA are not in the account

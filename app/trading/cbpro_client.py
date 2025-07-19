@@ -24,7 +24,6 @@ class CBProClient:
         else:
             self.rest_client = RESTClient()  # Will use env vars if set
 
-    @timer
     def get_cur_rate(self, name: str):
         """For a given currency name, return its latest price using Advanced Trade API."""
         try:
@@ -172,9 +171,7 @@ class CBProClient:
             for wallet in wallets:
                 balance = float(wallet["available_balance"]["value"])
                 if balance > 0:  # Only log wallets with non-zero balance
-                    self.logger.info(
-                        f"Wallet: {wallet['currency']} - Balance: {balance:.3f}"
-                    )
+                    self.logger.info(f"Wallet: {wallet['currency']} - Balance: {balance:.3f}")
 
             return wallets
         except Exception as e:

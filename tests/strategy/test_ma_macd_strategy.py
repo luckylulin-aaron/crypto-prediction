@@ -3,16 +3,16 @@
 Test script for MA-MACD (Combined Moving Average and MACD) strategy.
 """
 
+import datetime
 import os
 import sys
-import datetime
 import unittest
 from unittest.mock import Mock
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
+from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL
 from app.trading.strategies import strategy_ma_macd_combined
-from app.core.config import BUY_SIGNAL, SELL_SIGNAL, NO_ACTION_SIGNAL
 
 
 def create_mock_trader():

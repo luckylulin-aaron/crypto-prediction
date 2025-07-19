@@ -348,7 +348,10 @@ class StratTrader:
 
             elif self.high_strategy == "FEAR-GREED-SENTIMENT":
                 # Import config for Fear & Greed thresholds
-                from app.core.config import FEAR_GREED_BUY_THRESHOLDS, FEAR_GREED_SELL_THRESHOLDS
+                from app.core.config import (
+                    FEAR_GREED_BUY_THRESHOLDS,
+                    FEAR_GREED_SELL_THRESHOLDS,
+                )
                 strategy_func(
                     trader=self,
                     new_p=new_p,

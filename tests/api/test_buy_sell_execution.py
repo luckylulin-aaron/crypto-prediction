@@ -8,16 +8,16 @@ with real API calls using minimum order sizes for SOL cryptocurrency.
 WARNING: This script will execute real trades. Use with caution!
 """
 
-import sys
-import os
 import configparser
+import os
+import sys
 import time
 
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'app'))
 
+from app.core.config import COMMIT, CURS
 from app.trading.cbpro_client import CBProClient
-from app.core.config import CURS, COMMIT
 
 
 def load_api_credentials():
