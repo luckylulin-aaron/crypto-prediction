@@ -54,11 +54,13 @@ cd crypto-prediction
    cp app/core/secret.ini.template app/core/secret.ini
    ```
    
-   Then edit `app/core/secret.ini` with your Coinbase API credentials:
+   Then edit `app/core/secret.ini` with your Coinbase and Binance API credentials:
    ```ini
    [CONFIG]
    COINBASE_API_KEY = "your_actual_api_key_here"
    COINBASE_API_SECRET = "your_actual_api_secret_here"
+   BINANCE_API_KEY = "your_binance_api_key_here"
+   BINANCE_API_SECRET = "your_binance_api_secret_here"
    ```
    
    ⚠️ **IMPORTANT**: Never commit your actual `secret.ini` file to Git!
@@ -315,6 +317,7 @@ crypto-prediction/
 │   ├── trading/           # Trading logic
 │   │   ├── __init__.py
 │   │   ├── cbpro_client.py    # Coinbase API client
+│   │   ├── binance_client.py # Binance API client
 │   │   ├── ma_trader.py       # Trading strategies
 │   │   ├── strategies.py      # Strategy implementations
 │   │   └── trader_driver.py   # Trading engine

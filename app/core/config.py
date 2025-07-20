@@ -1,8 +1,13 @@
+from enum import Enum
+
 # numerical constants
 SECONDS_IN_ONE_DAY = 86400
 
 # whether commit transaction
 COMMIT = False  # Set to True for actual trading deployment
+
+# debug mode, if True, only test 1 strategy
+DEBUG = False
 
 # strategies
 # MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)
@@ -71,7 +76,7 @@ SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 # Updated to match actual account holdings
 CURS = [
     "SOL", "UNI", "LTC", "ETH", "ETC", "DOT", "DOGE", "AAVE", "PEOPLE", "USUAL",
-]  # "AMP", "CLV", "FORTH", "RNDR"]  # Tradeable cryptocurrencies with balance
+]  # Tradeable cryptocurrencies with balance
 # Note: ETH2 exists in account but ETH2-USDT is not a valid trading pair
 # LTC and ADA are not in the account
 FIAT = ["USD", "SGD"]  # Fiat currencies (not used for trading)
@@ -102,3 +107,27 @@ SIMULATION_METHOD = (
 )
 SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
 SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method
+
+class ExchangeName(Enum):
+    COINBASE = "Coinbase"
+    BINANCE = "Binance"
+
+# --- Exchange configuration for unified simulation --- # 
+EXCHANGE_CONFIGS = [
+    {
+        "name":             ExchangeName.COINBASE,
+        "symbol_format":    lambda asset: f"{asset}-USD",
+        "wallet_func":      lambda client, asset: client.get_wallets(cur_names=[asset]),
+        "coin_key":         "available_balance",
+        "coin_value_key":   "value",
+        "asset_key":        "currency",
+    },
+    {
+        "name":             ExchangeName.BINANCE,
+        "symbol_format":    lambda asset: f"{asset}USDT",
+        "wallet_func":      lambda client, asset: client.get_wallets(asset_names=[asset]),
+        "coin_key":         "free",
+        "coin_value_key":   None,
+        "asset_key":        "asset",
+    },
+]
