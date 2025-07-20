@@ -189,7 +189,7 @@ def main():
                     init_amount=exchange['stablecoin_value'],
                     cur_coin=coin_amount,
                     # only test 1 strategy for debugging purposes
-                    overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:1],
+                    overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
                     tol_pcts=TOL_PCTS,
                     ma_lengths=MA_LENGTHS,
                     ema_lengths=EMA_LENGTHS,
@@ -208,7 +208,36 @@ def main():
                 )
                 trader_driver.feed_data(data_stream)
                 best_info = trader_driver.best_trader_info
-                logger.info(f"Best strategy for {exchange['name'].value} {asset}: {best_info}")
+                best_t = trader_driver.traders[best_info["trader_index"]]
+                signal = best_t.trade_signal
+
+                # Log best trader summary with exchange name
+                logger.info(
+                    f"\n{'★'*10} BEST TRADER SUMMARY ({exchange['name'].value}) {'★'*10}\n"
+                    f"Best trader performance: {best_info}\n"
+                    f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
+                    f"Transactions: {best_t.num_transaction}, "
+                    f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
+                    f"Strategy: {best_t.high_strategy}\n"
+                    f"Today's signal: {signal} for crypto={best_t.crypto_name}\n"
+                    f"{'★'*36}\n"
+                )
+
+                # Save visualizations
+                dashboard_filename = f"app/visualization/plots/trading_dashboard_{asset}_{exchange['name'].value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                create_comprehensive_dashboard(trader_instance=best_t, save_html=True, filename=dashboard_filename)
+                portfolio_filename = f"app/visualization/plots/portfolio_chart_{asset}_{exchange['name'].value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                portfolio_chart = create_portfolio_value_chart(trade_history=best_t.trade_history, title=f"Portfolio Value - {asset} ({best_t.high_strategy})")
+                portfolio_chart.write_html(portfolio_filename)
+                strategy_performance = trader_driver.get_all_strategy_performance()
+                strategy_filename = f"app/visualization/plots/strategy_performance_{asset}_{exchange['name'].value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+                strategy_chart = create_strategy_performance_chart(strategy_performance=strategy_performance, title=f"Strategy Performance Comparison - {asset}", top_n=20)
+                strategy_chart.write_html(strategy_filename)
+
+                # Log recommended action to log.txt
+                with open(log_file, "a") as outfile:
+                    outfile.write(f"{datetime.now()} | {exchange['name'].value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}\n")
+
             except Exception as e:
                 logger.error(f"Simulation failed for {asset} on {exchange['name']}: {e}")
 
