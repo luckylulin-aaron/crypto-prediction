@@ -9,6 +9,9 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import schedule
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # customized packages
 try:
@@ -19,6 +22,7 @@ try:
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
+    from utils.email_util import send_email
     from visualization.visualization import (
         create_comprehensive_dashboard,
         create_portfolio_value_chart,
@@ -37,6 +41,7 @@ except ImportError:
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
+    from utils.email_util import send_email
     from visualization.visualization import (
         create_comprehensive_dashboard,
         create_portfolio_value_chart,
@@ -53,6 +58,11 @@ CB_API_KEY = config["CONFIG"]["COINBASE_API_KEY"].strip('"')
 CB_API_SECRET = config["CONFIG"]["COINBASE_API_SECRET"].strip('"')
 BINANCE_API_KEY = config["CONFIG"]["BINANCE_API_KEY"].strip('"')
 BINANCE_API_SECRET = config["CONFIG"]["BINANCE_API_SECRET"].strip('"')
+GMAIL_ADDRESS = config["CONFIG"].get("GMAIL_ADDRESS", "").strip('"')
+GMAIL_APP_PASSWORD = config["CONFIG"].get("GMAIL_APP_PASSWORD", "").strip('"')
+GMAIL_RECIPIENTS = config["CONFIG"].get("GMAIL_RECIPIENTS", "").strip('"')
+RECIPIENT_LIST = [email.strip() for email in GMAIL_RECIPIENTS.split(",") if email.strip()]
+
 
 def main():
     """
@@ -144,10 +154,14 @@ def main():
         exch["stablecoin_value"] = exchange_stablecoin_value_map[name]
         exchanges.append(exch)
 
+    all_actions = []
+
     for exchange in exchanges:
         logger.info(f"=== {exchange['name'].value} Portfolio ===")
         display_port_msg(v_c=exchange['crypto_value'], v_s=exchange['stablecoin_value'], before=True)
-        for asset in CURS:
+        
+        asset_list = CURS[:1] if DEBUG else CURS
+        for asset in asset_list:
             logger.info(f"\n\n# --- Simulating for {exchange['name'].value} asset: {asset} --- #")
             symbol = exchange['symbol_format'](asset)
             # Check if symbol is valid for this exchange
@@ -234,9 +248,13 @@ def main():
                 strategy_chart = create_strategy_performance_chart(strategy_performance=strategy_performance, title=f"Strategy Performance Comparison - {asset}", top_n=20)
                 strategy_chart.write_html(strategy_filename)
 
+                # Gather recommended action for email/log
+                action_line = f"{datetime.now()} | {exchange['name'].value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
+                all_actions.append(action_line)
+
                 # Log recommended action to log.txt
                 with open(log_file, "a") as outfile:
-                    outfile.write(f"{datetime.now()} | {exchange['name'].value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}\n")
+                    outfile.write(action_line + "\n")
 
             except Exception as e:
                 logger.error(f"Simulation failed for {asset} on {exchange['name']}: {e}")
@@ -248,10 +266,15 @@ def main():
     binance_crypto_value_after, binance_stablecoin_value_after = binance_client.portfolio_value
     display_port_msg(v_c=binance_crypto_value_after, v_s=binance_stablecoin_value_after, before=False)
 
+    # Send email with all actions
+    subject = "Daily Trading Bot Recommendations"
+    body = "\n".join(all_actions)
+    send_email(subject, body, to_emails=recipient_list, from_email=GMAIL_ADDRESS, app_password=GMAIL_APP_PASSWORD)
+
     # write to log file
     now = datetime.now()
     with open(log_file, "a") as outfile:
-        outfile.write("Finish job at time {}\n".format(str(now)))
+        outfile.write("Finish job at time {}\n\n".format(str(now)))
 
 
 def run_trading_job():
