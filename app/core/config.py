@@ -108,6 +108,9 @@ SIMULATION_METHOD = (
 SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
 SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method
 
+# Log file path
+LOG_FILE = "./log.txt"
+
 class ExchangeName(Enum):
     COINBASE = "Coinbase"
     BINANCE = "Binance"
