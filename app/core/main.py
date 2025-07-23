@@ -73,6 +73,10 @@ def send_daily_recommendations_email(
 ):
     """
     Send daily recommendations email from log.txt for today's actions.
+    
+    Sends different content based on recipient:
+    - First recipient (you): Gets all recommendations (crypto + stocks)
+    - Other recipients: Gets only crypto recommendations (stocks filtered out)
 
     Args:
         log_file: path to the log file
@@ -110,44 +114,94 @@ def send_daily_recommendations_email(
         logger.info("No trading actions found for today, skipping email notification.")
         return
 
-    # Table for BUY/SELL
-    body = ""
-    if buy_sell_lines:
-        header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
-        sep = "-" * len(header)
-        formatted_lines = [
-            f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6}"
-            for t, e, a, ac, b, s in buy_sell_lines
-        ]
-        body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
-        # Add explanation for Buy % and Sell %
-        body += (
-            "\nBuy %: Recommended proportion of available stablecoin to use for buying this asset.\n"
-            "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n"
+    # Separate crypto and stock recommendations
+    crypto_lines = []
+    stock_lines = []
+    crypto_no_action = []
+    stock_no_action = []
+    
+    # Filter buy/sell lines
+    for line in buy_sell_lines:
+        time, exch, asset, action, buy, sell = line
+        if exch == "STOCK":
+            stock_lines.append(line)
+        else:
+            crypto_lines.append(line)
+    
+    # Filter no action entries
+    for exch, asset in no_action_entries:
+        if exch == "STOCK":
+            stock_no_action.append((exch, asset))
+        else:
+            crypto_no_action.append((exch, asset))
+
+    # Send different emails to different recipients
+    for i, recipient in enumerate(recipient_list):
+        body = ""
+        
+        if i == 0:
+            # First recipient (you) - gets everything
+            all_lines = crypto_lines + stock_lines
+            all_no_action = crypto_no_action + stock_no_action
+            
+            if all_lines:
+                header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
+                sep = "-" * len(header)
+                formatted_lines = [
+                    f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6}"
+                    for t, e, a, ac, b, s in all_lines
+                ]
+                body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
+                body += (
+                    "\nBuy %: Recommended proportion of available funds to use for buying this asset.\n"
+                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n"
+                )
+
+            if all_no_action:
+                from collections import defaultdict
+                exch_assets = defaultdict(list)
+                for exch, asset in all_no_action:
+                    exch_assets[exch].append(asset)
+                body += "No action recommended for the following assets today:\n"
+                for exch, assets in exch_assets.items():
+                    asset_list = ", ".join(sorted(set(assets)))
+                    body += f"- {exch}: {asset_list}\n"
+                    
+        else:
+            # Other recipients - crypto only
+            if crypto_lines:
+                header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
+                sep = "-" * len(header)
+                formatted_lines = [
+                    f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6}"
+                    for t, e, a, ac, b, s in crypto_lines
+                ]
+                body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
+                body += (
+                    "\nBuy %: Recommended proportion of available stablecoin to use for buying this asset.\n"
+                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n"
+                )
+
+            if crypto_no_action:
+                from collections import defaultdict
+                exch_assets = defaultdict(list)
+                for exch, asset in crypto_no_action:
+                    exch_assets[exch].append(asset)
+                body += "No action recommended for the following assets today:\n"
+                for exch, assets in exch_assets.items():
+                    asset_list = ", ".join(sorted(set(assets)))
+                    body += f"- {exch}: {asset_list}\n"
+
+        # Send email to this specific recipient
+        subject = f"Daily Trading Bot Recommendations ({today_str})"
+        send_email(
+            subject=subject,
+            body=body.strip(),
+            to_emails=[recipient],  # Send to individual recipient
+            from_email=from_email,
+            app_password=app_password,
         )
-
-    # Paragraph for NO ACTION
-    if no_action_entries:
-        # Group by exchange
-        from collections import defaultdict
-
-        exch_assets = defaultdict(list)
-        for exch, asset in no_action_entries:
-            exch_assets[exch].append(asset)
-        body += "No action recommended for the following assets today:\n"
-        for exch, assets in exch_assets.items():
-            asset_list = ", ".join(sorted(set(assets)))
-            body += f"- {exch}: {asset_list}\n"
-
-    # send email
-    subject = f"Daily Trading Bot Recommendations ({today_str})"
-    send_email(
-        subject=subject,
-        body=body.strip(),
-        to_emails=recipient_list,
-        from_email=from_email,
-        app_password=app_password,
-    )
+        
     return
 
 
