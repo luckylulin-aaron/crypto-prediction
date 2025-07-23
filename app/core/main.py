@@ -64,6 +64,42 @@ GMAIL_RECIPIENTS = config["CONFIG"].get("GMAIL_RECIPIENTS", "").strip('"')
 RECIPIENT_LIST = [email.strip() for email in GMAIL_RECIPIENTS.split(",") if email.strip()]
 
 
+def send_daily_recommendations_email(log_file, recipient_list, from_email, app_password):
+    """
+    Send daily recommendations email from log.txt for today's actions.
+
+    Args:
+        log_file: path to the log file
+        recipient_list: list of email addresses to send the email to
+        from_email: email address to send the email from
+        app_password: app password for the email account
+
+    Returns:
+    """
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    lines_to_send = []
+
+    with open(log_file, "r") as infile:
+        for line in infile:
+            # Check if the line starts with today's date
+            if line.strip() and line[:10] == today_str:
+                lines_to_send.append(line.strip())
+
+    if not lines_to_send:
+        logger.info("No trading actions found for today, skipping email notification.")
+        return
+    
+    subject = f"Daily Trading Bot Recommendations ({today_str})"
+    body = "\n".join(lines_to_send)
+    send_email(
+        subject=subject,
+        body=body,
+        to_emails=recipient_list,
+        from_email=from_email,
+        app_password=app_password
+    )
+    return
+
 def main():
     """
     Run simulation and make trades.
@@ -273,17 +309,8 @@ def main():
     binance_crypto_value_after, binance_stablecoin_value_after = binance_client.portfolio_value
     display_port_msg(v_c=binance_crypto_value_after, v_s=binance_stablecoin_value_after, before=False)
 
-    # --- send email with all action block--- #
-    subject = "Daily Trading Bot Recommendations"
-    body = "\n".join(all_actions)
-    send_email(
-        subject=subject,
-        body=body,
-        to_emails=RECIPIENT_LIST,
-        from_email=GMAIL_ADDRESS,
-        app_password=GMAIL_APP_PASSWORD
-    )
-    # --- end of sending email block --- #
+    # Send daily recommendations email from log.txt for today's actions
+    send_daily_recommendations_email(log_file, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
 
     # write to log file
     now = datetime.now()
