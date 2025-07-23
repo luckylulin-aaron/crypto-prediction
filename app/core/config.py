@@ -57,13 +57,23 @@ KDJ_OVERSOLD_THRESHOLDS = [10, 20, 30]  # Oversold thresholds (buy signals)
 KDJ_OVERBOUGHT_THRESHOLDS = [70, 80, 90]  # Overbought thresholds (sell signals)
 
 # Fear & Greed Index Strategy Configuration
-FEAR_GREED_BUY_THRESHOLDS = [20, 30]  # Buy when index is below these values (fear/extreme fear)
-FEAR_GREED_SELL_THRESHOLDS = [70, 80]  # Sell when index is above these values (greed/extreme greed)
+FEAR_GREED_BUY_THRESHOLDS = [
+    20,
+    30,
+]  # Buy when index is below these values (fear/extreme fear)
+FEAR_GREED_SELL_THRESHOLDS = [
+    70,
+    80,
+]  # Sell when index is above these values (greed/extreme greed)
 FEAR_GREED_STRATEGY_NAME = "FEAR-GREED-SENTIMENT"  # Strategy name for identification
 
 # Recurring Investment Strategy Configuration
 RECURRING_INVESTMENT_INTERVALS = [3, 7, 14, 30]  # Days between investments
-RECURRING_PROFIT_THRESHOLDS = [0.05, 0.10, 0.15]  # Profit thresholds for position reduction
+RECURRING_PROFIT_THRESHOLDS = [
+    0.05,
+    0.10,
+    0.15,
+]  # Profit thresholds for position reduction
 RECURRING_LOSS_THRESHOLDS = [0.05, 0.10, 0.15]  # Loss thresholds for position increase
 RECURRING_BASE_INVESTMENT_PCTS = [0.03, 0.05, 0.10]  # Base investment percentages
 RECURRING_MA_WEIGHT_FACTORS = [1.0, 2.0, 3.0]  # MA weight factors for weighted strategy
@@ -75,7 +85,13 @@ SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 # currencies (crptocurrency + stablecoin + fiat)
 # Updated to match actual account holdings
 CURS = [
-    "SOL", "UNI", "LTC", "ETH", "ETC", "DOGE", "AAVE",
+    "SOL",
+    "UNI",
+    "LTC",
+    "ETH",
+    "ETC",
+    "DOGE",
+    "AAVE",
 ]  # Tradeable cryptocurrencies with balance
 # Note: ETH2 exists in account but ETH2-USDT is not a valid trading pair
 # LTC and ADA are not in the account
@@ -111,26 +127,28 @@ SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based 
 # Log file path
 LOG_FILE = "./log.txt"
 
+
 class ExchangeName(Enum):
     COINBASE = "Coinbase"
     BINANCE = "Binance"
 
-# --- Exchange configuration for unified simulation --- # 
+
+# --- Exchange configuration for unified simulation --- #
 EXCHANGE_CONFIGS = [
     {
-        "name":             ExchangeName.COINBASE,
-        "symbol_format":    lambda asset: f"{asset}-USD",
-        "wallet_func":      lambda client, asset: client.get_wallets(cur_names=[asset]),
-        "coin_key":         "available_balance",
-        "coin_value_key":   "value",
-        "asset_key":        "currency",
+        "name": ExchangeName.COINBASE,
+        "symbol_format": lambda asset: f"{asset}-USD",
+        "wallet_func": lambda client, asset: client.get_wallets(cur_names=[asset]),
+        "coin_key": "available_balance",
+        "coin_value_key": "value",
+        "asset_key": "currency",
     },
     {
-        "name":             ExchangeName.BINANCE,
-        "symbol_format":    lambda asset: f"{asset}USDT",
-        "wallet_func":      lambda client, asset: client.get_wallets(asset_names=[asset]),
-        "coin_key":         "free",
-        "coin_value_key":   None,
-        "asset_key":        "asset",
+        "name": ExchangeName.BINANCE,
+        "symbol_format": lambda asset: f"{asset}USDT",
+        "wallet_func": lambda client, asset: client.get_wallets(asset_names=[asset]),
+        "coin_key": "free",
+        "coin_value_key": None,
+        "asset_key": "asset",
     },
 ]

@@ -12,7 +12,7 @@ from utils.util import timer
 
 
 class BinanceClient:
-    def __init__(self, api_key: str="", api_secret: str=""):
+    def __init__(self, api_key: str = "", api_secret: str = ""):
         self.logger = get_logger(__name__)
         if api_key and api_secret:
             self.client = Spot(api_key=api_key, api_secret=api_secret)
@@ -52,16 +52,24 @@ class BinanceClient:
         if use_cache:
             cached_data = db_manager.get_historical_data(symbol, TIMESPAN)
             if cached_data and db_manager.is_data_fresh(symbol, max_age_hours=24):
-                self.logger.info(f"Using cached data for {symbol} ({len(cached_data)} records)")
+                self.logger.info(
+                    f"Using cached data for {symbol} ({len(cached_data)} records)"
+                )
                 return cached_data
             elif cached_data:
-                self.logger.info(f"Cached data for {symbol} is stale, fetching fresh data")
+                self.logger.info(
+                    f"Cached data for {symbol} is stale, fetching fresh data"
+                )
             else:
-                self.logger.info(f"No cached data found for {symbol}, fetching from API")
+                self.logger.info(
+                    f"No cached data found for {symbol}, fetching from API"
+                )
 
         try:
             end = int(time.time() * 1000)
-            start = int((datetime.utcnow() - timedelta(days=TIMESPAN)).timestamp() * 1000)
+            start = int(
+                (datetime.utcnow() - timedelta(days=TIMESPAN)).timestamp() * 1000
+            )
             klines = self.client.klines(symbol, "1d", startTime=start, endTime=end)
             parsed = []
             for k in klines:
@@ -72,7 +80,9 @@ class BinanceClient:
                 low = float(k[3])
                 closing_price = float(k[4])
                 volume = float(k[5])
-                parsed.append([closing_price, fmt_dt_str, open_price, low, high, volume])
+                parsed.append(
+                    [closing_price, fmt_dt_str, open_price, low, high, volume]
+                )
             parsed = sorted(parsed, key=lambda x: x[1])
             today_str = datetime.utcnow().strftime("%Y-%m-%d")
             parsed = [x for x in parsed if x[1] != today_str]
@@ -98,7 +108,7 @@ class BinanceClient:
             try:
                 free = float(item["free"])
                 asset = item["asset"]
-                asset_name_clean = asset.replace('LD','')
+                asset_name_clean = asset.replace("LD", "")
                 if asset_name_clean in CURS:
                     symbol = asset_name_clean + "USDT"
                     coin_cur_rate = self.get_cur_rate(symbol=symbol)
@@ -106,7 +116,9 @@ class BinanceClient:
                 elif asset_name_clean in STABLECOIN:
                     v_stable += free
             except Exception as e:
-                self.logger.error(f"Exception processing wallet item: {item}, error: {e}")
+                self.logger.error(
+                    f"Exception processing wallet item: {item}, error: {e}"
+                )
                 continue
         return np.round(v_crypto, 2), np.round(v_stable, 2)
 
@@ -127,13 +139,19 @@ class BinanceClient:
             if asset_names is None:
                 wallets = [b for b in balances if float(b["free"]) > 0]
             else:
-                wallets = [b for b in balances if b["asset"] in asset_names and float(b["free"]) > 0]
+                wallets = [
+                    b
+                    for b in balances
+                    if b["asset"] in asset_names and float(b["free"]) > 0
+                ]
             for wallet in wallets:
-                asset_name_clean = wallet['asset'].replace('LD','')
-                asset_balance = float(wallet['free'])
+                asset_name_clean = wallet["asset"].replace("LD", "")
+                asset_balance = float(wallet["free"])
                 # log it
                 if asset_balance > 0.05:
-                    self.logger.info(f"Wallet: {asset_name_clean} - Balance: {asset_balance:.3f}")
+                    self.logger.info(
+                        f"Wallet: {asset_name_clean} - Balance: {asset_balance:.3f}"
+                    )
             return wallets
         except Exception as e:
             self.logger.error(f"Exception when calling get_wallets: {e}")
@@ -159,4 +177,4 @@ class BinanceClient:
             return 0.0
         except Exception as e:
             self.logger.error(f"Error getting account balance for {asset}: {e}")
-            return 0.0 
+            return 0.0

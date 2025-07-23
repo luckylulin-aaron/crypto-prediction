@@ -34,7 +34,8 @@ except ImportError:
     # Fallback for when running as script
     import os
     import sys
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from core.config import *
     from core.logger import get_logger
     from db.database import db_manager
@@ -157,16 +158,18 @@ def run_trading_simulation():
                     SIMULATION_METHOD,
                     SIMULATION_PERCENTAGE,
                 )
-                
+
                 sim_cash, sim_coin = calculate_simulation_amounts(
                     actual_cash=v_s1,
                     actual_coin=cur_coin,
                     method=SIMULATION_METHOD,
                     base_amount=SIMULATION_BASE_AMOUNT,
-                    percentage=SIMULATION_PERCENTAGE
+                    percentage=SIMULATION_PERCENTAGE,
                 )
-                
-                logger.info(f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.6f}")
+
+                logger.info(
+                    f"Simulation setup ({SIMULATION_METHOD}): cash=${sim_cash:.2f}, coin={sim_coin:.6f}"
+                )
 
                 # run simulation with scaled values
                 t_driver = TraderDriver(
@@ -238,7 +241,9 @@ def run_trading_simulation():
                         top_n=20,
                     )
                     strategy_chart.write_html(strategy_filename)
-                    logger.info(f"Strategy performance chart saved to: {strategy_filename}")
+                    logger.info(
+                        f"Strategy performance chart saved to: {strategy_filename}"
+                    )
 
                 except Exception as e:
                     logger.error(f"Error generating visualizations: {e}")
@@ -494,23 +499,24 @@ def get_database_stats():
     """Get database statistics."""
     try:
         stats = db_manager.get_data_statistics()
-        return jsonify({
-            "status": "success",
-            "data": [
-                {
-                    "symbol": symbol,
-                    "record_count": count,
-                    "last_updated": last_updated.isoformat() if last_updated else None
-                }
-                for symbol, count, last_updated in stats
-            ]
-        })
+        return jsonify(
+            {
+                "status": "success",
+                "data": [
+                    {
+                        "symbol": symbol,
+                        "record_count": count,
+                        "last_updated": last_updated.isoformat()
+                        if last_updated
+                        else None,
+                    }
+                    for symbol, count, last_updated in stats
+                ],
+            }
+        )
     except Exception as e:
         logger.error(f"Error getting database stats: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/api/database/clear", methods=["POST"])
@@ -520,16 +526,15 @@ def clear_old_data():
         data = request.get_json() or {}
         days = data.get("days", 365)
         deleted_count = db_manager.clear_old_data(days)
-        return jsonify({
-            "status": "success",
-            "message": f"Deleted {deleted_count} records older than {days} days"
-        })
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"Deleted {deleted_count} records older than {days} days",
+            }
+        )
     except Exception as e:
         logger.error(f"Error clearing old data: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 def main():

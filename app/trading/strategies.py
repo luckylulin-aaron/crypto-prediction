@@ -842,46 +842,49 @@ def strategy_multi_timeframe_ma_selves(
     # Get signals from all timeframes
     signals = []
     for queue in [short_queue, medium_queue, long_queue]:
-        if queue not in trader.moving_averages or len(trader.moving_averages[queue]) == 0:
+        if (
+            queue not in trader.moving_averages
+            or len(trader.moving_averages[queue]) == 0
+        ):
             signals.append("HOLD")
             continue
-            
+
         last_ma = trader.moving_averages[queue][-1]
         if last_ma is None:  # Check for None values
             signals.append("HOLD")
             continue
-            
+
         if new_p >= (1 + tol_pct) * last_ma:
             signals.append("SELL")
         elif new_p <= (1 - tol_pct) * last_ma:
             signals.append("BUY")
         else:
             signals.append("HOLD")
-    
+
     # Count signals
     sell_count = signals.count("SELL")
     buy_count = signals.count("BUY")
-    
+
     # Execute trades based on confirmation
     r_buy, r_sell = False, False
-    
+
     if sell_count >= confirmation_required:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     elif buy_count >= confirmation_required:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     # Record no action if no confirmation
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -921,17 +924,17 @@ def strategy_trend_aware_ma_selves(
     if len(trader.moving_averages[queue_name]) < trend_period:
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     trend_ma = trader.moving_averages[queue_name][-trend_period]
     current_ma = trader.moving_averages[queue_name][-1]
-    
+
     # Check for None values
     if trend_ma is None or current_ma is None:
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     trend_direction = (current_ma - trend_ma) / trend_ma
-    
+
     # Adjust tolerance based on trend
     if trend_direction > trend_threshold:  # Uptrend
         buy_tol = tol_pct * 0.8  # More aggressive buying
@@ -941,38 +944,38 @@ def strategy_trend_aware_ma_selves(
         sell_tol = tol_pct * 0.8  # More aggressive selling
     else:  # Sideways
         buy_tol = sell_tol = tol_pct
-    
+
     # Get the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
-    
+
     # Check for None values
     if last_ma is None:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     # Execute trades with trend-adjusted tolerances
     r_buy, r_sell = False, False
-    
+
     # (1) if too high, we do a sell
     if new_p >= (1 + sell_tol) * last_ma:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # (2) if too low, we do a buy
     elif new_p <= (1 - buy_tol) * last_ma:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -1012,12 +1015,12 @@ def strategy_volume_weighted_ma_selves(
     if len(trader.volume_history) < volume_period:
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     # Calculate volume ratio
     avg_volume = np.mean(trader.volume_history[-volume_period:])
     current_volume = trader.volume_history[-1]
     volume_ratio = current_volume / avg_volume
-    
+
     # Adjust tolerance based on volume
     if volume_ratio > volume_threshold:
         # High volume - use tighter tolerance (stronger signals)
@@ -1025,38 +1028,38 @@ def strategy_volume_weighted_ma_selves(
     else:
         # Low volume - use wider tolerance (weaker signals)
         adjusted_tol = tol_pct * 1.3
-    
+
     # Get the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
-    
+
     # Check for None values
     if last_ma is None:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     # Execute trades with volume-adjusted tolerance
     r_buy, r_sell = False, False
-    
+
     # (1) if too high, we do a sell
     if new_p >= (1 + adjusted_tol) * last_ma:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # (2) if too low, we do a buy
     elif new_p <= (1 - adjusted_tol) * last_ma:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -1096,45 +1099,45 @@ def strategy_adaptive_ma_selves(
     if len(trader.price_history) < volatility_period:
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     # Calculate recent volatility
     recent_prices = trader.price_history[-volatility_period:]
     volatility = np.std(recent_prices) / np.mean(recent_prices)
-    
+
     # Adjust tolerance based on volatility
     adaptive_tol = base_tol_pct * (1 + volatility * volatility_multiplier)
-    
+
     # Get the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
-    
+
     # Check for None values
     if last_ma is None:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     # Execute trades with adaptive tolerance
     r_buy, r_sell = False, False
-    
+
     # (1) if too high, we do a sell
     if new_p >= (1 + adaptive_tol) * last_ma:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # (2) if too low, we do a buy
     elif new_p <= (1 - adaptive_tol) * last_ma:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -1174,46 +1177,48 @@ def strategy_momentum_enhanced_ma_selves(
     if len(trader.price_history) < momentum_period:
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     # Calculate momentum (rate of change)
-    momentum = (new_p - trader.price_history[-momentum_period]) / trader.price_history[-momentum_period]
-    
+    momentum = (new_p - trader.price_history[-momentum_period]) / trader.price_history[
+        -momentum_period
+    ]
+
     # Get MA signal
     last_ma = trader.moving_averages[queue_name][-1]
-    
+
     # Check for None values
     if last_ma is None:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
-    
+
     ma_signal = None
-    
+
     if new_p >= (1 + tol_pct) * last_ma:
         ma_signal = "SELL"
     elif new_p <= (1 - tol_pct) * last_ma:
         ma_signal = "BUY"
-    
+
     # Execute trades only if momentum confirms MA signal
     r_buy, r_sell = False, False
-    
+
     if ma_signal == "BUY" and momentum > momentum_threshold:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     elif ma_signal == "SELL" and momentum < -momentum_threshold:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # Record no action if no confirmation
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -1243,14 +1248,14 @@ def strategy_fear_greed_sentiment(
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     # Check if fear & greed data is available
-    if not hasattr(trader, 'fear_greed_data') or not trader.fear_greed_data:
+    if not hasattr(trader, "fear_greed_data") or not trader.fear_greed_data:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
     # Get the most recent fear & greed index value
     current_fear_greed = trader.fear_greed_data[0]
-    current_value = int(current_fear_greed['value'])
+    current_value = int(current_fear_greed["value"])
 
     r_buy, r_sell = False, False
 
@@ -1370,9 +1375,9 @@ def strategy_simple_recurring_investment(
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     # Check if it's time to invest (every X days)
-    last_date = getattr(trader, 'last_investment_date', None)
+    last_date = getattr(trader, "last_investment_date", None)
     # If last_date is a Mock (from unittest), treat as None
-    if hasattr(last_date, '__class__') and 'Mock' in str(type(last_date)):
+    if hasattr(last_date, "__class__") and "Mock" in str(type(last_date)):
         last_date = None
     should_invest = False
     if last_date is None:
@@ -1387,11 +1392,13 @@ def strategy_simple_recurring_investment(
         return False, False
 
     # Calculate current portfolio performance
-    if not hasattr(trader, 'initial_investment_value'):
-        trader.initial_investment_value = trader.wallet['USD']
-    
-    current_value = trader.wallet['USD'] + (trader.wallet['crypto'] * new_p)
-    total_return = (current_value - trader.initial_investment_value) / trader.initial_investment_value
+    if not hasattr(trader, "initial_investment_value"):
+        trader.initial_investment_value = trader.wallet["USD"]
+
+    current_value = trader.wallet["USD"] + (trader.wallet["crypto"] * new_p)
+    total_return = (
+        current_value - trader.initial_investment_value
+    ) / trader.initial_investment_value
 
     # Determine investment amount based on performance
     if total_return > profit_threshold:
@@ -1456,8 +1463,10 @@ def strategy_weighted_recurring_investment(
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     # Check if it's time to invest (every X days)
-    last_weighted_date = getattr(trader, 'last_weighted_investment_date', None)
-    if hasattr(last_weighted_date, '__class__') and 'Mock' in str(type(last_weighted_date)):
+    last_weighted_date = getattr(trader, "last_weighted_investment_date", None)
+    if hasattr(last_weighted_date, "__class__") and "Mock" in str(
+        type(last_weighted_date)
+    ):
         last_weighted_date = None
     should_invest = False
     if last_weighted_date is None:
@@ -1472,7 +1481,10 @@ def strategy_weighted_recurring_investment(
         return False, False
 
     # Get moving average for weighting
-    if queue_name not in trader.moving_averages or len(trader.moving_averages[queue_name]) == 0:
+    if (
+        queue_name not in trader.moving_averages
+        or len(trader.moving_averages[queue_name]) == 0
+    ):
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
@@ -1485,9 +1497,11 @@ def strategy_weighted_recurring_investment(
 
     # Calculate price deviation from MA
     price_deviation = (new_p - last_ma) / last_ma
-    
+
     # Determine investment weight based on MA position
-    if price_deviation < -0.05:  # Price significantly below MA - good buying opportunity
+    if (
+        price_deviation < -0.05
+    ):  # Price significantly below MA - good buying opportunity
         investment_weight = 1.0 + (abs(price_deviation) * ma_weight_factor)
     elif price_deviation > 0.05:  # Price significantly above MA - reduce buying
         investment_weight = max(0.1, 1.0 - (price_deviation * ma_weight_factor))
@@ -1496,7 +1510,7 @@ def strategy_weighted_recurring_investment(
 
     # Execute weighted investment
     adjusted_investment_pct = base_investment_pct * investment_weight
-    
+
     # For simplicity, we'll use the existing buy mechanism
     # In a real implementation, you might want to adjust the actual investment amount
     r_buy = trader._execute_one_buy("by_percentage", new_p)
