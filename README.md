@@ -946,3 +946,16 @@ poetry install
 - **KDJ Strategy**: Configure oversold and overbought thresholds
 - **Moving Averages**: Configure MA lengths, EMA lengths, and Bollinger Bands parameters
 - **Tolerance Percentages**: Fine-tune buy/sell decision thresholds 
+
+## 📧 Email Notifications
+
+- To receive daily trading recommendations by email, add your Gmail credentials and recipient list to `app/core/secret.ini`:
+
+  ```ini
+  GMAIL_ADDRESS = "your_gmail@gmail.com"
+  GMAIL_APP_PASSWORD = "your_gmail_app_password"
+  GMAIL_RECIPIENTS = "your_gmail@gmail.com,another_email@example.com"
+  ```
+- You can list multiple recipients, separated by commas. All recipients will receive the same email (BCC for privacy).
+- The script will automatically send a summary of today's trading actions to all listed emails after each run.
+- You must use a Gmail App Password (not your main password) if you have 2-Step Verification enabled. 
