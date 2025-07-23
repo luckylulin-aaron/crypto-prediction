@@ -11,13 +11,15 @@ def send_email(subject, body, to_emails, from_email, app_password):
         return
     msg = MIMEMultipart()
     msg['From'] = from_email
-    msg['To'] = ", ".join(to_emails)
+    # For privacy, only show sender in To, put all recipients in BCC
+    msg['To'] = from_email
+    msg['Bcc'] = ", ".join(to_emails)
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
     try:
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
             server.login(from_email, app_password)
             server.sendmail(from_email, to_emails, msg.as_string())
-        logger.info(f"Sent trading recommendations to {to_emails}")
+        logger.info(f"Sent trading recommendations to {to_emails} (BCC)")
     except Exception as e:
         logger.error(f"Failed to send email: {e}")
