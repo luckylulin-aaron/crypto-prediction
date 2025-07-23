@@ -94,7 +94,7 @@ def create_portfolio_value_chart(
         yaxis_title="Portfolio Value ($)",
         hovermode="x unified",
         showlegend=True,
-        template="plotly_white",
+        template="seaborn",
     )
 
     return fig
@@ -158,7 +158,7 @@ def create_asset_allocation_chart(
         yaxis_title="Value ($)",
         hovermode="x unified",
         showlegend=True,
-        template="plotly_white",
+        template="seaborn",
     )
 
     return fig
@@ -210,7 +210,7 @@ def create_drawdown_chart(
         xaxis_title="Date",
         yaxis_title="Drawdown (%)",
         hovermode="x unified",
-        template="plotly_white",
+        template="seaborn",
         yaxis=dict(range=[df["drawdown"].min() - 5, 5]),
     )
 
@@ -300,7 +300,7 @@ def create_price_and_signals_chart(
         yaxis_title="Price ($)",
         hovermode="x unified",
         showlegend=True,
-        template="plotly_white",
+        template="seaborn",
     )
 
     return fig
@@ -380,7 +380,7 @@ def create_performance_comparison_chart(
         yaxis_title="Portfolio Value ($)",
         hovermode="x unified",
         showlegend=True,
-        template="plotly_white",
+        template="seaborn",
     )
 
     return fig
@@ -438,22 +438,26 @@ def create_returns_distribution_chart(
         title=title,
         xaxis_title="Daily Return (%)",
         yaxis_title="Frequency",
-        template="plotly_white",
+        template="seaborn",
     )
 
     return fig
 
 
 def create_comprehensive_dashboard(
-    trader_instance, save_html: bool = True, filename: str = "trading_dashboard.html"
+    trader_instance,
+    save_html: bool = True,
+    filename: str = "trading_dashboard.html",
+    strategy_performance: list = None,
 ) -> go.Figure:
     """
-    Create a comprehensive trading dashboard with multiple charts.
+    Create a comprehensive trading dashboard with multiple charts, including strategy performance.
 
     Args:
         trader_instance: StratTrader instance with trade history and crypto prices
         save_html: Whether to save the dashboard as HTML file
         filename: HTML filename to save
+        strategy_performance: Optional, list of strategy performance dicts
 
     Returns:
         plotly.graph_objects.Figure: Comprehensive dashboard
@@ -491,7 +495,7 @@ def create_comprehensive_dashboard(
             f"Asset Allocation - {strategy_name}",
             f"Price History with Signals - {strategy_name}",
             f"Drawdown Analysis - {strategy_name}",
-            f"Performance Comparison - {strategy_name}",
+            f"Strategy Performance Comparison - {strategy_name}",
             f"Returns Distribution - {strategy_name}",
         ),
         specs=[
@@ -540,20 +544,47 @@ def create_comprehensive_dashboard(
     for trace in drawdown_fig.data:
         fig.add_trace(trace, row=2, col=2)
 
-    # 5. Performance Comparison (simplified - just strategy line)
-    df = pd.DataFrame(trade_history)
-    df["date"] = pd.to_datetime(df["date"], format="mixed", dayfirst=False)
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["portfolio"],
-            mode="lines",
-            name=f"Strategy Performance ({strategy_name})",
-            line=dict(color="blue", width=2),
-        ),
-        row=3,
-        col=1,
-    )
+    # 5. Strategy Performance Comparison (bar chart)
+    if (
+        strategy_performance is None
+        and hasattr(trader_instance, "driver")
+        and hasattr(trader_instance.driver, "get_all_strategy_performance")
+    ):
+        strategy_performance = trader_instance.driver.get_all_strategy_performance()
+    elif strategy_performance is None and hasattr(
+        trader_instance, "get_all_strategy_performance"
+    ):
+        strategy_performance = trader_instance.get_all_strategy_performance()
+    if strategy_performance:
+        perf_fig = create_strategy_performance_chart(
+            strategy_performance,
+            title=f"Strategy Performance Comparison - {strategy_name}",
+            top_n=20,
+        )
+        for trace in perf_fig.data:
+            fig.add_trace(trace, row=3, col=1)
+        # Add layout updates from perf_fig (e.g., hlines)
+        if perf_fig.layout.shapes:
+            for shape in perf_fig.layout.shapes:
+                fig.add_shape(shape, row=3, col=1)
+        if perf_fig.layout.annotations:
+            for annotation in perf_fig.layout.annotations:
+                fig.add_annotation(annotation, row=3, col=1)
+    else:
+        # fallback: show strategy line as before
+        df = pd.DataFrame(trade_history)
+        df["date"] = pd.to_datetime(df["date"], format="mixed", dayfirst=False)
+        fig.add_trace(
+            go.Scatter(
+                x=df["date"],
+                y=df["portfolio"],
+                mode="lines",
+                name=f"Strategy Performance ({strategy_name})",
+                line=dict(color="blue", width=2),
+            ),
+            row=3,
+            col=1,
+        )
 
     # 6. Returns Distribution
     returns_fig = create_returns_distribution_chart(
@@ -568,7 +599,7 @@ def create_comprehensive_dashboard(
         title=f"Trading Strategy Dashboard - {trader_instance.crypto_name} ({strategy_name})<br><sub>{execution_subtitle}</sub>",
         height=1200,
         showlegend=True,
-        template="plotly_white",
+        template="seaborn",
     )
 
     # Save to HTML if requested
@@ -628,55 +659,68 @@ def create_strategy_performance_chart(
         # Aggregate: for each unique strategy, keep only the record with the highest rate_of_return
         best_by_strategy = {}
         for record in strategy_performance:
-            strat = record.get('strategy', 'Unknown')
-            if strat not in best_by_strategy or record['rate_of_return'] > best_by_strategy[strat]['rate_of_return']:
+            strat = record.get("strategy", "Unknown")
+            if (
+                strat not in best_by_strategy
+                or record["rate_of_return"] > best_by_strategy[strat]["rate_of_return"]
+            ):
                 best_by_strategy[strat] = record
-        
+
         # Get the best records and sort by rate_of_return
         best_records = list(best_by_strategy.values())
-        best_records.sort(key=lambda x: x['rate_of_return'], reverse=True)
-        
+        best_records.sort(key=lambda x: x["rate_of_return"], reverse=True)
+
         # Take top N
         top_strategies = best_records[:top_n]
         df = pd.DataFrame(top_strategies)
-        
+
         # Create simple strategy labels
         strategy_labels = []
         for i, row in df.iterrows():
-            strategy = row.get('strategy', f'Strategy {i}')
-            rate = row.get('rate_of_return', 0)
+            strategy = row.get("strategy", f"Strategy {i}")
+            rate = row.get("rate_of_return", 0)
             strategy_labels.append(f"{strategy} ({rate:.2f}%)")
-        
+
         # Create the figure
         fig = go.Figure()
-        
+
         # Add bars for rate of return
         fig.add_trace(
             go.Bar(
                 x=strategy_labels,
-                y=df['rate_of_return'],
-                name='Rate of Return (%)',
-                marker_color='lightblue',
-                hovertemplate="<b>%{x}</b><br>" +
-                             "Rate of Return: %{y:.2f}%<br>" +
-                             "Max Drawdown: " + df['max_drawdown'].astype(str) + "%<br>" +
-                             "Transactions: " + df['num_transactions'].astype(str) + "<br>" +
-                             "Buys: " + df['num_buys'].astype(str) + ", Sells: " + df['num_sells'].astype(str) + "<br>" +
-                             "Final Value: $" + df['max_final_value'].astype(str) + "<extra></extra>",
+                y=df["rate_of_return"],
+                name="Rate of Return (%)",
+                marker_color="lightblue",
+                hovertemplate="<b>%{x}</b><br>"
+                + "Rate of Return: %{y:.2f}%<br>"
+                + "Max Drawdown: "
+                + df["max_drawdown"].astype(str)
+                + "%<br>"
+                + "Transactions: "
+                + df["num_transactions"].astype(str)
+                + "<br>"
+                + "Buys: "
+                + df["num_buys"].astype(str)
+                + ", Sells: "
+                + df["num_sells"].astype(str)
+                + "<br>"
+                + "Final Value: $"
+                + df["max_final_value"].astype(str)
+                + "<extra></extra>",
             )
         )
-        
+
         # Add a horizontal line for baseline performance (buy & hold) if available
-        if len(df) > 0 and 'baseline_rate_of_return' in df.columns:
-            baseline_return = df.iloc[0]['baseline_rate_of_return']
+        if len(df) > 0 and "baseline_rate_of_return" in df.columns:
+            baseline_return = df.iloc[0]["baseline_rate_of_return"]
             fig.add_hline(
                 y=baseline_return,
                 line_dash="dash",
                 line_color="red",
                 annotation_text=f"Baseline (Buy & Hold): {baseline_return:.2f}%",
-                annotation_position="top right"
+                annotation_position="top right",
             )
-        
+
         # Update layout
         fig.update_layout(
             title=title,
@@ -684,13 +728,13 @@ def create_strategy_performance_chart(
             yaxis_title="Rate of Return (%)",
             xaxis_tickangle=-45,
             showlegend=True,
-            template="plotly_white",
+            template="seaborn",
             height=600,
             margin=dict(b=150),  # Increase bottom margin for rotated labels
         )
-        
+
         return fig
-        
+
     except Exception as e:
         print(f"Error in create_strategy_performance_chart: {e}")
         print(f"Strategy performance data length: {len(strategy_performance)}")

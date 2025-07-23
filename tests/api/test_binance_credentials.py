@@ -10,7 +10,9 @@ class TestBinanceCredentials(unittest.TestCase):
     def setUpClass(cls):
         # Load credentials from secret.ini
         config = configparser.ConfigParser()
-        config_path = os.path.join(os.path.dirname(__file__), '../../app/core/secret.ini')
+        config_path = os.path.join(
+            os.path.dirname(__file__), "../../app/core/secret.ini"
+        )
         config.read(config_path)
         cls.api_key = config["CONFIG"]["BINANCE_API_KEY"].strip('"')
         cls.api_secret = config["CONFIG"]["BINANCE_API_SECRET"].strip('"')
@@ -31,5 +33,6 @@ class TestBinanceCredentials(unittest.TestCase):
         self.assertGreater(price, 0)
         print(f"Current BTC price: {price}")
 
+
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()

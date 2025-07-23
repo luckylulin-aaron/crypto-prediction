@@ -151,7 +151,7 @@ class StratTrader:
 
         self.crypto_prices.append((new_p, d, open, low, high))
         self.price_history.append(new_p)  # Track price for volatility calculations
-        
+
         # Track volume if available in misc_p
         if "volume" in misc_p:
             self.volume_history.append(misc_p["volume"])
@@ -266,9 +266,9 @@ class StratTrader:
                 # Use short, medium, and long MAs for confirmation
                 ma_lengths_int = [int(x) for x in self.moving_averages.keys()]
                 short_queue = str(min(ma_lengths_int))
-                medium_queue = str(sorted(ma_lengths_int)[len(ma_lengths_int)//2])
+                medium_queue = str(sorted(ma_lengths_int)[len(ma_lengths_int) // 2])
                 long_queue = str(max(ma_lengths_int))
-                
+
                 strategy_func(
                     trader=self,
                     short_queue=short_queue,
@@ -352,6 +352,7 @@ class StratTrader:
                     FEAR_GREED_BUY_THRESHOLDS,
                     FEAR_GREED_SELL_THRESHOLDS,
                 )
+
                 strategy_func(
                     trader=self,
                     new_p=new_p,
@@ -445,7 +446,9 @@ class StratTrader:
             )
             self.macd_dea.append(new_dea)
 
-    def compute_kdj_related(self, d: datetime.datetime, low: float, high: float, open: float, close: float):
+    def compute_kdj_related(
+        self, d: datetime.datetime, low: float, high: float, open: float, close: float
+    ):
         """
         Compute KDJ related arrays with dates, prices of lows, highs, opens and closes.
 
