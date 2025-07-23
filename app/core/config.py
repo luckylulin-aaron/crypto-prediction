@@ -160,5 +160,6 @@ STOCKS = [
     'JD', # JD.com
     'APP', # Applovin
     'UNG', # United States Natural Gas Fund ETF
-    'TLT', # 20+ Year Treasury Bond ETF
+    'TLT', # 20+ Year Treasury Bond ETF,
+    'GRAB', # grab
 ]
