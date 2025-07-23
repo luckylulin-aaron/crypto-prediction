@@ -115,7 +115,6 @@ def main():
     """
 
     logger.info(f"COMMIT is set to {COMMIT}")
-    log_file = "./log.txt"
 
     # initialise different clients
     coinbase_client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
@@ -296,7 +295,7 @@ def main():
                 all_actions.append(action_line)
 
                 # Log recommended action to log.txt
-                with open(log_file, "a") as outfile:
+                with open(LOG_FILE, "a") as outfile:
                     outfile.write(action_line + "\n")
 
             except Exception as e:
@@ -310,19 +309,21 @@ def main():
     display_port_msg(v_c=binance_crypto_value_after, v_s=binance_stablecoin_value_after, before=False)
 
     # Send daily recommendations email from log.txt for today's actions
-    send_daily_recommendations_email(log_file, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+    send_daily_recommendations_email(LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
 
     # write to log file
     now = datetime.now()
-    with open(log_file, "a") as outfile:
+    with open(LOG_FILE, "a") as outfile:
         outfile.write("Finish job at time {}\n\n".format(str(now)))
-
 
 def run_trading_job():
     main()
 
+
 if __name__ == "__main__":
+
     import sys
+
     if len(sys.argv) > 1 and sys.argv[1] == "--cronjob":
         logger.info("Starting trading bot in schedule-based cronjob mode...")
         # Schedule the job for 1:00 PM UTC (9:00 PM SGT)
@@ -335,6 +336,11 @@ if __name__ == "__main__":
                 time.sleep(60)
         except KeyboardInterrupt:
             logger.info("Trading bot stopped by user")
+
+    elif any(arg.startswith("--sendEmail=") and arg.split("=", 1)[1].lower() == "true" for arg in sys.argv[1:]):
+        logger.info("Sending daily trading recommendations email only (no simulation)...")
+        send_daily_recommendations_email(LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+
     else:
         logger.info("Starting trading bot in one-time mode...")
         main()
