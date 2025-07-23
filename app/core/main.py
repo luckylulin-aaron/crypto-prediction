@@ -77,23 +77,62 @@ def send_daily_recommendations_email(log_file, recipient_list, from_email, app_p
     Returns:
     """
     today_str = datetime.now().strftime('%Y-%m-%d')
-    lines_to_send = []
+
+    buy_sell_lines = []
+    no_action_entries = []
 
     with open(log_file, "r") as infile:
         for line in infile:
-            # Check if the line starts with today's date
             if line.strip() and line[:10] == today_str:
-                lines_to_send.append(line.strip())
+                parts = [p.strip() for p in line.strip().split("|")]
+                if len(parts) == 6:
+                    time, exch, asset, action, buy, sell = parts
+                    action_val = action.replace("Action: ", "")
+                    buy_val = buy.replace("Buy %: ", "")
+                    sell_val = sell.replace("Sell %: ", "")
+                    if action_val.upper() in ("BUY", "SELL"):
+                        buy_sell_lines.append((time, exch, asset, action_val, buy_val, sell_val))
+                    else:
+                        no_action_entries.append((exch, asset))
+                else:
+                    # fallback: treat as no action
+                    no_action_entries.append(("?", "?"))
 
-    if not lines_to_send:
+    if not buy_sell_lines and not no_action_entries:
         logger.info("No trading actions found for today, skipping email notification.")
         return
-    
+
+    # Table for BUY/SELL
+    body = ""
+    if buy_sell_lines:
+        header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
+        sep = "-" * len(header)
+        formatted_lines = [
+            f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6}"
+            for t, e, a, ac, b, s in buy_sell_lines
+        ]
+        body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
+        # Add explanation for Buy % and Sell %
+        body += ("\nBuy %: Recommended proportion of available stablecoin to use for buying this asset.\n"
+                 "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n")
+
+    # Paragraph for NO ACTION
+    if no_action_entries:
+        # Group by exchange
+        from collections import defaultdict
+        exch_assets = defaultdict(list)
+        for exch, asset in no_action_entries:
+            exch_assets[exch].append(asset)
+        body += "No action recommended for the following assets today:\n"
+        for exch, assets in exch_assets.items():
+            asset_list = ", ".join(sorted(set(assets)))
+            body += f"- {exch}: {asset_list}\n"
+
+    # send email
     subject = f"Daily Trading Bot Recommendations ({today_str})"
-    body = "\n".join(lines_to_send)
     send_email(
         subject=subject,
-        body=body,
+        body=body.strip(),
         to_emails=recipient_list,
         from_email=from_email,
         app_password=app_password
