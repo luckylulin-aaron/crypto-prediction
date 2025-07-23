@@ -154,6 +154,7 @@ def main():
         exch["stablecoin_value"] = exchange_stablecoin_value_map[name]
         exchanges.append(exch)
 
+    simulated_pairs = set()
     all_actions = []
 
     for exchange in exchanges:
@@ -162,6 +163,16 @@ def main():
         
         asset_list = CURS[:1] if DEBUG else CURS
         for asset in asset_list:
+            # fetch unique pair key for each asset
+            pair_key = (exchange['name'], asset)
+            # skip if already simulated
+            if pair_key in simulated_pairs:
+                logger.info(f"Skipping duplicate simulation for {exchange['name'].value} asset: {asset}")
+                continue
+            
+            # otherwise, we simulate it
+            simulated_pairs.add(pair_key)
+
             logger.info(f"\n\n# --- Simulating for {exchange['name'].value} asset: {asset} --- #")
             symbol = exchange['symbol_format'](asset)
             # Check if symbol is valid for this exchange
@@ -266,10 +277,17 @@ def main():
     binance_crypto_value_after, binance_stablecoin_value_after = binance_client.portfolio_value
     display_port_msg(v_c=binance_crypto_value_after, v_s=binance_stablecoin_value_after, before=False)
 
-    # Send email with all actions
+    # --- send email with all action block--- #
     subject = "Daily Trading Bot Recommendations"
     body = "\n".join(all_actions)
-    send_email(subject, body, to_emails=recipient_list, from_email=GMAIL_ADDRESS, app_password=GMAIL_APP_PASSWORD)
+    send_email(
+        subject=subject,
+        body=body,
+        to_emails=RECIPIENT_LIST,
+        from_email=GMAIL_ADDRESS,
+        app_password=GMAIL_APP_PASSWORD
+    )
+    # --- end of sending email block --- #
 
     # write to log file
     now = datetime.now()
