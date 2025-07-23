@@ -157,7 +157,8 @@ EXCHANGE_CONFIGS = [
 STOCKS = [
     'AAPL',  # Apple
     'TSLA',  # Tesla
-    'GOOGL', # Alphabet
-    'MSFT',  # Microsoft
-    'AMZN',  # Amazon
+    'JD', # JD.com
+    'APP', # Applovin
+    'UNG', # United States Natural Gas Fund ETF
+    'TLT', # 20+ Year Treasury Bond ETF
 ]
