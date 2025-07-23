@@ -152,3 +152,12 @@ EXCHANGE_CONFIGS = [
         "asset_key": "asset",
     },
 ]
+
+# List of US stock tickers to fetch via yfinance
+STOCKS = [
+    'AAPL',  # Apple
+    'TSLA',  # Tesla
+    'GOOGL', # Alphabet
+    'MSFT',  # Microsoft
+    'AMZN',  # Amazon
+]
