@@ -1,7 +1,6 @@
 # built-in packages
 import datetime
-import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 # third-party packages
@@ -66,7 +65,7 @@ class CBProClient:
 
         # Fetch fresh data from API
         try:
-            end = datetime.utcnow()
+            end = datetime.now(timezone.utc)
             start = end - timedelta(days=TIMESPAN)
             res = self.rest_client.get_candles(
                 name,
@@ -98,7 +97,7 @@ class CBProClient:
             # Sort by date ascending
             parsed = sorted(parsed, key=lambda x: x[1])
             # Remove today's data if present
-            today_str = datetime.utcnow().strftime("%Y-%m-%d")
+            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             parsed = [x for x in parsed if x[1] != today_str]
 
             # Store data in database for future use

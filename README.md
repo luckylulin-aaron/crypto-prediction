@@ -47,6 +47,12 @@ cd crypto-prediction
    ```bash
    poetry install
    ```
+   
+   **Note**: If you see a warning about `pyproject.toml` changes, run:
+   ```bash
+   poetry lock --no-update
+   poetry install
+   ```
 
 3. **Configure API credentials**:
    ```bash
@@ -81,25 +87,38 @@ cd crypto-prediction
 
 ## 🎯 Usage
 
+### Virtual Environment Management (Poetry 2.x)
+
+```bash
+# Activate the virtual environment
+poetry env activate
+
+# Deactivate when done
+exit
+
+# Run commands without activating
+poetry run <command>
+```
+
 ### Running the Trading Bot
 
 ```bash
 # Run the trading bot directly
-poetry run trading-bot
+poetry run python app/core/main.py
 
-# Or activate the virtual environment
-poetry shell
-python app/main.py
+# Or activate the virtual environment first
+poetry env activate
+python app/core/main.py
 ```
 
 ### Starting the Web Server
 
 ```bash
 # Start the web server
-poetry run start-server
+poetry run python start_server.py
 
-# Or manually
-poetry shell
+# Or manually with activated environment
+poetry env activate
 python start_server.py
 ```
 
@@ -297,6 +316,13 @@ poetry run mypy .
 
 # Run tests
 poetry run pytest
+
+# Or activate environment first
+poetry env activate
+black .
+isort .
+mypy .
+pytest
 ```
 
 ### Project Structure
@@ -877,7 +903,7 @@ Buy: by_percentage, fixed_amount, market_order | Sell: by_percentage, stop_loss,
    - Kill existing process: `lsof -ti:8000 | xargs kill`
 
 3. **Import Errors**
-   - Ensure Poetry environment is activated: `poetry shell`
+   - Ensure Poetry environment is activated: `poetry env activate`
    - Reinstall dependencies: `poetry install`
 
 4. **Visualization Errors**
