@@ -154,7 +154,7 @@ def main():
         exch["stablecoin_value"] = exchange_stablecoin_value_map[name]
         exchanges.append(exch)
 
-    simulated_pairs = set()
+    simulated_assets = set()
     all_actions = []
 
     for exchange in exchanges:
@@ -163,15 +163,11 @@ def main():
         
         asset_list = CURS[:1] if DEBUG else CURS
         for asset in asset_list:
-            # fetch unique pair key for each asset
-            pair_key = (exchange['name'], asset)
-            # skip if already simulated
-            if pair_key in simulated_pairs:
-                logger.info(f"Skipping duplicate simulation for {exchange['name'].value} asset: {asset}")
+            # Only simulate each asset once, regardless of exchange
+            if asset in simulated_assets:
+                logger.info(f"Skipping duplicate simulation for asset: {asset}")
                 continue
-            
-            # otherwise, we simulate it
-            simulated_pairs.add(pair_key)
+            simulated_assets.add(asset)
 
             logger.info(f"\n\n# --- Simulating for {exchange['name'].value} asset: {asset} --- #")
             symbol = exchange['symbol_format'](asset)
