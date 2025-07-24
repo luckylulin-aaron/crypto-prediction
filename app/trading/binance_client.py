@@ -51,7 +51,7 @@ class BinanceClient:
         """
         if use_cache:
             cached_data = db_manager.get_historical_data(symbol, TIMESPAN)
-            if cached_data and db_manager.is_data_fresh(symbol, max_age_hours=24):
+            if cached_data and db_manager.is_data_fresh(symbol, max_age_hours=72):
                 self.logger.info(
                     f"Using cached data for {symbol} ({len(cached_data)} records)"
                 )
