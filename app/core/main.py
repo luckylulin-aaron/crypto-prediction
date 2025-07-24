@@ -20,8 +20,8 @@ try:
     from data.fear_greed_client import FearGreedClient
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
-    from trading.us_stock_client import USStockClient
     from trading.trader_driver import TraderDriver
+    from trading.us_stock_client import USStockClient
     from utils.email_util import send_email
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
     from visualization.visualization import (
@@ -40,8 +40,8 @@ except ImportError:
     from data.fear_greed_client import FearGreedClient
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
-    from trading.us_stock_client import USStockClient
     from trading.trader_driver import TraderDriver
+    from trading.us_stock_client import USStockClient
     from utils.email_util import send_email
     from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
     from visualization.visualization import (
