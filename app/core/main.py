@@ -29,6 +29,7 @@ try:
         create_portfolio_value_chart,
         create_strategy_performance_chart,
     )
+    from data.defi_event_client import DefiEventClient
 except ImportError:
     # Fallback for when running as script
     import os
@@ -49,6 +50,7 @@ except ImportError:
         create_portfolio_value_chart,
         create_strategy_performance_chart,
     )
+    from data.defi_event_client import DefiEventClient
 
 logger = get_logger(__name__)
 
@@ -557,6 +559,16 @@ def main():
         send_daily_recommendations_email(
             LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
         )
+        # Send DEFI asset valuation report email
+        defi_to_emails = config["CONFIG"].get("DEFI_REPORT_TO_EMAILS", "").split(",")
+        defi_from_email = config["CONFIG"].get("DEFI_REPORT_FROM_EMAIL", "")
+        defi_app_password = config["CONFIG"].get("DEFI_REPORT_APP_PASSWORD", "")
+        defi_to_emails = [e.strip() for e in defi_to_emails if e.strip()]
+
+        if defi_to_emails and defi_from_email and defi_app_password:
+            DefiEventClient().run_and_email(defi_to_emails, defi_from_email, defi_app_password, top_n=10)
+        else:
+            logger.warning("DEFI event client email not sent: missing credentials in secret.ini")
 
     # write to log file
     now = datetime.now()

@@ -74,31 +74,30 @@ class DefiEventClient:
         logger.info(f"Processed {len(results)} protocols with valid data.")
         return results
 
-    def format_email_body(self, processed: List[Dict], top_n: int = 20) -> str:
-        """
-        Format a detailed email body for the top N undervalued and overvalued assets.
+    def _format_table(self, assets: List[Dict], section_title: str) -> str:
+        if not assets:
+            return f"### {section_title}\nNo assets found.\n"
+        header = "| Name | Symbol | R | Market Cap | TVL | Signal |\n|------|--------|------|------------|------------|-------------------------|"
+        rows = [
+            f"| {a['name']} | {a['symbol']} | {a['R']} | ${int(a['market_cap']):,} | ${int(a['tvl']):,} | {a['signal']} |"
+            for a in assets
+        ]
+        return f"### {section_title}\n" + header + "\n" + "\n".join(rows) + "\n"
 
-        Args:
-            processed: List of processed protocol dicts.
-            top_n: Number of assets to show for each signal.
-        Returns:
-            String email body.
+    def format_email_body(self, processed: List[Dict], top_n: int = 10) -> str:
+        """
+        Format a detailed email body for the top N undervalued and overvalued assets, as Markdown tables.
         """
         undervalued = [p for p in processed if p["R"] < 1]
         overvalued = [p for p in processed if p["R"] > 1]
-        undervalued = sorted(undervalued, key=lambda x: x["R"])[:top_n]
-        overvalued = sorted(overvalued, key=lambda x: -x["R"])[:top_n]
-        lines = ["DEFI Asset Valuation Signals (via DefiLlama)", ""]
-        lines.append(f"Top {top_n} Undervalued (R < 1):")
-        for p in undervalued:
-            lines.append(f"- {p['name']} ({p['symbol']}): R={p['R']} | Market Cap=${int(p['market_cap']):,} | TVL=${int(p['tvl']):,} | {p['signal']}")
-        lines.append("")
-        lines.append(f"Top {top_n} Overvalued (R > 1):")
-        for p in overvalued:
-            lines.append(f"- {p['name']} ({p['symbol']}): R={p['R']} | Market Cap=${int(p['market_cap']):,} | TVL=${int(p['tvl']):,} | {p['signal']}")
+        undervalued = sorted(undervalued, key=lambda x: x["market_cap"], reverse=True)[:top_n]
+        overvalued = sorted(overvalued, key=lambda x: x["market_cap"], reverse=True)[:top_n]
+        lines = ["# DEFI Asset Valuation Signals (via DefiLlama)", ""]
+        lines.append(self._format_table(undervalued, f"Top {top_n} Undervalued (R < 1, sorted by Market Cap)"))
+        lines.append(self._format_table(overvalued, f"Top {top_n} Overvalued (R > 1, sorted by Market Cap)"))
         return "\n".join(lines)
 
-    def run_and_email(self, to_emails: List[str], from_email: str, app_password: str, top_n: int = 20):
+    def run_and_email(self, to_emails: List[str], from_email: str, app_password: str, top_n: int = 10):
         """
         Fetch, process, and email the DEFI asset signals.
 
@@ -129,4 +128,4 @@ if __name__ == "__main__":
     # Remove empty strings from TO_EMAILS
     TO_EMAILS = [e for e in TO_EMAILS if e]
     client = DefiEventClient()
-    client.run_and_email(TO_EMAILS, FROM_EMAIL, APP_PASSWORD, top_n=20) 
+    client.run_and_email(TO_EMAILS, FROM_EMAIL, APP_PASSWORD, top_n=10) 
