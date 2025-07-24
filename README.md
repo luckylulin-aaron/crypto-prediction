@@ -985,3 +985,43 @@ poetry install
 - You can list multiple recipients, separated by commas. All recipients will receive the same email (BCC for privacy).
 - The script will automatically send a summary of today's trading actions to all listed emails after each run.
 - You must use a Gmail App Password (not your main password) if you have 2-Step Verification enabled. 
+
+## 🏦 DEFI Asset Valuation Event Client
+
+This project includes a DEFI event client that fetches market cap and TVL (Total Value Locked) data for DEFI protocols from DefiLlama, calculates the ratio R = Market Cap / TVL, and sends a daily email report with the top 10 undervalued and overvalued assets (sorted by market cap).
+
+### How it works
+- Fetches all DEFI protocols from DefiLlama's API
+- For each protocol, calculates R = Market Cap / TVL
+- If R < 1: asset is undervalued (buy/hold signal)
+- If R > 1: asset is overvalued (sell signal)
+- Sends a daily email with the top 10 undervalued and top 10 overvalued assets (sorted by market cap)
+
+### Configuration
+Add the following to your `app/core/secret.ini`:
+
+```
+[CONFIG]
+# ... other config ...
+DEFI_REPORT_TO_EMAILS = "your_gmail@gmail.com,another_email@example.com"
+DEFI_REPORT_FROM_EMAIL = "your_gmail@gmail.com"
+DEFI_REPORT_APP_PASSWORD = "your_gmail_app_password"
+```
+
+### Running the DEFI Event Client
+
+You can run the DEFI event client manually:
+
+```bash
+python app/core/main_defi.py
+```
+
+Or as a module:
+
+```bash
+python -m app.core.main_defi
+```
+
+### Integration with Daily Workflow
+
+The DEFI event client is integrated into the daily trading-bot workflow. When the trading bot runs, it will also send the DEFI asset valuation report email automatically. 

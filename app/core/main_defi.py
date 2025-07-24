@@ -26,14 +26,10 @@ def main():
     from_email = get_secret("DEFI_REPORT_FROM_EMAIL")
     app_password = get_secret("DEFI_REPORT_APP_PASSWORD")
     to_emails = [e for e in to_emails if e]
-
     if DEBUG and to_emails:
         to_emails = to_emails[:1]
-    
-    # run the defi event client
     client = DefiEventClient()
-    client.run_and_email(to_emails, from_email, app_password, top_n=20)
-
+    client.run_and_email(to_emails, from_email, app_password, top_n=10)
 
 if __name__ == "__main__":
     main() 
