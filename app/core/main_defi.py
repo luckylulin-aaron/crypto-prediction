@@ -29,7 +29,7 @@ def main():
     if DEBUG and to_emails:
         to_emails = to_emails[:1]
     client = DefiEventClient()
-    client.run_and_email(to_emails, from_email, app_password, top_n=10)
+    client.run_and_email(to_emails, from_email, app_password, top_n=3)
 
 if __name__ == "__main__":
     main() 
