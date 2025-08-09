@@ -207,6 +207,33 @@ def send_daily_recommendations_email(
     return
 
 
+def main_defi():
+    """Send the DEFI asset valuation report email (always run)."""
+    cfg = configparser.ConfigParser()
+    config_path = os.path.join(os.path.dirname(__file__), "secret.ini")
+    cfg.read(config_path)
+    section = "CONFIG"
+
+    def get_secret(key: str, env_fallback: str | None = None) -> str:
+        if cfg.has_option(section, key):
+            return cfg.get(section, key).strip('"')
+        return os.environ.get(env_fallback or key, "")
+
+    to_emails_raw = get_secret("DEFI_REPORT_TO_EMAILS")
+    from_email = get_secret("DEFI_REPORT_FROM_EMAIL")
+    app_password = get_secret("DEFI_REPORT_APP_PASSWORD")
+
+    to_emails = [e.strip() for e in to_emails_raw.split(",") if e.strip()]
+    if DEBUG and to_emails:
+        to_emails = to_emails[:1]
+
+    if to_emails and from_email and app_password:
+        logger.info(f"Sending DEFI event client email to {to_emails}")
+        DefiEventClient().run_and_email(to_emails, from_email, app_password, top_n=3)
+    else:
+        logger.warning("DEFI event client email not sent: missing credentials in secret.ini")
+
+
 def main():
     """
     Run simulation and make trades.
@@ -559,16 +586,9 @@ def main():
         send_daily_recommendations_email(
             LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
         )
-        # Send DEFI asset valuation report email
-        defi_to_emails = config["CONFIG"].get("DEFI_REPORT_TO_EMAILS", "").split(",")
-        defi_from_email = config["CONFIG"].get("DEFI_REPORT_FROM_EMAIL", "")
-        defi_app_password = config["CONFIG"].get("DEFI_REPORT_APP_PASSWORD", "")
-        defi_to_emails = [e.strip() for e in defi_to_emails if e.strip()]
 
-        if defi_to_emails and defi_from_email and defi_app_password:
-            DefiEventClient().run_and_email(defi_to_emails, defi_from_email, defi_app_password, top_n=10)
-        else:
-            logger.warning("DEFI event client email not sent: missing credentials in secret.ini")
+    # Always send DEFI report email
+    main_defi()
 
     # write to log file
     now = datetime.now()

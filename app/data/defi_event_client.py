@@ -84,7 +84,7 @@ class DefiEventClient:
         ]
         return f"### {section_title}\n" + header + "\n" + "\n".join(rows) + "\n"
 
-    def format_email_body(self, processed: List[Dict], top_n: int = 10) -> str:
+    def format_email_body(self, processed: List[Dict], top_n: int=3) -> str:
         """
         Format a detailed email body for the top N undervalued and overvalued assets, as Markdown tables.
         """
@@ -97,7 +97,7 @@ class DefiEventClient:
         lines.append(self._format_table(overvalued, f"Top {top_n} Overvalued (R > 1, sorted by Market Cap)"))
         return "\n".join(lines)
 
-    def run_and_email(self, to_emails: List[str], from_email: str, app_password: str, top_n: int = 10):
+    def run_and_email(self, to_emails: List[str], from_email: str, app_password: str, top_n: int=3):
         """
         Fetch, process, and email the DEFI asset signals.
 
@@ -121,6 +121,7 @@ class DefiEventClient:
         logger.info("DEFI asset signals email sent.")
 
 if __name__ == "__main__":
+
     # Example usage: set credentials via environment or config
     TO_EMAILS = os.environ.get("DEFI_REPORT_TO_EMAILS", "").split(",")
     FROM_EMAIL = os.environ.get("DEFI_REPORT_FROM_EMAIL", "")
@@ -128,4 +129,4 @@ if __name__ == "__main__":
     # Remove empty strings from TO_EMAILS
     TO_EMAILS = [e for e in TO_EMAILS if e]
     client = DefiEventClient()
-    client.run_and_email(TO_EMAILS, FROM_EMAIL, APP_PASSWORD, top_n=10) 
+    client.run_and_email(TO_EMAILS, FROM_EMAIL, APP_PASSWORD, top_n=3)
