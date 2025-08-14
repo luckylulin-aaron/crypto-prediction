@@ -70,7 +70,15 @@ class BinanceClient:
             start = int(
                 (datetime.utcnow() - timedelta(days=TIMESPAN)).timestamp() * 1000
             )
+            self.logger.info(f"Fetching klines for {symbol} from {datetime.utcfromtimestamp(start/1000).strftime('%Y-%m-%d')} to {datetime.utcfromtimestamp(end/1000).strftime('%Y-%m-%d')}")
+            
             klines = self.client.klines(symbol, "1d", startTime=start, endTime=end)
+            self.logger.info(f"Received {len(klines)} klines from API for {symbol}")
+            
+            if not klines:
+                self.logger.warning(f"No klines returned from API for {symbol}")
+                return []
+            
             parsed = []
             for k in klines:
                 open_time = k[0] // 1000
@@ -86,10 +94,14 @@ class BinanceClient:
             parsed = sorted(parsed, key=lambda x: x[1])
             today_str = datetime.utcnow().strftime("%Y-%m-%d")
             parsed = [x for x in parsed if x[1] != today_str]
+            
+            self.logger.info(f"Processed {len(parsed)} data points for {symbol} after filtering")
+            
             if use_cache and parsed:
                 db_manager.store_historical_data(symbol, parsed)
             return parsed
         except Exception as e:
+            self.logger.error(f"Error fetching historical data for {symbol}: {e}")
             raise ConnectionError(f"Cannot get historic rates for {symbol}: {e}")
 
     @property

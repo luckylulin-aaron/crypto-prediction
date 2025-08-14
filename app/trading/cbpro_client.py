@@ -67,14 +67,23 @@ class CBProClient:
         try:
             end = datetime.now(timezone.utc)
             start = end - timedelta(days=TIMESPAN)
+            self.logger.info(f"Fetching candles for {name} from {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}")
+            
             res = self.rest_client.get_candles(
                 name,
                 granularity="ONE_DAY",
                 start=int(start.timestamp()),
                 end=int(end.timestamp()),
             )  # res: <class 'coinbase.rest.types.product_types.GetProductCandlesResponse'>
+            
             # processing
             candles = res["candles"]
+            self.logger.info(f"Received {len(candles)} candles from API for {name}")
+            
+            if not candles:
+                self.logger.warning(f"No candles returned from API for {name}")
+                return []
+            
             parsed = []
             for item in candles:
                 # item fields are strings, convert as needed
@@ -100,6 +109,8 @@ class CBProClient:
             today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             parsed = [x for x in parsed if x[1] != today_str]
 
+            self.logger.info(f"Processed {len(parsed)} data points for {name} after filtering")
+
             # Store data in database for future use
             if use_cache and parsed:
                 db_manager.store_historical_data(name, parsed)
@@ -107,6 +118,7 @@ class CBProClient:
             return parsed
 
         except Exception as e:
+            self.logger.error(f"Error fetching historical data for {name}: {e}")
             raise ConnectionError(f"cannot get historic rates for {name}: {e}")
 
     @property
