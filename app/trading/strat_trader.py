@@ -744,9 +744,19 @@ class StratTrader:
     @property
     def baseline_rate_of_return(self):
         """Computes for baseline gain percentage (i.e. hold all coins, have 0 transaction)."""
-        init_p = self.all_history[0]["portfolio"]
-        final_p = self.init_coin * self.all_history[-1]["price"] + self.init_cash
-        return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
+        if len(self.all_history) == 0:
+            # No trades made, compute baseline return using price data
+            if len(self.crypto_prices) < 2:
+                return 0.0  # Not enough price data
+            init_price = self.crypto_prices[0][0]
+            final_price = self.crypto_prices[-1][0]
+            init_p = self.init_coin * init_price + self.init_cash
+            final_p = self.init_coin * final_price + self.init_cash
+            return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
+        else:
+            init_p = self.all_history[0]["portfolio"]
+            final_p = self.init_coin * self.all_history[-1]["price"] + self.init_cash
+            return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
     def rate_of_return(self):
@@ -761,11 +771,19 @@ class StratTrader:
     @property
     def coin_rate_of_return(self):
         """How much the price of the currency has gone up."""
-        init_price, final_price = (
-            self.all_history[0]["price"],
-            self.all_history[-1]["price"],
-        )
-        return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
+        if len(self.all_history) == 0:
+            # No trades made, compute return using price data
+            if len(self.crypto_prices) < 2:
+                return 0.0  # Not enough price data
+            init_price = self.crypto_prices[0][0]
+            final_price = self.crypto_prices[-1][0]
+            return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
+        else:
+            init_price, final_price = (
+                self.all_history[0]["price"],
+                self.all_history[-1]["price"],
+            )
+            return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
 
     @property
     def trade_signal(self):

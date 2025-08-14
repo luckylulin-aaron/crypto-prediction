@@ -404,6 +404,17 @@ def main():
                 SIM_BUY_PCTS = BUY_PCTS
                 SIM_SELL_PCTS = SELL_PCTS
             try:
+                # Validate data stream before creating trader driver
+                if not data_stream:
+                    logger.error(f"No historical data available for {asset} on {exchange['name'].value}")
+                    continue
+                
+                if len(data_stream) < 2:
+                    logger.error(f"Insufficient historical data for {asset} on {exchange['name'].value}: only {len(data_stream)} data points available")
+                    continue
+                
+                logger.info(f"Starting simulation for {asset} on {exchange['name'].value} with {len(data_stream)} data points")
+                
                 trader_driver = TraderDriver(
                     name=asset,
                     init_amount=exchange["stablecoin_value"],
@@ -461,9 +472,13 @@ def main():
                 with open(LOG_FILE, "a") as outfile:
                     outfile.write(action_line + "\n")
 
+            except ValueError as e:
+                logger.error(
+                    f"Data validation failed for {asset} on {exchange['name'].value}: {e}"
+                )
             except Exception as e:
                 logger.error(
-                    f"Simulation failed for {asset} on {exchange['name']}: {e}"
+                    f"Simulation failed for {asset} on {exchange['name'].value}: {e}"
                 )
 
     # after
@@ -506,6 +521,15 @@ def main():
             start_date = (datetime.now() - timedelta(days=TIMESPAN)).strftime('%Y-%m-%d')
             data_stream = stock_client.get_historic_data(stock, start=start_date, end=end_date)
             logger.info(f"Retrieved {len(data_stream)} data points for {stock} (last {TIMESPAN} days)")
+            
+            # Validate data stream before creating trader driver
+            if not data_stream:
+                logger.error(f"No historical data available for stock {stock}")
+                continue
+            
+            if len(data_stream) < 2:
+                logger.error(f"Insufficient historical data for stock {stock}: only {len(data_stream)} data points available")
+                continue
             
             # For stock simulation, we'll use a fixed initial amount
             # You can modify this based on your stock portfolio value
@@ -577,6 +601,9 @@ def main():
             with open(LOG_FILE, "a") as outfile:
                 outfile.write(action_line + "\n")
 
+        except ValueError as e:
+            logger.error(f"Data validation failed for stock {stock}: {e}")
+            continue
         except Exception as e:
             logger.error(f"Stock simulation failed for {stock}: {e}")
             continue

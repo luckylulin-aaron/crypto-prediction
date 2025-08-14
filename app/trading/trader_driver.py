@@ -206,9 +206,19 @@ class TraderDriver:
 
         Returns:
             None
+
+        Raises:
+            ValueError: If data_stream is empty or has insufficient data for simulation.
         """
         if self.mode == "verbose":
             print("running simulation...")
+
+        # Validate data stream
+        if not data_stream:
+            raise ValueError("Data stream is empty - no historical data available for simulation")
+        
+        if len(data_stream) < 2:
+            raise ValueError(f"Data stream has insufficient data points ({len(data_stream)}). Need at least 2 data points for simulation.")
 
         max_final_p = -math.inf
 
