@@ -1526,8 +1526,223 @@ def strategy_weighted_recurring_investment(
     return False, False
 
 
+class EconomicIndicatorsStrategy:
+    """
+    Trading strategy that incorporates macroeconomic indicators like M2 money supply
+    and Federal Reserve overnight reverse repo data.
+    
+    This strategy provides a macro overlay to other technical strategies.
+    """
+    
+    def __init__(self, name: str = "Economic Indicators"):
+        """
+        Initialize the economic indicators strategy.
+        
+        Args:
+            name (str): Strategy name
+        """
+        self.name = name
+        self.logger = get_logger(__name__)
+        
+        # Import here to avoid circular imports
+        from data.economic_indicators_client import EconomicIndicatorsClient
+        self.econ_client = EconomicIndicatorsClient()
+        
+        # Strategy parameters
+        self.m2_bullish_threshold = 1.0  # M2 growth > 1% monthly = bullish
+        self.m2_bearish_threshold = -0.5  # M2 contraction > 0.5% monthly = bearish
+        self.rrp_bullish_threshold = -10  # ON RRP < 7-day avg by 10% = bullish (easing)
+        self.rrp_bearish_threshold = 10   # ON RRP > 7-day avg by 10% = bearish (tightening)
+        
+    def get_macro_signal(self) -> Dict[str, any]:
+        """
+        Get macroeconomic trading signal based on economic indicators.
+        
+        Returns:
+            Dict[str, any]: Macro signal with direction, strength, and reasoning
+        """
+        try:
+            # Get economic indicators
+            indicators = self.econ_client.get_liquidity_indicators()
+            signals = self.econ_client.get_trading_signals()
+            
+            if not indicators or not signals:
+                return {
+                    'signal': 'NEUTRAL',
+                    'strength': 0.0,
+                    'reason': 'No economic data available',
+                    'indicators': {},
+                    'signals': {}
+                }
+            
+            # Calculate signal strength based on indicators
+            strength = 0.0
+            reasons = []
+            
+            # M2 contribution to signal strength
+            if 'm2_change_1m_pct' in indicators:
+                m2_change = indicators['m2_change_1m_pct']
+                if m2_change > self.m2_bullish_threshold:
+                    strength += 0.4  # Strong bullish
+                    reasons.append(f"M2 growing {m2_change:.2f}% monthly")
+                elif m2_change < self.m2_bearish_threshold:
+                    strength -= 0.4  # Strong bearish
+                    reasons.append(f"M2 contracting {abs(m2_change):.2f}% monthly")
+                elif m2_change > 0:
+                    strength += 0.2  # Weak bullish
+                    reasons.append(f"M2 growing modestly {m2_change:.2f}%")
+                else:
+                    strength -= 0.2  # Weak bearish
+                    reasons.append(f"M2 contracting modestly {abs(m2_change):.2f}%")
+            
+            # ON RRP contribution to signal strength
+            if 'on_rrp_vs_7d_avg_pct' in indicators:
+                rrp_deviation = indicators['on_rrp_vs_7d_avg_pct']
+                if rrp_deviation < self.rrp_bullish_threshold:
+                    strength += 0.3  # Strong bullish (easing)
+                    reasons.append(f"ON RRP {abs(rrp_deviation):.1f}% below average (easing)")
+                elif rrp_deviation > self.rrp_bearish_threshold:
+                    strength -= 0.3  # Strong bearish (tightening)
+                    reasons.append(f"ON RRP {rrp_deviation:.1f}% above average (tightening)")
+                elif rrp_deviation < 0:
+                    strength += 0.15  # Weak bullish
+                    reasons.append(f"ON RRP slightly below average")
+                else:
+                    strength -= 0.15  # Weak bearish
+                    reasons.append(f"ON RRP slightly above average")
+            
+            # Determine signal direction
+            if strength > 0.3:
+                signal = 'BULLISH'
+            elif strength < -0.3:
+                signal = 'BEARISH'
+            else:
+                signal = 'NEUTRAL'
+            
+            return {
+                'signal': signal,
+                'strength': abs(strength),
+                'reason': '; '.join(reasons),
+                'indicators': indicators,
+                'signals': signals
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting macro signal: {e}")
+            return {
+                'signal': 'NEUTRAL',
+                'strength': 0.0,
+                'reason': f'Error: {e}',
+                'indicators': {},
+                'signals': {}
+            }
+    
+    def adjust_technical_signal(self, technical_signal: Dict[str, any], 
+                               macro_signal: Dict[str, any]) -> Dict[str, any]:
+        """
+        Adjust technical trading signal based on macroeconomic conditions.
+        
+        Args:
+            technical_signal (Dict): Original technical signal
+            macro_signal (Dict): Macroeconomic signal
+            
+        Returns:
+            Dict[str, any]: Adjusted signal with macro overlay
+        """
+        try:
+            adjusted_signal = technical_signal.copy()
+            
+            # If macro signal is strong, it can override weak technical signals
+            macro_strength = macro_signal.get('strength', 0.0)
+            macro_direction = macro_signal.get('signal', 'NEUTRAL')
+            
+            if macro_strength > 0.5:  # Strong macro signal
+                if macro_direction == 'BULLISH':
+                    # Boost bullish signals, reduce bearish signals
+                    if technical_signal.get('action') == 'BUY':
+                        adjusted_signal['buy_percentage'] = min(100, 
+                            technical_signal.get('buy_percentage', 0) + 20)
+                        adjusted_signal['sell_percentage'] = max(0,
+                            technical_signal.get('sell_percentage', 0) - 20)
+                    elif technical_signal.get('action') == 'SELL':
+                        # Reduce sell strength due to bullish macro
+                        adjusted_signal['sell_percentage'] = max(0,
+                            technical_signal.get('sell_percentage', 0) - 30)
+                        if adjusted_signal['sell_percentage'] < 20:
+                            adjusted_signal['action'] = 'HOLD'
+                            
+                elif macro_direction == 'BEARISH':
+                    # Boost bearish signals, reduce bullish signals
+                    if technical_signal.get('action') == 'SELL':
+                        adjusted_signal['sell_percentage'] = min(100,
+                            technical_signal.get('sell_percentage', 0) + 20)
+                        adjusted_signal['buy_percentage'] = max(0,
+                            technical_signal.get('buy_percentage', 0) - 20)
+                    elif technical_signal.get('action') == 'BUY':
+                        # Reduce buy strength due to bearish macro
+                        adjusted_signal['buy_percentage'] = max(0,
+                            technical_signal.get('buy_percentage', 0) - 30)
+                        if adjusted_signal['buy_percentage'] < 20:
+                            adjusted_signal['action'] = 'HOLD'
+            
+            # Add macro context to signal
+            adjusted_signal['macro_overlay'] = {
+                'macro_signal': macro_direction,
+                'macro_strength': macro_strength,
+                'macro_reason': macro_signal.get('reason', ''),
+                'original_action': technical_signal.get('action'),
+                'adjusted_action': adjusted_signal.get('action')
+            }
+            
+            return adjusted_signal
+            
+        except Exception as e:
+            self.logger.error(f"Error adjusting technical signal: {e}")
+            return technical_signal
+    
+    def get_combined_signal(self, technical_strategies: List[any]) -> Dict[str, any]:
+        """
+        Get combined signal from technical strategies with macroeconomic overlay.
+        
+        Args:
+            technical_strategies (List): List of technical strategy instances
+            
+        Returns:
+            Dict[str, any]: Combined signal with macro overlay
+        """
+        try:
+            # Get macro signal
+            macro_signal = self.get_macro_signal()
+            
+            # Get best technical signal (assuming first strategy is best)
+            if technical_strategies:
+                best_technical = technical_strategies[0]
+                technical_signal = best_technical.trade_signal
+            else:
+                technical_signal = {'action': 'HOLD', 'buy_percentage': 0, 'sell_percentage': 0}
+            
+            # Adjust technical signal with macro overlay
+            combined_signal = self.adjust_technical_signal(technical_signal, macro_signal)
+            
+            # Add strategy metadata
+            combined_signal['strategy_name'] = f"{self.name} + Technical"
+            combined_signal['macro_indicators'] = macro_signal.get('indicators', {})
+            
+            return combined_signal
+            
+        except Exception as e:
+            self.logger.error(f"Error getting combined signal: {e}")
+            return {
+                'action': 'HOLD',
+                'buy_percentage': 0,
+                'sell_percentage': 0,
+                'strategy_name': self.name,
+                'error': str(e)
+            }
+
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
+    "economic_indicators": EconomicIndicatorsStrategy,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "DOUBLE-MA": strategy_double_moving_averages,
     "MACD": strategy_macd,
