@@ -35,6 +35,7 @@ STRATEGIES = [
     "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
     "SIMPLE-RECURRING",  # Simple recurring investment strategy
     "WEIGHTED-RECURRING",  # Weighted recurring investment based on MA
+    "ECONOMIC-INDICATORS",  # Macroeconomic indicators overlay strategy
 ]
 
 # simulation configuration

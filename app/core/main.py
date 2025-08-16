@@ -17,6 +17,7 @@ import schedule
 try:
     from core.config import *
     from core.logger import get_logger
+    from data.defi_event_client import DefiEventClient
     from data.fear_greed_client import FearGreedClient
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
@@ -29,7 +30,6 @@ try:
         create_portfolio_value_chart,
         create_strategy_performance_chart,
     )
-    from data.defi_event_client import DefiEventClient
 except ImportError:
     # Fallback for when running as script
     import os
@@ -38,6 +38,7 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from core.config import *
     from core.logger import get_logger
+    from data.defi_event_client import DefiEventClient
     from data.fear_greed_client import FearGreedClient
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
@@ -50,7 +51,6 @@ except ImportError:
         create_portfolio_value_chart,
         create_strategy_performance_chart,
     )
-    from data.defi_event_client import DefiEventClient
 
 logger = get_logger(__name__)
 
