@@ -261,8 +261,8 @@ class TestEconomicIndicatorsIntegration(unittest.TestCase):
         """Test that economic indicators strategy is in registry."""
         from trading.strategies import STRATEGY_REGISTRY
         
-        self.assertIn('economic_indicators', STRATEGY_REGISTRY)
-        self.assertEqual(STRATEGY_REGISTRY['economic_indicators'], EconomicIndicatorsStrategy)
+        self.assertIn('ECONOMIC-INDICATORS', STRATEGY_REGISTRY)
+        self.assertEqual(STRATEGY_REGISTRY['ECONOMIC-INDICATORS'], EconomicIndicatorsStrategy)
     
     def test_strategy_initialization(self):
         """Test strategy initialization without API key."""

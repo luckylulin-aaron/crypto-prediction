@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import requests
-from core.logger import get_logger
+from app.core.logger import get_logger
 
 
 class EconomicIndicatorsClient:

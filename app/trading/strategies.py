@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES
+from app.core.logger import get_logger
 
 
 def strategy_moving_average_w_tolerance(
@@ -1545,7 +1546,7 @@ class EconomicIndicatorsStrategy:
         self.logger = get_logger(__name__)
         
         # Import here to avoid circular imports
-        from data.economic_indicators_client import EconomicIndicatorsClient
+        from app.data.economic_indicators_client import EconomicIndicatorsClient
         self.econ_client = EconomicIndicatorsClient()
         
         # Strategy parameters
@@ -1742,7 +1743,7 @@ class EconomicIndicatorsStrategy:
 
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
-    "economic_indicators": EconomicIndicatorsStrategy,
+    "ECONOMIC-INDICATORS": EconomicIndicatorsStrategy,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "DOUBLE-MA": strategy_double_moving_averages,
     "MACD": strategy_macd,
