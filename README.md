@@ -4,17 +4,20 @@ A sophisticated cryptocurrency trading bot with web interface, built with Python
 
 ## 🚀 Features
 
-- **Multiple Trading Strategies**: 13 strategies including 5 advanced composite strategies and Fear & Greed Index sentiment strategy
+- **Multiple Trading Strategies**: 26 strategies including 4 macro-enhanced versions of winning strategies
+- **Macroeconomic Indicators Integration**: Real-time M2 Money Supply and Federal Reserve ON RRP data from FRED API
 - **Bias-Free Simulation**: Configurable simulation methods to eliminate trading bias
 - **Web Dashboard**: Interactive Flask-based web interface
 - **Real-time Monitoring**: Live status updates and performance tracking
 - **Enhanced Visualizations**: Plotly-based charts with winning strategy names and execution strategies
-- **API Integration**: Coinbase Advanced Trade API
+- **API Integration**: Coinbase Advanced Trade API and Binance API
 - **Fear & Greed Index Integration**: Market sentiment analysis using Bitcoin Fear & Greed Index
 - **Automated Trading**: Configurable trading parameters and risk management
 - **Comprehensive Logging**: Detailed logging and error tracking
 - **PostgreSQL Database**: Cached historical data to avoid redundant API calls
 - **Data Persistence**: Efficient storage and retrieval of trading data
+- **US Stock Market Integration**: Automated stock trading simulation with weekend filtering
+- **Email Notifications**: Daily trading recommendations and DEFI asset valuation reports
 
 ## 📋 Prerequisites
 
@@ -67,6 +70,7 @@ cd crypto-prediction
    COINBASE_API_SECRET = "your_actual_api_secret_here"
    BINANCE_API_KEY = "your_binance_api_key_here"
    BINANCE_API_SECRET = "your_binance_api_secret_here"
+   FRED_API_KEY = "your_fred_api_key_here"
    ```
    
    ⚠️ **IMPORTANT**: Never commit your actual `secret.ini` file to Git!
@@ -338,12 +342,19 @@ crypto-prediction/
 │   │   ├── config.py      # Configuration settings
 │   │   ├── logger.py      # Logging utilities
 │   │   ├── main.py        # Main trading bot logic
+│   │   ├── main_defi.py   # DEFI asset valuation logic
 │   │   ├── log.txt        # Application logs
 │   │   └── secret.ini     # API credentials (not in git)
+│   ├── data/              # Data clients and sources
+│   │   ├── __init__.py
+│   │   ├── economic_indicators_client.py  # FRED API client
+│   │   ├── defi_event_client.py          # DefiLlama API client
+│   │   └── fear_greed_client.py          # Fear & Greed Index client
 │   ├── trading/           # Trading logic
 │   │   ├── __init__.py
 │   │   ├── cbpro_client.py    # Coinbase API client
 │   │   ├── binance_client.py # Binance API client
+│   │   ├── us_stock_client.py # US Stock API client
 │   │   ├── ma_trader.py       # Trading strategies
 │   │   ├── strategies.py      # Strategy implementations
 │   │   └── trader_driver.py   # Trading engine
@@ -357,8 +368,12 @@ crypto-prediction/
 │   │   └── plots/            # Generated visualizations
 │   └── utils/             # Utility functions
 │       ├── __init__.py
-│       └── util.py           # Utility functions
+│       ├── util.py           # Utility functions
+│       └── email_util.py     # Email notification utilities
 ├── tests/                 # Test files
+│   ├── api/               # API and integration tests
+│   ├── strategy/          # Strategy-specific tests
+│   └── fixtures/          # Test data and fixtures
 ├── notebooks/             # Jupyter notebooks
 ├── pyproject.toml         # Poetry configuration
 ├── install.sh             # Installation script
@@ -623,7 +638,7 @@ psql crypto_trading < backup_20240115.sql
 
 ## 📈 Trading Strategies
 
-### Basic Strategies
+### Core Strategies
 
 **RSI Strategy**
 The RSI strategy uses the Relative Strength Index to identify overbought and oversold conditions:
@@ -672,6 +687,50 @@ The Fear & Greed Index strategy uses market sentiment to make trading decisions:
 - **Buy Signal**: Price touches lower band
 - **Sell Signal**: Price touches upper band
 - **Parameters**: MA period and standard deviation
+
+### Macroeconomic-Enhanced Strategies
+
+**Economic Indicators Strategy (ECONOMIC-INDICATORS)**
+A standalone macroeconomic overlay strategy that analyzes Federal Reserve data:
+- **Data Sources**: 
+  - M2 Money Supply (M2SL) from FRED API
+  - Federal Reserve Overnight Reverse Repurchase Agreements (RRPONTTLD)
+- **Signals**:
+  - **BULLISH**: M2 increasing + ON RRP decreasing (liquidity expansion)
+  - **BEARISH**: M2 decreasing + ON RRP increasing (liquidity contraction)
+  - **NEUTRAL**: Mixed or weak signals
+- **Advantage**: Captures major liquidity trends that affect all asset classes
+
+**MA-SELVES-MACRO**
+Enhanced MA-SELVES strategy with macroeconomic overlay:
+- **Logic**: Original MA-SELVES signals adjusted by macro conditions
+- **Strong Bullish Macro**: Enhances buy signals, reduces sell signals
+- **Strong Bearish Macro**: Reduces buy signals, enhances sell signals
+- **Neutral Macro**: Uses original MA-SELVES logic unchanged
+- **Advantage**: Avoids trading against major liquidity trends
+
+**EXP-MA-SELVES-MACRO**
+Enhanced EXP-MA-SELVES strategy with macroeconomic overlay:
+- **Logic**: Original EXP-MA-SELVES signals adjusted by macro conditions
+- **Strong Bullish Macro**: Enhances buy signals, reduces sell signals
+- **Strong Bearish Macro**: Reduces buy signals, enhances sell signals
+- **Neutral Macro**: Uses original EXP-MA-SELVES logic unchanged
+- **Advantage**: Combines responsive EMA with macro context
+
+**RSI-MACRO**
+Enhanced RSI strategy with macroeconomic overlay:
+- **Logic**: Original RSI signals adjusted by macro conditions
+- **Strong Bullish Macro**: Enhances oversold buy signals, reduces overbought sell signals
+- **Strong Bearish Macro**: Reduces oversold buy signals, enhances overbought sell signals
+- **Neutral Macro**: Uses original RSI logic unchanged
+- **Advantage**: Filters momentum signals through macro lens
+
+**ADAPTIVE-MA-SELVES-MACRO**
+Enhanced ADAPTIVE-MA-SELVES strategy with macroeconomic overlay:
+- **Logic**: Original adaptive MA signals adjusted by macro conditions
+- **Volatility Adjustment**: Automatically adjusts tolerance based on market volatility
+- **Macro Overlay**: Further adjusts signals based on liquidity conditions
+- **Advantage**: Double adaptation - volatility + macro conditions
 
 ### Advanced Composite Strategies
 
@@ -952,6 +1011,58 @@ For issues and questions:
 3. Check the web dashboard for error messages
 4. Open an issue on GitHub
 
+## 📊 Macroeconomic Indicators Integration
+
+The trading bot integrates real-time macroeconomic data from the Federal Reserve Economic Data (FRED) API to enhance trading strategies:
+
+### Data Sources
+- **M2 Money Supply (M2SL)**: Monthly data on total money supply
+- **Federal Reserve ON RRP (RRPONTTLD)**: Daily overnight reverse repurchase agreement amounts
+- **API**: Federal Reserve Economic Data (FRED) API
+- **Frequency**: Real-time updates with configurable cache periods
+
+### Signal Generation
+- **BULLISH**: M2 increasing + ON RRP decreasing (liquidity expansion)
+- **BEARISH**: M2 decreasing + ON RRP increasing (liquidity contraction)
+- **NEUTRAL**: Mixed or weak signals
+
+### Integration Methods
+1. **Standalone Strategy**: ECONOMIC-INDICATORS strategy for pure macro analysis
+2. **Enhanced Strategies**: Macro overlay on proven technical strategies
+3. **Risk Management**: Avoid trading against major liquidity trends
+
+### Configuration
+```ini
+# In app/core/secret.ini
+FRED_API_KEY = "your_fred_api_key_here"
+```
+
+### API Key Setup
+1. **Get FRED API Key**: Visit [FRED API](https://fred.stlouisfed.org/docs/api/api_key.html)
+2. **Add to Configuration**: Include in `app/core/secret.ini`
+3. **Automatic Integration**: Bot automatically fetches and processes macro data
+
+## 🏢 US Stock Market Integration
+
+The trading bot includes automated US stock market simulation with intelligent weekend filtering:
+
+### Weekend Filtering
+- **Automatic Detection**: Checks current day of week before running stock simulations
+- **Weekend Skip**: Automatically skips stock simulation on Sundays and Mondays
+- **Rationale**: US stock market is closed on weekends, and there's a one-day data delay
+- **Saturday Exception**: Allows Saturday simulations using Friday's data
+
+### Supported Stocks
+- **Default**: Major US stocks (configurable in `app/core/config.py`)
+- **Simulation**: Uses historical data for backtesting
+- **Integration**: Runs alongside cryptocurrency trading simulations
+
+### Configuration
+```python
+# In app/core/config.py
+STOCKS = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'NVDA']  # Add your preferred stocks
+```
+
 ## 🔄 Updates
 
 To update the project:
@@ -971,10 +1082,12 @@ poetry install
 - **RSI Strategy**: Configure periods, oversold, and overbought thresholds
 - **KDJ Strategy**: Configure oversold and overbought thresholds
 - **Moving Averages**: Configure MA lengths, EMA lengths, and Bollinger Bands parameters
-- **Tolerance Percentages**: Fine-tune buy/sell decision thresholds 
+- **Tolerance Percentages**: Fine-tune buy/sell decision thresholds
+- **Macro Strategies**: Configure M2 and ON RRP thresholds for signal strength 
 
 ## 📧 Email Notifications
 
+### Trading Recommendations
 - To receive daily trading recommendations by email, add your Gmail credentials and recipient list to `app/core/secret.ini`:
 
   ```ini
@@ -984,7 +1097,17 @@ poetry install
   ```
 - You can list multiple recipients, separated by commas. All recipients will receive the same email (BCC for privacy).
 - The script will automatically send a summary of today's trading actions to all listed emails after each run.
-- You must use a Gmail App Password (not your main password) if you have 2-Step Verification enabled. 
+- You must use a Gmail App Password (not your main password) if you have 2-Step Verification enabled.
+
+### DEFI Asset Valuation Reports
+- The system also sends daily DEFI asset valuation reports based on Market Cap / TVL ratios
+- Add DEFI report configuration to `app/core/secret.ini`:
+
+  ```ini
+  DEFI_REPORT_TO_EMAILS = "your_gmail@gmail.com,another_email@example.com"
+  DEFI_REPORT_FROM_EMAIL = "your_gmail@gmail.com"
+  DEFI_REPORT_APP_PASSWORD = "your_gmail_app_password"
+  ``` 
 
 ## 🏦 DEFI Asset Valuation Event Client
 

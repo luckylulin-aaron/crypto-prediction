@@ -1741,14 +1741,387 @@ class EconomicIndicatorsStrategy:
                 'error': str(e)
             }
 
+
+# Enhanced strategies with macro overlay
+def strategy_ma_selves_macro_enhanced(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+) -> Tuple[bool, bool]:
+    """
+    Enhanced MA-SELVES strategy with macroeconomic overlay.
+    Uses the original MA-SELVES logic but adjusts signals based on macro conditions.
+    
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "MA-SELVES-MACRO"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+    
+    # Get macro signal
+    macro_strategy = EconomicIndicatorsStrategy()
+    macro_signal = macro_strategy.get_macro_signal()
+    macro_direction = macro_signal.get('signal', 'NEUTRAL')
+    macro_strength = macro_signal.get('strength', 0.0)
+    
+    # retrieve the most recent moving average
+    last_ma = trader.moving_averages[queue_name][-1]
+    
+    # Original MA-SELVES logic
+    original_buy_signal = new_p <= (1 - tol_pct) * last_ma
+    original_sell_signal = new_p >= (1 + tol_pct) * last_ma
+    
+    # Apply macro overlay
+    r_buy, r_sell = False, False
+    
+    if original_buy_signal:
+        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+            # Strong macro bullish - enhance buy signal
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+            # Strong macro bearish - reduce buy signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    elif original_sell_signal:
+        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+            # Strong macro bearish - enhance sell signal
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+            # Strong macro bullish - reduce sell signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
+def strategy_exp_ma_selves_macro_enhanced(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+) -> Tuple[bool, bool]:
+    """
+    Enhanced EXP-MA-SELVES strategy with macroeconomic overlay.
+    Uses the original EXP-MA-SELVES logic but adjusts signals based on macro conditions.
+    
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "EXP-MA-SELVES-MACRO"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+    
+    # Get macro signal
+    macro_strategy = EconomicIndicatorsStrategy()
+    macro_signal = macro_strategy.get_macro_signal()
+    macro_direction = macro_signal.get('signal', 'NEUTRAL')
+    macro_strength = macro_signal.get('strength', 0.0)
+    
+    # retrieve the most recent exponential moving average
+    last_ema = trader.exponential_moving_averages[queue_name][-1]
+    
+    # Original EXP-MA-SELVES logic
+    original_buy_signal = new_p <= (1 - tol_pct) * last_ema
+    original_sell_signal = new_p >= (1 + tol_pct) * last_ema
+    
+    # Apply macro overlay
+    r_buy, r_sell = False, False
+    
+    if original_buy_signal:
+        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+            # Strong macro bullish - enhance buy signal
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+            # Strong macro bearish - reduce buy signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    elif original_sell_signal:
+        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+            # Strong macro bearish - enhance sell signal
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+            # Strong macro bullish - reduce sell signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
+def strategy_rsi_macro_enhanced(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    rsi_period: int = 14,
+    rsi_overbought: float = 70,
+    rsi_oversold: float = 30,
+) -> Tuple[bool, bool]:
+    """
+    Enhanced RSI strategy with macroeconomic overlay.
+    Uses the original RSI logic but adjusts signals based on macro conditions.
+    
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        rsi_period (int): RSI period.
+        rsi_overbought (float): RSI overbought threshold.
+        rsi_oversold (float): RSI oversold threshold.
+        
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "RSI-MACRO"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+    
+    # Get macro signal
+    macro_strategy = EconomicIndicatorsStrategy()
+    macro_signal = macro_strategy.get_macro_signal()
+    macro_direction = macro_signal.get('signal', 'NEUTRAL')
+    macro_strength = macro_signal.get('strength', 0.0)
+    
+    # Original RSI logic
+    if (
+        hasattr(trader, "rsi_dct")
+        and "RSI" in trader.rsi_dct
+        and len(trader.rsi_dct["RSI"]) > 0
+    ):
+        current_rsi = trader.rsi_dct["RSI"][-1]
+        original_buy_signal = current_rsi < rsi_oversold
+        original_sell_signal = current_rsi > rsi_overbought
+    else:
+        original_buy_signal = False
+        original_sell_signal = False
+    
+    # Apply macro overlay
+    r_buy, r_sell = False, False
+    
+    if original_buy_signal:
+        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+            # Strong macro bullish - enhance buy signal
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+            # Strong macro bearish - reduce buy signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    elif original_sell_signal:
+        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+            # Strong macro bearish - enhance sell signal
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+            # Strong macro bullish - reduce sell signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
+
+def strategy_adaptive_ma_selves_macro_enhanced(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+) -> Tuple[bool, bool]:
+    """
+    Enhanced ADAPTIVE-MA-SELVES strategy with macroeconomic overlay.
+    Uses the original ADAPTIVE-MA-SELVES logic but adjusts signals based on macro conditions.
+    
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The name of the queue.
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Tolerance percentage.
+        buy_pct (float): Buy percentage.
+        sell_pct (float): Sell percentage.
+        
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "ADAPTIVE-MA-SELVES-MACRO"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+    
+    # Get macro signal
+    macro_strategy = EconomicIndicatorsStrategy()
+    macro_signal = macro_strategy.get_macro_signal()
+    macro_direction = macro_signal.get('signal', 'NEUTRAL')
+    macro_strength = macro_signal.get('strength', 0.0)
+    
+    # retrieve the most recent moving average
+    last_ma = trader.moving_averages[queue_name][-1]
+    
+    # Adaptive tolerance based on volatility
+    price_history = trader.price_history[-30:]  # Last 30 days
+    if len(price_history) >= 10:
+        volatility = np.std(price_history) / np.mean(price_history)
+        adaptive_tol = tol_pct * (1 + volatility * 2)  # Increase tolerance with volatility
+    else:
+        adaptive_tol = tol_pct
+    
+    # Original ADAPTIVE-MA-SELVES logic with adaptive tolerance
+    original_buy_signal = new_p <= (1 - adaptive_tol) * last_ma
+    original_sell_signal = new_p >= (1 + adaptive_tol) * last_ma
+    
+    # Apply macro overlay
+    r_buy, r_sell = False, False
+    
+    if original_buy_signal:
+        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+            # Strong macro bullish - enhance buy signal
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+            # Strong macro bearish - reduce buy signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    
+    elif original_sell_signal:
+        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+            # Strong macro bearish - enhance sell signal
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+            # Strong macro bullish - reduce sell signal
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        else:
+            # Neutral macro or weak signal - use original logic
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    
+    # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    
+    return r_buy, r_sell
+
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "ECONOMIC-INDICATORS": EconomicIndicatorsStrategy,
     "MA-SELVES": strategy_moving_average_w_tolerance,
+    "MA-SELVES-MACRO": strategy_ma_selves_macro_enhanced,
+    "EXP-MA-SELVES": strategy_exponential_moving_average_w_tolerance,
+    "EXP-MA-SELVES-MACRO": strategy_exp_ma_selves_macro_enhanced,
+    "RSI": strategy_rsi,
+    "RSI-MACRO": strategy_rsi_macro_enhanced,
+    "ADAPTIVE-MA-SELVES": strategy_adaptive_ma_selves,
+    "ADAPTIVE-MA-SELVES-MACRO": strategy_adaptive_ma_selves_macro_enhanced,
     "DOUBLE-MA": strategy_double_moving_averages,
     "MACD": strategy_macd,
     "BOLL-BANDS": strategy_bollinger_bands,
-    "RSI": strategy_rsi,
     "KDJ": strategy_kdj,
     "MA-MACD": strategy_ma_macd_combined,
     "MACD-KDJ": strategy_macd_kdj_combined,
@@ -1759,10 +2132,8 @@ STRATEGY_REGISTRY = {
     "MULTI-MA-SELVES": strategy_multi_timeframe_ma_selves,
     "TREND-MA-SELVES": strategy_trend_aware_ma_selves,
     "VOLUME-MA-SELVES": strategy_volume_weighted_ma_selves,
-    "ADAPTIVE-MA-SELVES": strategy_adaptive_ma_selves,
     "MOMENTUM-MA-SELVES": strategy_momentum_enhanced_ma_selves,
     "FEAR-GREED-SENTIMENT": strategy_fear_greed_sentiment,
-    "EXP-MA-SELVES": strategy_exponential_moving_average_w_tolerance,
     "SIMPLE-RECURRING": strategy_simple_recurring_investment,
     "WEIGHTED-RECURRING": strategy_weighted_recurring_investment,
 }

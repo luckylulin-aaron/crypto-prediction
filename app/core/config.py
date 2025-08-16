@@ -15,11 +15,16 @@ DEBUG = True
 # Advanced composite strategies combine multiple signals for better decision-making
 STRATEGIES = [
     "MA-SELVES",  # Original moving average strategy
+    "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "EXP-MA-SELVES",  # Exponential moving average strategy
+    "EXP-MA-SELVES-MACRO",  # EXP-MA-SELVES with macroeconomic overlay
+    "RSI",  # Relative Strength Index
+    "RSI-MACRO",  # RSI with macroeconomic overlay
+    "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
+    "ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
     "DOUBLE-MA",  # Double moving average crossover
     "MACD",  # MACD momentum indicator
     "BOLL-BANDS",  # Bollinger Bands volatility strategy
-    "RSI",  # Relative Strength Index
     "KDJ",  # KDJ oscillator
     "MA-MACD",  # Combined MA + MACD (requires both signals)
     "MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
@@ -30,7 +35,6 @@ STRATEGIES = [
     "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
     "TREND-MA-SELVES",  # Trend-aware MA strategy
     "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
-    "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
     "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
     "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
     "SIMPLE-RECURRING",  # Simple recurring investment strategy
