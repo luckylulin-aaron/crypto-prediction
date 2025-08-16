@@ -132,25 +132,29 @@ class CBProClient:
 
         Raises:
         """
-        wallets = self.get_wallets()
-        # self.logger.info(f'wallets: {wallets}')
-        v_crypto = v_stable = 0
+        try:
+            wallets = self.get_wallets()
+            v_crypto = v_stable = 0
 
-        for item in wallets:
-            try:
-                delta_v = float(item["available_balance"]["value"])
-                if item["currency"] in CURS:
-                    coin_cur_rate = self.get_cur_rate(name=item["currency"] + "-USD")
-                    v_crypto += coin_cur_rate * delta_v
-                elif item["currency"] in STABLECOIN:
-                    v_stable += delta_v
-            except Exception as e:
-                self.logger.error(
-                    f"Exception processing wallet item: {item}, error: {e}"
-                )
-                continue
+            for item in wallets:
+                try:
+                    delta_v = float(item["available_balance"]["value"])
+                    if item["currency"] in CURS:
+                        coin_cur_rate = self.get_cur_rate(name=item["currency"] + "-USD")
+                        v_crypto += coin_cur_rate * delta_v
+                    elif item["currency"] in STABLECOIN:
+                        v_stable += delta_v
+                except Exception as e:
+                    self.logger.error(f"Error processing {item.get('currency', 'unknown')}: {e}")
+                    continue
 
-        return np.round(v_crypto, 2), np.round(v_stable, 2)
+            result = (np.round(v_crypto, 2), np.round(v_stable, 2))
+            self.logger.info(f'Portfolio: crypto=${result[0]}, stable=${result[1]}')
+            return result
+        except Exception as e:
+            self.logger.error(f"Error in portfolio_value calculation: {e}")
+            # Return default values to prevent unpacking errors
+            return (0.0, 0.0)
 
     def get_wallets(self, cur_names: Optional[List[str]] = None):
         """
@@ -164,27 +168,30 @@ class CBProClient:
         """
         try:
             accounts = self.rest_client.get_accounts()
-            all_currencies = sorted([x["currency"] for x in accounts.accounts])
-            self.logger.info(f"All available currencies in account: {all_currencies}")
+            
+            if hasattr(accounts, 'accounts'):
+                accounts_list = accounts.accounts
+            elif isinstance(accounts, dict) and 'accounts' in accounts:
+                accounts_list = accounts['accounts']
+            else:
+                self.logger.error(f"Unexpected accounts response format")
+                return []
+                
+            self.logger.info(f"Retrieved {len(accounts_list)} accounts from Coinbase")
 
             if cur_names is None:
-                # Return all accounts if no specific currencies requested
-                wallets = accounts.accounts
-                self.logger.info(f"Returning all {len(wallets)} accounts")
+                wallets = accounts_list
             else:
-                # Filter by requested currencies
-                wallets = [x for x in accounts.accounts if x["currency"] in cur_names]
-                self.logger.info(
-                    f"Filtered to {len(wallets)} accounts for currencies: {cur_names}"
-                )
+                wallets = [x for x in accounts_list if x["currency"] in cur_names]
 
-            # Log details of returned wallets
+            # Log only non-zero balances
             for wallet in wallets:
-                balance = float(wallet["available_balance"]["value"])
-                if balance > 0:  # Only log wallets with non-zero balance
-                    self.logger.info(
-                        f"Wallet: {wallet['currency']} - Balance: {balance:.3f}"
-                    )
+                try:
+                    balance = float(wallet["available_balance"]["value"])
+                    if balance > 0:
+                        self.logger.info(f"Wallet: {wallet['currency']} - Balance: {balance:.3f}")
+                except Exception as e:
+                    self.logger.error(f"Error processing wallet {wallet['currency']}: {e}")
 
             return wallets
         except Exception as e:
