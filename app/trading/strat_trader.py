@@ -752,10 +752,26 @@ class StratTrader:
             final_price = self.crypto_prices[-1][0]
             init_p = self.init_coin * init_price + self.init_cash
             final_p = self.init_coin * final_price + self.init_cash
+            
+            # Handle division by zero
+            if init_p == 0:
+                if final_p == 0:
+                    return 0.0  # No change if both initial and final are zero
+                else:
+                    return float('inf') if final_p > 0 else float('-inf')  # Infinite return if starting from zero
+            
             return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
         else:
             init_p = self.all_history[0]["portfolio"]
             final_p = self.init_coin * self.all_history[-1]["price"] + self.init_cash
+            
+            # Handle division by zero
+            if init_p == 0:
+                if final_p == 0:
+                    return 0.0  # No change if both initial and final are zero
+                else:
+                    return float('inf') if final_p > 0 else float('-inf')  # Infinite return if starting from zero
+            
             return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
@@ -766,6 +782,13 @@ class StratTrader:
         # compute final portfolio value
         final_p = self.cur_coin * self.crypto_prices[-1][0] + self.cash
 
+        # Handle division by zero
+        if init_p == 0:
+            if final_p == 0:
+                return 0.0  # No change if both initial and final are zero
+            else:
+                return float('inf') if final_p > 0 else float('-inf')  # Infinite return if starting from zero
+        
         return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
@@ -777,12 +800,28 @@ class StratTrader:
                 return 0.0  # Not enough price data
             init_price = self.crypto_prices[0][0]
             final_price = self.crypto_prices[-1][0]
+            
+            # Handle division by zero
+            if init_price == 0:
+                if final_price == 0:
+                    return 0.0  # No change if both initial and final are zero
+                else:
+                    return float('inf') if final_price > 0 else float('-inf')  # Infinite return if starting from zero
+            
             return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
         else:
             init_price, final_price = (
                 self.all_history[0]["price"],
                 self.all_history[-1]["price"],
             )
+            
+            # Handle division by zero
+            if init_price == 0:
+                if final_price == 0:
+                    return 0.0  # No change if both initial and final are zero
+                else:
+                    return float('inf') if final_price > 0 else float('-inf')  # Infinite return if starting from zero
+            
             return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
 
     @property

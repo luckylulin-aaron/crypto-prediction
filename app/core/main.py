@@ -350,7 +350,7 @@ def main():
             v_c=exchange["crypto_value"], v_s=exchange["stablecoin_value"], before=True
         )
 
-        asset_list = CURS[:1] if DEBUG else CURS
+        asset_list = CURS[:3] if DEBUG else CURS # only test 3 assets for debugging purposes
         for asset in asset_list:
             # Only simulate each asset once, regardless of exchange
             if asset in simulated_assets:
@@ -399,6 +399,11 @@ def main():
                             coin_amount = float(balance)
             if coin_amount == 0.0:
                 logger.warning(f"No {asset} found in {exchange['name']} wallet.")
+                # Set a small initial amount for simulation purposes
+                sim_coin_amount = 0.001  # Small amount for simulation
+                logger.info(f"Using simulation amount of {sim_coin_amount} {asset} for testing")
+            else:
+                sim_coin_amount = coin_amount
 
             # Run simulation
             # simulation configuration
@@ -423,7 +428,7 @@ def main():
                 trader_driver = TraderDriver(
                     name=asset,
                     init_amount=exchange["stablecoin_value"],
-                    cur_coin=coin_amount,
+                    cur_coin=sim_coin_amount,
                     # only test 1 strategy for debugging purposes
                     overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
                     tol_pcts=TOL_PCTS,
@@ -448,9 +453,25 @@ def main():
                 signal = best_t.trade_signal
 
                 # Log best trader summary with exchange name
+                # Handle infinite values in summary
+                rate_of_return = best_info.get('rate_of_return', 'N/A')
+                baseline_rate = best_info.get('baseline_rate_of_return', 'N/A')
+                coin_rate = best_info.get('coin_rate_of_return', 'N/A')
+                
+                # Format infinite values
+                if isinstance(rate_of_return, float) and not np.isfinite(rate_of_return):
+                    rate_of_return = '∞' if rate_of_return > 0 else '-∞'
+                if isinstance(baseline_rate, float) and not np.isfinite(baseline_rate):
+                    baseline_rate = '∞' if baseline_rate > 0 else '-∞'
+                if isinstance(coin_rate, float) and not np.isfinite(coin_rate):
+                    coin_rate = '∞' if coin_rate > 0 else '-∞'
+                
                 logger.info(
                     f"\n{'★'*10} BEST TRADER SUMMARY ({exchange['name'].value}) {'★'*10}\n"
                     f"Best trader performance: {best_info}\n"
+                    f"Rate of return: {rate_of_return}%\n"
+                    f"Baseline rate: {baseline_rate}%\n"
+                    f"Coin rate: {coin_rate}%\n"
                     f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
                     f"Transactions: {best_t.num_transaction}, "
                     f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"

@@ -89,12 +89,23 @@ def max_drawdown_helper(hist_l: List[float]) -> float:
     Returns:
         float: Computed maximum drawdown in percentage to the total portfolio value.
     """
+    if not hist_l or len(hist_l) < 2:
+        return 0.0
+    
     res = -math.inf
     value_cur, value_max_pre = hist_l[0], hist_l[0]
     for hist in hist_l[1:]:
         value_max_pre = max(value_max_pre, hist)
         value_cur = hist
-        res = max(res, 1 - value_cur / value_max_pre)
+        
+        # Handle division by zero
+        if value_max_pre == 0:
+            if value_cur == 0:
+                continue  # Skip if both are zero (no change)
+            else:
+                res = max(res, 1.0)  # 100% drawdown if max was zero and current is not
+        else:
+            res = max(res, 1 - value_cur / value_max_pre)
 
     return np.round(res, 4)
 
