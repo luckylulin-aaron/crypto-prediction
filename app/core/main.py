@@ -208,7 +208,7 @@ def send_daily_recommendations_email(
 
 
 def main_defi():
-    """Send the DEFI asset valuation report email (always run)."""
+    """Send the DEFI asset valuation report email (runs only on Sundays)."""
     cfg = configparser.ConfigParser()
     config_path = os.path.join(os.path.dirname(__file__), "secret.ini")
     cfg.read(config_path)
@@ -232,6 +232,78 @@ def main_defi():
         DefiEventClient().run_and_email(to_emails, from_email, app_password, top_n=3)
     else:
         logger.warning("DEFI event client email not sent: missing credentials in secret.ini")
+
+
+def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClient, coinbase_client: CBProClient, exchange_configs: list):
+    """
+    Fetch historical data for an asset, trying Binance first, then falling back to Coinbase.
+    
+    Args:
+        asset (str): The asset symbol (e.g., 'BTC', 'ETH')
+        binance_client (BinanceClient): Binance client instance
+        coinbase_client (CBProClient): Coinbase client instance
+        exchange_configs (list): List of exchange configurations
+        
+    Returns:
+        tuple: (data_stream, source_exchange_name) or (None, None) if both fail
+    """
+    def validate_and_format_data(data_stream):
+        """
+        Validate and format data to ensure it matches the expected format for trader_driver.
+        Expected format: (price, date, open, low, high)
+        """
+        if not data_stream:
+            return None
+            
+        formatted_data = []
+        for item in data_stream:
+            if len(item) >= 5:
+                # Take only the first 5 elements: (price, date, open, low, high)
+                formatted_item = (item[0], item[1], item[2], item[3], item[4])
+                formatted_data.append(formatted_item)
+            else:
+                logger.warning(f"Skipping data point with insufficient elements: {item}")
+                
+        return formatted_data if formatted_data else None
+    
+    # Try Binance first
+    binance_config = next((config for config in exchange_configs if config["name"] == ExchangeName.BINANCE), None)
+    if binance_config:
+        try:
+            binance_symbol = binance_config["symbol_format"](asset)
+            logger.info(f"Attempting to fetch {asset} data from Binance using symbol: {binance_symbol}")
+            data_stream = binance_client.get_historic_data(binance_symbol)
+            
+            # Validate and format the data
+            formatted_data = validate_and_format_data(data_stream)
+            if formatted_data and len(formatted_data) >= 2:
+                logger.info(f"Successfully fetched {len(formatted_data)} data points from Binance for {asset}")
+                return formatted_data, ExchangeName.BINANCE
+            else:
+                logger.warning(f"Binance returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points")
+        except Exception as e:
+            logger.warning(f"Failed to fetch {asset} data from Binance: {e}")
+    
+    # Fall back to Coinbase
+    coinbase_config = next((config for config in exchange_configs if config["name"] == ExchangeName.COINBASE), None)
+    if coinbase_config:
+        try:
+            coinbase_symbol = coinbase_config["symbol_format"](asset)
+            logger.info(f"Attempting to fetch {asset} data from Coinbase using symbol: {coinbase_symbol}")
+            data_stream = coinbase_client.get_historic_data(coinbase_symbol)
+            
+            # Validate and format the data
+            formatted_data = validate_and_format_data(data_stream)
+            if formatted_data and len(formatted_data) >= 2:
+                logger.info(f"Successfully fetched {len(formatted_data)} data points from Coinbase for {asset}")
+                return formatted_data, ExchangeName.COINBASE
+            else:
+                logger.warning(f"Coinbase returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points")
+        except Exception as e:
+            logger.warning(f"Failed to fetch {asset} data from Coinbase: {e}")
+    
+    logger.error(f"Both Binance and Coinbase failed to provide data for {asset}")
+    return None, None
 
 
 def main():
@@ -344,147 +416,173 @@ def main():
     simulated_assets = set()
     all_actions = []
 
+    # Display portfolio information for both exchanges
+    logger.info("=== Portfolio Overview ===")
     for exchange in exchanges:
-        logger.info(f"=== {exchange['name'].value} Portfolio ===")
+        logger.info(f"--- {exchange['name'].value} Portfolio ---")
         display_port_msg(
             v_c=exchange["crypto_value"], v_s=exchange["stablecoin_value"], before=True
         )
 
-        asset_list = CURS[:1] if DEBUG else CURS
-        for asset in asset_list:
-            # Only simulate each asset once, regardless of exchange
-            if asset in simulated_assets:
-                logger.info(f"Skipping duplicate simulation for asset: {asset}")
-                continue
-            simulated_assets.add(asset)
+    asset_list = CURS[:3] if DEBUG else CURS # only test 3 assets for debugging purposes
+    for asset in asset_list:
+        # Only simulate each asset once, regardless of exchange
+        if asset in simulated_assets:
+            logger.info(f"Skipping duplicate simulation for asset: {asset}")
+            continue
+        simulated_assets.add(asset)
 
-            logger.info(
-                f"\n\n# --- Simulating for {exchange['name'].value} asset: {asset} --- #"
-            )
-            symbol = exchange["symbol_format"](asset)
-            # Check if symbol is valid for this exchange
-            if symbol not in valid_symbols_map[exchange["name"]]:
-                logger.warning(
-                    f"Skipping {asset} on {exchange['name'].value}: {symbol} not available."
-                )
-                continue
-            try:
-                data_stream = exchange["client"].get_historic_data(symbol)
-            except Exception as e:
-                logger.error(
-                    f"Failed to fetch historical data for {asset} on {exchange['name'].value}: {e}"
-                )
-                continue
+        logger.info(
+            f"\n\n# --- Simulating for asset: {asset} --- #"
+        )
+        
+        # Use fallback approach: try Binance first, then Coinbase
+        data_stream, source_exchange = fetch_historical_data_with_fallback(
+            asset, binance_client, coinbase_client, EXCHANGE_CONFIGS
+        )
+        
+        if data_stream is None:
+            logger.error(f"Failed to fetch historical data for {asset} from both exchanges")
+            continue
+            
+        logger.info(f"Using data from {source_exchange.value} for {asset}")
+        
+        # Use the source exchange for wallet and portfolio data
+        source_exchange_config = next((config for config in exchanges if config["name"] == source_exchange), None)
+        if not source_exchange_config:
+            logger.error(f"Could not find configuration for {source_exchange.value}")
+            continue
 
-            wallet = exchange["client"].get_wallets()
-            coin_amount = 0.0
+        wallet = source_exchange_config["client"].get_wallets()
+        coin_amount = 0.0
 
-            for item in wallet:
-                if isinstance(item, dict):
-                    asset_name = item.get(exchange["asset_key"])
-                    if asset_name == asset:
-                        if exchange["coin_value_key"]:
-                            coin_amount = float(
-                                item[exchange["coin_key"]][exchange["coin_value_key"]]
-                            )
-                        else:
-                            coin_amount = float(item[exchange["coin_key"]])
-                else:
-                    asset_name = getattr(item, exchange["asset_key"], None)
-                    if asset_name == asset:
-                        balance = getattr(item, exchange["coin_key"])
-                        if exchange["coin_value_key"]:
-                            coin_amount = float(balance[exchange["coin_value_key"]])
-                        else:
-                            coin_amount = float(balance)
-            if coin_amount == 0.0:
-                logger.warning(f"No {asset} found in {exchange['name']} wallet.")
-
-            # Run simulation
-            # simulation configuration
-            if DEBUG:
-                SIM_BUY_PCTS = [BUY_PCTS[0]]
-                SIM_SELL_PCTS = [SELL_PCTS[0]]
+        for item in wallet:
+            if isinstance(item, dict):
+                asset_name = item.get(source_exchange_config["asset_key"])
+                if asset_name == asset:
+                    if source_exchange_config["coin_value_key"]:
+                        coin_amount = float(
+                            item[source_exchange_config["coin_key"]][source_exchange_config["coin_value_key"]]
+                        )
+                    else:
+                        coin_amount = float(item[source_exchange_config["coin_key"]])
             else:
-                SIM_BUY_PCTS = BUY_PCTS
-                SIM_SELL_PCTS = SELL_PCTS
-            try:
-                # Validate data stream before creating trader driver
-                if not data_stream:
-                    logger.error(f"No historical data available for {asset} on {exchange['name'].value}")
-                    continue
-                
-                if len(data_stream) < 2:
-                    logger.error(f"Insufficient historical data for {asset} on {exchange['name'].value}: only {len(data_stream)} data points available")
-                    continue
-                
-                logger.info(f"Starting simulation for {asset} on {exchange['name'].value} with {len(data_stream)} data points")
-                
-                trader_driver = TraderDriver(
-                    name=asset,
-                    init_amount=exchange["stablecoin_value"],
-                    cur_coin=coin_amount,
-                    # only test 1 strategy for debugging purposes
-                    overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
-                    tol_pcts=TOL_PCTS,
-                    ma_lengths=MA_LENGTHS,
-                    ema_lengths=EMA_LENGTHS,
-                    bollinger_mas=BOLLINGER_MAS,
-                    bollinger_tols=BOLLINGER_TOLS,
-                    buy_pcts=SIM_BUY_PCTS,
-                    sell_pcts=SIM_SELL_PCTS,
-                    buy_stas=BUY_STAS,
-                    sell_stas=SELL_STAS,
-                    rsi_periods=RSI_PERIODS,
-                    rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
-                    rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
-                    kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
-                    kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
-                    mode="normal",
-                )
-                trader_driver.feed_data(data_stream)
-                best_info = trader_driver.best_trader_info
-                best_t = trader_driver.traders[best_info["trader_index"]]
-                signal = best_t.trade_signal
+                asset_name = getattr(item, source_exchange_config["asset_key"], None)
+                if asset_name == asset:
+                    balance = getattr(item, source_exchange_config["coin_key"])
+                    if source_exchange_config["coin_value_key"]:
+                        coin_amount = float(balance[source_exchange_config["coin_value_key"]])
+                    else:
+                        coin_amount = float(balance)
+        if coin_amount == 0.0:
+            logger.warning(f"No {asset} found in {source_exchange.value} wallet.")
+            # Set a small initial amount for simulation purposes
+            sim_coin_amount = 0.001  # Small amount for simulation
+            logger.info(f"Using simulation amount of {sim_coin_amount} {asset} for testing")
+        else:
+            sim_coin_amount = coin_amount
 
-                # Log best trader summary with exchange name
-                logger.info(
-                    f"\n{'★'*10} BEST TRADER SUMMARY ({exchange['name'].value}) {'★'*10}\n"
-                    f"Best trader performance: {best_info}\n"
-                    f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
-                    f"Transactions: {best_t.num_transaction}, "
-                    f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
-                    f"Strategy: {best_t.high_strategy}\n"
-                    f"Today's signal: {signal} for crypto={best_t.crypto_name}\n"
-                    f"{'★'*36}\n"
-                )
+        # Run simulation
+        # simulation configuration
+        if DEBUG:
+            SIM_BUY_PCTS = [BUY_PCTS[0]]
+            SIM_SELL_PCTS = [SELL_PCTS[0]]
+        else:
+            SIM_BUY_PCTS = BUY_PCTS
+            SIM_SELL_PCTS = SELL_PCTS
+        try:
+            # Validate data stream before creating trader driver
+            if not data_stream:
+                logger.error(f"No historical data available for {asset}")
+                continue
+            
+            if len(data_stream) < 2:
+                logger.error(f"Insufficient historical data for {asset}: only {len(data_stream)} data points available")
+                continue
+            
+            logger.info(f"Starting simulation for {asset} using {source_exchange.value} data with {len(data_stream)} data points")
+            
+            trader_driver = TraderDriver(
+                name=asset,
+                init_amount=source_exchange_config["stablecoin_value"],
+                cur_coin=sim_coin_amount,
+                # only test 1 strategy for debugging purposes
+                overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
+                tol_pcts=TOL_PCTS,
+                ma_lengths=MA_LENGTHS,
+                ema_lengths=EMA_LENGTHS,
+                bollinger_mas=BOLLINGER_MAS,
+                bollinger_tols=BOLLINGER_TOLS,
+                buy_pcts=SIM_BUY_PCTS,
+                sell_pcts=SIM_SELL_PCTS,
+                buy_stas=BUY_STAS,
+                sell_stas=SELL_STAS,
+                rsi_periods=RSI_PERIODS,
+                rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
+                rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
+                kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
+                kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
+                mode="normal",
+            )
+            trader_driver.feed_data(data_stream)
+            best_info = trader_driver.best_trader_info
+            best_t = trader_driver.traders[best_info["trader_index"]]
+            signal = best_t.trade_signal
 
-                # Save visualizations
-                strategy_performance = trader_driver.get_all_strategy_performance()
-                dashboard_filename = f"app/visualization/plots/trading_dashboard_{asset}_{exchange['name'].value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-                create_comprehensive_dashboard(
-                    trader_instance=best_t,
-                    save_html=True,
-                    filename=dashboard_filename,
-                    strategy_performance=strategy_performance,
-                )
+            # Log best trader summary with exchange name
+            # Handle infinite values in summary
+            rate_of_return = best_info.get('rate_of_return', 'N/A')
+            baseline_rate = best_info.get('baseline_rate_of_return', 'N/A')
+            coin_rate = best_info.get('coin_rate_of_return', 'N/A')
+            
+            # Format infinite values
+            if isinstance(rate_of_return, float) and not np.isfinite(rate_of_return):
+                rate_of_return = '∞' if rate_of_return > 0 else '-∞'
+            if isinstance(baseline_rate, float) and not np.isfinite(baseline_rate):
+                baseline_rate = '∞' if baseline_rate > 0 else '-∞'
+            if isinstance(coin_rate, float) and not np.isfinite(coin_rate):
+                coin_rate = '∞' if coin_rate > 0 else '-∞'
+            
+            logger.info(
+                f"\n{'★'*10} BEST TRADER SUMMARY ({source_exchange.value}) {'★'*10}\n"
+                f"Best trader performance: {best_info}\n"
+                f"Rate of return: {rate_of_return}%\n"
+                f"Baseline rate: {baseline_rate}%\n"
+                f"Coin rate: {coin_rate}%\n"
+                f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
+                f"Transactions: {best_t.num_transaction}, "
+                f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
+                f"Strategy: {best_t.high_strategy}\n"
+                f"Today's signal: {signal} for crypto={best_t.crypto_name}\n"
+                f"{'★'*36}\n"
+            )
 
-                # Gather recommended action for email/log
-                action_line = f"{datetime.now()} | {exchange['name'].value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
-                all_actions.append(action_line)
+            # Save visualizations
+            strategy_performance = trader_driver.get_all_strategy_performance()
+            dashboard_filename = f"app/visualization/plots/trading_dashboard_{asset}_{source_exchange.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            create_comprehensive_dashboard(
+                trader_instance=best_t,
+                save_html=True,
+                filename=dashboard_filename,
+                strategy_performance=strategy_performance,
+            )
 
-                # Log recommended action to log.txt
-                with open(LOG_FILE, "a") as outfile:
-                    outfile.write(action_line + "\n")
+            # Gather recommended action for email/log
+            action_line = f"{datetime.now()} | {source_exchange.value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
+            all_actions.append(action_line)
 
-            except ValueError as e:
-                logger.error(
-                    f"Data validation failed for {asset} on {exchange['name'].value}: {e}"
-                )
-            except Exception as e:
-                logger.error(
-                    f"Simulation failed for {asset} on {exchange['name'].value}: {e}"
-                )
+            # Log recommended action to log.txt
+            with open(LOG_FILE, "a") as outfile:
+                outfile.write(action_line + "\n")
+
+        except ValueError as e:
+            logger.error(
+                f"Data validation failed for {asset} using {source_exchange.value}: {e}"
+            )
+        except Exception as e:
+            logger.error(
+                f"Simulation failed for {asset} using {source_exchange.value}: {e}"
+            )
 
     # after
     try:
@@ -642,8 +740,18 @@ def main():
             LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
         )
 
-    # Always send DEFI report email
-    main_defi()
+    # Send DEFI report email based on configuration
+    if DEFI_MONITORING_ENABLED:
+        current_day = datetime.now().weekday()  # Monday=0, Sunday=6
+        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        
+        if current_day in DEFI_MONITORING_DAYS:
+            logger.info(f"DEFI monitoring day detected ({day_names[current_day]}) - running DEFI monitoring")
+            main_defi()
+        else:
+            logger.info(f"DEFI monitoring skipped - today is {day_names[current_day]} (runs on: {[day_names[d] for d in DEFI_MONITORING_DAYS]})")
+    else:
+        logger.info("DEFI monitoring disabled in configuration")
 
     # write to log file
     now = datetime.now()
