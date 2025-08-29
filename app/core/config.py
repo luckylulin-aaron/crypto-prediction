@@ -7,7 +7,7 @@ SECONDS_IN_ONE_DAY = 86400
 COMMIT = False  # Set to True for actual trading deployment
 
 # debug mode, if True, only test 1 strategy
-DEBUG = True
+DEBUG = False
 
 # strategies
 # MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)
@@ -164,7 +164,5 @@ STOCKS = [
     'TSLA',  # Tesla
     'JD', # JD.com
     'APP', # Applovin
-    'UNG', # United States Natural Gas Fund ETF
-    'TLT', # 20+ Year Treasury Bond ETF,
-    'GRAB', # grab
+    'SNAP' # Snapchat
 ]
