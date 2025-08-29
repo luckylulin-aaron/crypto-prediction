@@ -132,6 +132,13 @@ SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based 
 # Log file path
 LOG_FILE = "./log.txt"
 
+# DEFI Monitoring Configuration
+# Configure which days of the week DEFI monitoring should run
+# 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday
+# Example: [6] = Sundays only, [0, 6] = Mondays and Sundays, [0,1,2,3,4,5,6] = Every day
+DEFI_MONITORING_DAYS = [6]  # Days of week to run DEFI monitoring (0=Monday, 6=Sunday)
+DEFI_MONITORING_ENABLED = True  # Enable/disable DEFI monitoring
+
 
 class ExchangeName(Enum):
     COINBASE = "Coinbase"

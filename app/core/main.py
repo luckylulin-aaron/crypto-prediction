@@ -208,7 +208,7 @@ def send_daily_recommendations_email(
 
 
 def main_defi():
-    """Send the DEFI asset valuation report email (always run)."""
+    """Send the DEFI asset valuation report email (runs only on Sundays)."""
     cfg = configparser.ConfigParser()
     config_path = os.path.join(os.path.dirname(__file__), "secret.ini")
     cfg.read(config_path)
@@ -663,8 +663,18 @@ def main():
             LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
         )
 
-    # Always send DEFI report email
-    main_defi()
+    # Send DEFI report email based on configuration
+    if DEFI_MONITORING_ENABLED:
+        current_day = datetime.now().weekday()  # Monday=0, Sunday=6
+        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        
+        if current_day in DEFI_MONITORING_DAYS:
+            logger.info(f"DEFI monitoring day detected ({day_names[current_day]}) - running DEFI monitoring")
+            main_defi()
+        else:
+            logger.info(f"DEFI monitoring skipped - today is {day_names[current_day]} (runs on: {[day_names[d] for d in DEFI_MONITORING_DAYS]})")
+    else:
+        logger.info("DEFI monitoring disabled in configuration")
 
     # write to log file
     now = datetime.now()
