@@ -735,7 +735,8 @@ class StratTrader:
         else:
             # no transaction happened at all
             # free to grab all this currency's data, re-compute
-            for price, _ in self.crypto_prices:
+            for price_entry in self.crypto_prices:
+                price = price_entry[0]
                 port_value = self.cur_coin * price + self.cash
                 all_hist.append(port_value)
 
