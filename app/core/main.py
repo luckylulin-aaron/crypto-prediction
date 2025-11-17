@@ -512,7 +512,7 @@ def main():
             
             logger.info(
                 f"Starting moving window simulation for {asset} using {source_exchange.value} data "
-                f"with {len(data_stream)} data points (window size: {MOVING_WINDOW_DAYS} days)"
+                f"with {len(data_stream)} data points (window size: {MOVING_WINDOW_DAYS} days, step: {MOVING_WINDOW_STEP} days)"
             )
             
             # Run moving window simulation
