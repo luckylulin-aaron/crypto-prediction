@@ -24,7 +24,12 @@ try:
     from trading.trader_driver import TraderDriver
     from trading.us_stock_client import USStockClient
     from utils.email_util import send_email
-    from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
+    from utils.util import (
+        calculate_simulation_amounts,
+        display_port_msg,
+        load_csv,
+        run_moving_window_simulation,
+    )
     from visualization.visualization import (
         create_comprehensive_dashboard,
         create_portfolio_value_chart,
@@ -45,7 +50,12 @@ except ImportError:
     from trading.trader_driver import TraderDriver
     from trading.us_stock_client import USStockClient
     from utils.email_util import send_email
-    from utils.util import calculate_simulation_amounts, display_port_msg, load_csv
+    from utils.util import (
+        calculate_simulation_amounts,
+        display_port_msg,
+        load_csv,
+        run_moving_window_simulation,
+    )
     from visualization.visualization import (
         create_comprehensive_dashboard,
         create_portfolio_value_chart,
@@ -500,8 +510,46 @@ def main():
                 logger.error(f"Insufficient historical data for {asset}: only {len(data_stream)} data points available")
                 continue
             
-            logger.info(f"Starting simulation for {asset} using {source_exchange.value} data with {len(data_stream)} data points")
+            logger.info(
+                f"Starting moving window simulation for {asset} using {source_exchange.value} data "
+                f"with {len(data_stream)} data points (window size: {MOVING_WINDOW_DAYS} days)"
+            )
             
+            # Run moving window simulation
+            moving_window_results = run_moving_window_simulation(
+                trader_driver_class=TraderDriver,
+                data_stream=data_stream,
+                window_size=MOVING_WINDOW_DAYS,
+                step_size=MOVING_WINDOW_STEP,
+                name=asset,
+                init_amount=source_exchange_config["stablecoin_value"],
+                cur_coin=sim_coin_amount,
+                # only test 1 strategy for debugging purposes
+                overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
+                tol_pcts=TOL_PCTS,
+                ma_lengths=MA_LENGTHS,
+                ema_lengths=EMA_LENGTHS,
+                bollinger_mas=BOLLINGER_MAS,
+                bollinger_tols=BOLLINGER_TOLS,
+                buy_pcts=SIM_BUY_PCTS,
+                sell_pcts=SIM_SELL_PCTS,
+                buy_stas=BUY_STAS,
+                sell_stas=SELL_STAS,
+                rsi_periods=RSI_PERIODS,
+                rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
+                rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
+                kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
+                kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
+                mode="normal",
+            )
+            
+            # Get aggregated metrics for best strategy
+            best_strategy = moving_window_results["best_strategy"]
+            best_metrics = moving_window_results["best_strategy_metrics"]
+            best_window_result = moving_window_results["best_window_result"]
+            
+            # Create a TraderDriver with full data to get the current signal
+            # Use the most recent data for signal generation
             trader_driver = TraderDriver(
                 name=asset,
                 init_amount=source_exchange_config["stablecoin_value"],
@@ -529,32 +577,29 @@ def main():
             best_t = trader_driver.traders[best_info["trader_index"]]
             signal = best_t.trade_signal
 
-            # Log best trader summary with exchange name
-            # Handle infinite values in summary
-            rate_of_return = best_info.get('rate_of_return', 'N/A')
-            baseline_rate = best_info.get('baseline_rate_of_return', 'N/A')
-            coin_rate = best_info.get('coin_rate_of_return', 'N/A')
-            
-            # Format infinite values
-            if isinstance(rate_of_return, float) and not np.isfinite(rate_of_return):
-                rate_of_return = '∞' if rate_of_return > 0 else '-∞'
-            if isinstance(baseline_rate, float) and not np.isfinite(baseline_rate):
-                baseline_rate = '∞' if baseline_rate > 0 else '-∞'
-            if isinstance(coin_rate, float) and not np.isfinite(coin_rate):
-                coin_rate = '∞' if coin_rate > 0 else '-∞'
-            
+            # Log aggregated best trader summary with exchange name
             logger.info(
-                f"\n{'★'*10} BEST TRADER SUMMARY ({source_exchange.value}) {'★'*10}\n"
-                f"Best trader performance: {best_info}\n"
-                f"Rate of return: {rate_of_return}%\n"
-                f"Baseline rate: {baseline_rate}%\n"
-                f"Coin rate: {coin_rate}%\n"
-                f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
-                f"Transactions: {best_t.num_transaction}, "
-                f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
-                f"Strategy: {best_t.high_strategy}\n"
+                f"\n{'★'*10} MOVING WINDOW SIMULATION RESULTS ({source_exchange.value}) {'★'*10}\n"
+                f"Total windows analyzed: {moving_window_results['num_windows']}\n"
+                f"Window size: {MOVING_WINDOW_DAYS} days\n"
+                f"Best strategy (aggregated): {best_strategy}\n"
+                f"\n--- Aggregated Performance Metrics ---\n"
+                f"Mean rate of return: {best_metrics['mean_rate_of_return']:.2f}%\n"
+                f"Std dev of return: {best_metrics['std_rate_of_return']:.2f}%\n"
+                f"Min rate of return: {best_metrics['min_rate_of_return']:.2f}%\n"
+                f"Max rate of return: {best_metrics['max_rate_of_return']:.2f}%\n"
+                f"Median rate of return: {best_metrics['median_rate_of_return']:.2f}%\n"
+                f"Risk-adjusted return (mean - std): {best_metrics['risk_adjusted_return']:.2f}%\n"
+                f"Win rate: {best_metrics['win_rate']*100:.1f}%\n"
+                f"Mean baseline rate: {best_metrics['mean_baseline_rate']:.2f}%\n"
+                f"Mean coin rate: {best_metrics['mean_coin_rate']:.2f}%\n"
+                f"Mean max drawdown: {best_metrics['mean_drawdown']:.2f}%\n"
+                f"Mean transactions: {best_metrics['mean_transactions']:.1f}\n"
+                f"\n--- Best Window Performance ---\n"
+                f"Best window period: {best_window_result['window_start_date']} to {best_window_result['window_end_date']}\n"
+                f"Best window rate of return: {best_window_result['rate_of_return']:.2f}%\n"
                 f"Today's signal: {signal} for crypto={best_t.crypto_name}\n"
-                f"{'★'*36}\n"
+                f"{'★'*50}\n"
             )
 
             # Save visualizations

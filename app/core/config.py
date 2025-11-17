@@ -120,7 +120,13 @@ EP_COIN = 10e-3
 EP_CASH = 5
 
 # last X days of data to be considered; time span
-TIMESPAN = 120
+TIMESPAN = 90
+
+# Moving window configuration for simulation
+# For a given TIMESPAN, use overlapping windows of MOVING_WINDOW_DAYS to run multiple simulations
+# and aggregate results for more robust performance evaluation
+MOVING_WINDOW_DAYS = 60  # Size of each moving window (should be <= TIMESPAN)
+MOVING_WINDOW_STEP = 3  # Step size for moving window (1 = overlapping windows, MOVING_WINDOW_DAYS = non-overlapping)
 
 # Simulation Configuration
 SIMULATION_METHOD = (
