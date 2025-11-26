@@ -17,35 +17,35 @@ STRATEGIES = [
     "MA-SELVES",  # Original moving average strategy
     "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "EXP-MA-SELVES",  # Exponential moving average strategy
-    "EXP-MA-SELVES-MACRO",  # EXP-MA-SELVES with macroeconomic overlay
-    "RSI",  # Relative Strength Index
-    "RSI-MACRO",  # RSI with macroeconomic overlay
+    # "EXP-MA-SELVES-MACRO",  # EXP-MA-SELVES with macroeconomic overlay
+    # "RSI",  # Relative Strength Index
+    # "RSI-MACRO",  # RSI with macroeconomic overlay
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
     "ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
-    "DOUBLE-MA",  # Double moving average crossover
-    "MACD",  # MACD momentum indicator
-    "BOLL-BANDS",  # Bollinger Bands volatility strategy
-    "KDJ",  # KDJ oscillator
-    "MA-MACD",  # Combined MA + MACD (requires both signals)
-    "MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
-    "RSI-BOLL",  # Combined RSI + Bollinger Bands
+    # "DOUBLE-MA",  # Double moving average crossover
+    # "MACD",  # MACD momentum indicator
+    # "BOLL-BANDS",  # Bollinger Bands volatility strategy
+    # "KDJ",  # KDJ oscillator
+    # "MA-MACD",  # Combined MA + MACD (requires both signals)
+    # "MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
+    # "RSI-BOLL",  # Combined RSI + Bollinger Bands
     "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
-    "CONSERVATIVE-MA",  # MA with multiple period confirmation
-    "VOLUME-BREAKOUT",  # Volume-based breakout strategy
+    # "CONSERVATIVE-MA",  # MA with multiple period confirmation
+    # "VOLUME-BREAKOUT",  # Volume-based breakout strategy
     "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
-    "TREND-MA-SELVES",  # Trend-aware MA strategy
-    "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
-    "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
+    # "TREND-MA-SELVES",  # Trend-aware MA strategy
+    # "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
+    # "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
     "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
-    "SIMPLE-RECURRING",  # Simple recurring investment strategy
-    "WEIGHTED-RECURRING",  # Weighted recurring investment based on MA
-    "ECONOMIC-INDICATORS",  # Macroeconomic indicators overlay strategy
+    # "SIMPLE-RECURRING",  # Simple recurring investment strategy
+    # "WEIGHTED-RECURRING",  # Weighted recurring investment based on MA
+    # "ECONOMIC-INDICATORS",  # Macroeconomic indicators overlay strategy
 ]
 
 # simulation configuration
-TOL_PCTS = [0.08, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6]
-BUY_PCTS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
-SELL_PCTS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+TOL_PCTS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+BUY_PCTS = [0.1, 0.3, 0.5, 0.7, 0.9]
+SELL_PCTS = [0.1, 0.3, 0.5, 0.7, 0.9]
 
 MA_LENGTHS = [6, 12, 30]
 EMA_LENGTHS = [6, 12, 26, 30]
