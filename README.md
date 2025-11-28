@@ -1148,3 +1148,13 @@ python -m app.core.main_defi
 ### Integration with Daily Workflow
 
 The DEFI event client is integrated into the daily trading-bot workflow. When the trading bot runs, it will also send the DEFI asset valuation report email automatically. 
+
+
+### Deployment via Crontab
+Make sure in the crontab content it contains:
+
+```
+30 7 * * * /home/ec2-user/tradingbot/run_bot.sh
+```
+
+Situates the run_bot.sh file one level up along with the code.
