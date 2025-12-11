@@ -148,7 +148,15 @@ class DatabaseManager:
             records = []
             for item in data:
                 close_price, date_str, open_price, low, high, volume = item
-                date = datetime.strptime(date_str, "%Y-%m-%d")
+                # Try parsing with datetime format first, fallback to date-only format for backward compatibility
+                try:
+                    date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    try:
+                        date = datetime.strptime(date_str, "%Y-%m-%d")
+                    except ValueError:
+                        self.logger.error(f"Unable to parse date string: {date_str}")
+                        continue
 
                 record = HistoricalData(
                     symbol=symbol,
@@ -215,10 +223,8 @@ class DatabaseManager:
         try:
             db = SessionLocal()
 
-            # Calculate date range
-            end_date = datetime.utcnow().replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+            # Calculate date range - use current time for sub-daily intervals
+            end_date = datetime.utcnow()
             start_date = end_date - timedelta(days=days)
 
             # Query database
@@ -240,7 +246,11 @@ class DatabaseManager:
             # Convert to expected format
             data = []
             for record in records:
-                date_str = record.date.strftime("%Y-%m-%d")
+                # Use datetime format if time component exists, otherwise use date-only format
+                if record.date.hour == 0 and record.date.minute == 0 and record.date.second == 0:
+                    date_str = record.date.strftime("%Y-%m-%d")
+                else:
+                    date_str = record.date.strftime("%Y-%m-%d %H:%M:%S")
                 data.append(
                     [
                         record.close_price,

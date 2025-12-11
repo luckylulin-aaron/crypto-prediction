@@ -122,6 +122,11 @@ EP_CASH = 5
 # last X days of data to be considered; time span
 TIMESPAN = 90
 
+# Data interval granularity (in hours)
+# Controls the frequency of data points fetched from exchanges
+# Options: 1 (hourly), 6 (6-hourly), 12 (12-hourly), 24 (daily), etc.
+DATA_INTERVAL_HOURS = 12  # 12-hour intervals for finer granularity
+
 # Moving window configuration for simulation
 # For a given TIMESPAN, use overlapping windows of MOVING_WINDOW_DAYS to run multiple simulations
 # and aggregate results for more robust performance evaluation
@@ -134,6 +139,7 @@ SIMULATION_METHOD = (
 )
 SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
 SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method
+DEFAULT_SIMULATION_COIN_AMOUNT = 1.0  # Default coin amount to use for simulation when asset is not found in wallet
 
 # Log file path
 LOG_FILE = "./log.txt"
@@ -176,8 +182,7 @@ STOCKS = [
     'AAPL',  # Apple
     'TSLA',  # Tesla
     'JD', # JD.com
-    'APP', # Applovin
-    'UNG', # United States Natural Gas Fund ETF
-    'TLT', # 20+ Year Treasury Bond ETF,
-    'GRAB', # grab
+    'ORCL', # Oracle,
+    'META', # Meta,
+    'MSFT', # Microsoft
 ]
