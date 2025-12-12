@@ -8,7 +8,7 @@ import numpy as np
 from coinbase.rest import RESTClient
 
 # customized packages
-from core.config import CURS, STABLECOIN, TIMESPAN
+from core.config import CURS, DATA_INTERVAL_HOURS, STABLECOIN, TIMESPAN
 from core.logger import get_logger
 from db.database import db_manager
 from utils.util import timer
@@ -43,7 +43,7 @@ class CBProClient:
             use_cache (bool): Whether to use cached data if available and fresh.
 
         Returns:
-            list: Each element is [closing_price (float), date (str, 'YYYY-MM-DD'), open_price (float), low (float), high (float), volume (float)].
+            list: Each element is [closing_price (float), datetime (str, 'YYYY-MM-DD HH:MM:SS'), open_price (float), low (float), high (float), volume (float)].
 
         Raises:
             ConnectionError: If the API call fails or the response is invalid.
@@ -67,18 +67,22 @@ class CBProClient:
         try:
             end = datetime.now(timezone.utc)
             start = end - timedelta(days=TIMESPAN)
-            self.logger.info(f"Fetching candles for {name} from {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}")
+            self.logger.info(f"Fetching candles for {name} from {start.strftime('%Y-%m-%d %H:%M:%S')} to {end.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Map interval hours to Coinbase granularity
+            granularity_map = {1: "ONE_HOUR", 6: "SIX_HOURS", 12: "TWELVE_HOURS", 24: "ONE_DAY"}
+            granularity = granularity_map.get(DATA_INTERVAL_HOURS, "SIX_HOURS")
             
             res = self.rest_client.get_candles(
                 name,
-                granularity="ONE_DAY",
+                granularity=granularity,
                 start=int(start.timestamp()),
                 end=int(end.timestamp()),
             )  # res: <class 'coinbase.rest.types.product_types.GetProductCandlesResponse'>
             
             # processing
             candles = res["candles"]
-            self.logger.info(f"Received {len(candles)} candles from API for {name}")
+            self.logger.info(f"Received {len(candles)} candles from API for {name} (granularity: {granularity})")
             
             if not candles:
                 self.logger.warning(f"No candles returned from API for {name}")
@@ -89,7 +93,7 @@ class CBProClient:
                 # item fields are strings, convert as needed
                 closing_price = float(item["close"])
                 fmt_dt_str = datetime.utcfromtimestamp(int(item["start"])).strftime(
-                    "%Y-%m-%d"
+                    "%Y-%m-%d %H:%M:%S"
                 )
                 open_price = float(item["open"])
                 low = float(item["low"])
@@ -105,9 +109,11 @@ class CBProClient:
                 )
             # Sort by date ascending
             parsed = sorted(parsed, key=lambda x: x[1])
-            # Remove today's data if present
-            today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            parsed = [x for x in parsed if x[1] != today_str]
+            # Filter out data from the current interval (last 6 hours if using 6h interval)
+            now = datetime.now(timezone.utc)
+            cutoff_time = now - timedelta(hours=DATA_INTERVAL_HOURS)
+            cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
+            parsed = [x for x in parsed if x[1] < cutoff_str]
 
             self.logger.info(f"Processed {len(parsed)} data points for {name} after filtering")
 

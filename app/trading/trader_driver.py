@@ -1,4 +1,5 @@
 # built-in packages
+import datetime
 import math
 from typing import Any, List
 
@@ -200,6 +201,7 @@ class TraderDriver:
     def feed_data(self, data_stream: List[tuple]):
         """
         Feed in historic data, where data_stream consists of tuples of (price, date, open, low, high).
+        Date can be either a datetime object or a string that will be parsed.
 
         Args:
             data_stream (List[tuple]): List of tuples with price and date info.
@@ -220,13 +222,29 @@ class TraderDriver:
         if len(data_stream) < 2:
             raise ValueError(f"Data stream has insufficient data points ({len(data_stream)}). Need at least 2 data points for simulation.")
 
+        # Helper function to convert date string to datetime if needed
+        def parse_date(date_input):
+            """Convert date string to datetime object if needed."""
+            if isinstance(date_input, datetime.datetime):
+                return date_input
+            # Try parsing with datetime format first, then date-only format
+            date_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"]
+            for fmt in date_formats:
+                try:
+                    return datetime.datetime.strptime(date_input, fmt)
+                except (ValueError, TypeError):
+                    continue
+            # If all parsing fails, raise an error
+            raise ValueError(f"Unable to parse date: {date_input}")
+
         max_final_p = -math.inf
 
         for index, t in enumerate(self.traders):
             # compute initial value
+            date_obj = parse_date(data_stream[0][1])
             t.add_new_day(
                 new_p=data_stream[0][0],
-                d=data_stream[0][1],
+                d=date_obj,
                 misc_p={
                     "open": data_stream[0][2],
                     "low": data_stream[0][3],
@@ -235,10 +253,8 @@ class TraderDriver:
             )
             # run simulation
             for i in range(1, len(data_stream)):
-                p, d = (
-                    data_stream[i][0],
-                    data_stream[i][1],
-                )  # [cur_price,date,open,low,high]
+                p = data_stream[i][0]
+                d = parse_date(data_stream[i][1])  # [cur_price,date,open,low,high]
                 misc_p = {
                     "open": data_stream[i][2],
                     "low": data_stream[i][3],

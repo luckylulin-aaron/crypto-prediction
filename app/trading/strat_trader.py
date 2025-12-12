@@ -847,18 +847,33 @@ class StratTrader:
         if last_date_str is None:
             return res
 
-        fmts = ["%Y-%m-%d", "%m/%d/%Y"]
+        # Support both date-only and datetime formats
+        fmts = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"]
+        last_date_dt_obj = None
         for fmt in fmts:
             try:
                 last_date_dt_obj = datetime.datetime.strptime(last_date_str, fmt)
+                break
             except:
                 pass
+        
+        if last_date_dt_obj is None:
+            return res
 
         # find today's date, and time delta
         td = datetime.datetime.now()
         diff = td - last_date_dt_obj
 
-        if diff.days <= 1:
+        # For sub-daily intervals, check if within the last interval period
+        # Default to 6 hours if DATA_INTERVAL_HOURS is not available
+        try:
+            from core.config import DATA_INTERVAL_HOURS
+            interval_hours = DATA_INTERVAL_HOURS
+        except ImportError:
+            interval_hours = 6
+        
+        # Check if within the last interval (e.g., 6 hours for 6h granularity)
+        if diff.total_seconds() <= interval_hours * 3600:
             res["action"] = last_evt["action"]
 
         return res

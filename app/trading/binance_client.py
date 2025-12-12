@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 
 import numpy as np
 from binance.spot import Spot
-from core.config import CURS, STABLECOIN, TIMESPAN
+from core.config import CURS, DATA_INTERVAL_HOURS, STABLECOIN, TIMESPAN
 from core.logger import get_logger
 from db.database import db_manager
 from utils.util import timer
@@ -39,13 +39,13 @@ class BinanceClient:
     @timer
     def get_historic_data(self, symbol: str, use_cache: bool = True) -> list:
         """
-        Get historical daily klines for a symbol, with database caching.
+        Get historical klines for a symbol with configurable interval, with database caching.
 
         Args:
             symbol (str): The trading pair symbol (e.g., 'BTCUSDT').
             use_cache (bool): Whether to use cached data if available and fresh.
         Returns:
-            list: Each element is [closing_price, date, open_price, low, high, volume].
+            list: Each element is [closing_price, datetime_str, open_price, low, high, volume].
         Raises:
             ConnectionError: If the API call fails.
         """
@@ -70,10 +70,14 @@ class BinanceClient:
             start = int(
                 (datetime.utcnow() - timedelta(days=TIMESPAN)).timestamp() * 1000
             )
-            self.logger.info(f"Fetching klines for {symbol} from {datetime.utcfromtimestamp(start/1000).strftime('%Y-%m-%d')} to {datetime.utcfromtimestamp(end/1000).strftime('%Y-%m-%d')}")
+            self.logger.info(f"Fetching klines for {symbol} from {datetime.utcfromtimestamp(start/1000).strftime('%Y-%m-%d %H:%M:%S')} to {datetime.utcfromtimestamp(end/1000).strftime('%Y-%m-%d %H:%M:%S')}")
             
-            klines = self.client.klines(symbol, "1d", startTime=start, endTime=end)
-            self.logger.info(f"Received {len(klines)} klines from API for {symbol}")
+            # Map interval hours to Binance interval string
+            interval_map = {1: "1h", 6: "6h", 12: "12h", 24: "1d"}
+            interval_str = interval_map.get(DATA_INTERVAL_HOURS, "6h")
+            
+            klines = self.client.klines(symbol, interval_str, startTime=start, endTime=end)
+            self.logger.info(f"Received {len(klines)} klines from API for {symbol} (interval: {interval_str})")
             
             if not klines:
                 self.logger.warning(f"No klines returned from API for {symbol}")
@@ -82,7 +86,7 @@ class BinanceClient:
             parsed = []
             for k in klines:
                 open_time = k[0] // 1000
-                fmt_dt_str = datetime.utcfromtimestamp(open_time).strftime("%Y-%m-%d")
+                fmt_dt_str = datetime.utcfromtimestamp(open_time).strftime("%Y-%m-%d %H:%M:%S")
                 open_price = float(k[1])
                 high = float(k[2])
                 low = float(k[3])
@@ -92,8 +96,11 @@ class BinanceClient:
                     [closing_price, fmt_dt_str, open_price, low, high, volume]
                 )
             parsed = sorted(parsed, key=lambda x: x[1])
-            today_str = datetime.utcnow().strftime("%Y-%m-%d")
-            parsed = [x for x in parsed if x[1] != today_str]
+            # Filter out data from the current interval (last 6 hours if using 6h interval)
+            now = datetime.utcnow()
+            cutoff_time = now - timedelta(hours=DATA_INTERVAL_HOURS)
+            cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
+            parsed = [x for x in parsed if x[1] < cutoff_str]
             
             self.logger.info(f"Processed {len(parsed)} data points for {symbol} after filtering")
             

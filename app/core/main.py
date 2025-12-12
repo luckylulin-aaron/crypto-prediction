@@ -434,7 +434,7 @@ def main():
             v_c=exchange["crypto_value"], v_s=exchange["stablecoin_value"], before=True
         )
 
-    asset_list = CURS[:3] if DEBUG else CURS # only test 3 assets for debugging purposes
+    asset_list = CURS[:1] if DEBUG else CURS # only test 1 asset for debugging purposes
     for asset in asset_list:
         # Only simulate each asset once, regardless of exchange
         if asset in simulated_assets:
@@ -486,8 +486,8 @@ def main():
                         coin_amount = float(balance)
         if coin_amount == 0.0:
             logger.warning(f"No {asset} found in {source_exchange.value} wallet.")
-            # Set a small initial amount for simulation purposes
-            sim_coin_amount = 0.001  # Small amount for simulation
+            # Set a default initial amount for simulation purposes
+            sim_coin_amount = DEFAULT_SIMULATION_COIN_AMOUNT
             logger.info(f"Using simulation amount of {sim_coin_amount} {asset} for testing")
         else:
             sim_coin_amount = coin_amount
@@ -510,17 +510,23 @@ def main():
                 logger.error(f"Insufficient historical data for {asset}: only {len(data_stream)} data points available")
                 continue
             
+            # Convert window size from days to data points based on DATA_INTERVAL_HOURS
+            # Data points per day = 24 hours / DATA_INTERVAL_HOURS
+            data_points_per_day = 24 / DATA_INTERVAL_HOURS
+            window_size_data_points = int(MOVING_WINDOW_DAYS * data_points_per_day)
+            step_size_data_points = int(MOVING_WINDOW_STEP * data_points_per_day)
+            
             logger.info(
                 f"Starting moving window simulation for {asset} using {source_exchange.value} data "
-                f"with {len(data_stream)} data points (window size: {MOVING_WINDOW_DAYS} days, step: {MOVING_WINDOW_STEP} days)"
+                f"with {len(data_stream)} data points (window size: {MOVING_WINDOW_DAYS} days = {window_size_data_points} data points, step: {MOVING_WINDOW_STEP} days = {step_size_data_points} data points)"
             )
             
             # Run moving window simulation
             moving_window_results = run_moving_window_simulation(
                 trader_driver_class=TraderDriver,
                 data_stream=data_stream,
-                window_size=MOVING_WINDOW_DAYS,
-                step_size=MOVING_WINDOW_STEP,
+                window_size=window_size_data_points,
+                step_size=step_size_data_points,
                 name=asset,
                 init_amount=source_exchange_config["stablecoin_value"],
                 cur_coin=sim_coin_amount,
@@ -581,7 +587,7 @@ def main():
             logger.info(
                 f"\n{'★'*10} MOVING WINDOW SIMULATION RESULTS ({source_exchange.value}) {'★'*10}\n"
                 f"Total windows analyzed: {moving_window_results['num_windows']}\n"
-                f"Window size: {MOVING_WINDOW_DAYS} days\n"
+                f"Window size: {MOVING_WINDOW_DAYS} days ({window_size_data_points} data points at {DATA_INTERVAL_HOURS}h intervals)\n"
                 f"Best strategy (aggregated): {best_strategy}\n"
                 f"\n--- Aggregated Performance Metrics ---\n"
                 f"Mean rate of return: {best_metrics['mean_rate_of_return']:.2f}%\n"
@@ -743,14 +749,30 @@ def main():
                 signal = best_t.trade_signal
 
                 # Log best trader summary for stock
+                init_value = best_info.get('init_value', 0)
+                max_final_value = best_info.get('max_final_value', 0)
                 logger.info(
                     f"\n{'★'*10} BEST TRADER SUMMARY (STOCK: {stock}) {'★'*10}\n"
-                    f"Best trader performance: {best_info}\n"
-                    f"Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
-                    f"Transactions: {best_t.num_transaction}, "
-                    f"Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
-                    f"Strategy: {best_t.high_strategy}\n"
-                    f"Today's signal: {signal} for stock={best_t.crypto_name}\n"
+                    f"Best trader performance:\n"
+                    f"  Strategy Parameters:\n"
+                    f"    - Buy percentage: {best_info.get('buy_pct', 'N/A')}\n"
+                    f"    - Sell percentage: {best_info.get('sell_pct', 'N/A')}\n"
+                    f"    - Tolerance percentage: {best_info.get('tol_pct', 'N/A')}\n"
+                    f"    - Bollinger sigma: {best_info.get('bollinger_sigma', 'N/A')}\n"
+                    f"    - Buy strategy: {best_info.get('buy', 'N/A')}\n"
+                    f"    - Sell strategy: {best_info.get('sell', 'N/A')}\n"
+                    f"  Performance Metrics:\n"
+                    f"    - Initial value: ${init_value:,.2f}\n"
+                    f"    - Final value: ${max_final_value:,.2f}\n"
+                    f"    - Rate of return: {best_info.get('rate_of_return', 'N/A')}\n"
+                    f"    - Baseline rate of return: {best_info.get('baseline_rate_of_return', 'N/A')}\n"
+                    f"    - Coin rate of return: {best_info.get('coin_rate_of_return', 'N/A')}\n"
+                    f"  Trading Statistics:\n"
+                    f"    - Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
+                    f"    - Transactions: {best_t.num_transaction}\n"
+                    f"    - Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
+                    f"    - Strategy: {best_t.high_strategy}\n"
+                    f"    - Today's signal: {signal} for stock={best_t.crypto_name}\n"
                     f"{'★'*36}\n"
                 )
 
