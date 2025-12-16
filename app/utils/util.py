@@ -9,6 +9,16 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+try:
+    from core.logger import get_logger
+except ImportError:
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from core.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 def timer(func: Any) -> Any:
     """
@@ -224,20 +234,59 @@ def run_moving_window_simulation(
     """
     from collections import defaultdict
 
+    # Log interval configuration details
+    asset_name = trader_driver_kwargs.get("name", "UNKNOWN")
+    logger.info(f"[{asset_name}] Moving window simulation configuration:")
+    logger.info(f"  - Total data points: {len(data_stream)}")
+    logger.info(f"  - Window size: {window_size} data points")
+    logger.info(f"  - Step size: {step_size} data points")
+    if len(data_stream) > 0:
+        # Try to calculate time span of data
+        try:
+            start_date = data_stream[0][1]
+            end_date = data_stream[-1][1]
+            logger.info(f"  - Data range: {start_date} to {end_date}")
+            # Calculate approximate interval between data points
+            if len(data_stream) > 1:
+                if isinstance(start_date, str):
+                    from datetime import datetime as dt
+                    try:
+                        start_dt = dt.strptime(start_date, "%Y-%m-%d %H:%M:%S")
+                        end_dt = dt.strptime(end_date, "%Y-%m-%d %H:%M:%S")
+                        total_hours = (end_dt - start_dt).total_seconds() / 3600
+                        avg_interval_hours = total_hours / (len(data_stream) - 1)
+                        logger.info(f"  - Average interval between data points: ~{avg_interval_hours:.1f} hours")
+                    except:
+                        pass
+        except:
+            pass
+
     # Create moving windows
     windows = create_moving_windows(data_stream, window_size, step_size)
     
     if not windows:
         raise ValueError("No windows created from data stream")
     
+    logger.info(f"[{asset_name}] Created {len(windows)} windows for processing")
+    
     # Store results for each window
     window_results = []
     strategy_performances = defaultdict(list)  # strategy -> list of metrics
     
     for window_idx, window_data in enumerate(windows):
+        window_start_time = time.perf_counter()
+        
+        # Log window processing details
+        window_start_date = window_data[0][1] if window_data else None
+        window_end_date = window_data[-1][1] if window_data else None
+        logger.info(f"[{asset_name}] Processing window {window_idx + 1}/{len(windows)}: "
+                    f"{window_start_date} to {window_end_date} ({len(window_data)} data points)")
+        
         # Create a new TraderDriver for this window
         driver = trader_driver_class(**trader_driver_kwargs)
         driver.feed_data(window_data)
+        
+        window_process_time = time.perf_counter() - window_start_time
         
         # Get best trader info for this window
         best_info = driver.best_trader_info
@@ -247,10 +296,15 @@ def run_moving_window_simulation(
         rate_of_return_str = best_info.get("rate_of_return", "0%")
         rate_of_return_float = float(str(rate_of_return_str).replace("%", ""))
         
+        logger.info(f"[{asset_name}] Window {window_idx + 1} completed in {window_process_time:.2f}s - "
+                    f"Best strategy: {best_trader.high_strategy}, "
+                    f"Return: {rate_of_return_float:.2f}%, "
+                    f"Transactions: {best_trader.num_transaction}")
+        
         window_result = {
             "window_idx": window_idx,
-            "window_start_date": window_data[0][1] if window_data else None,
-            "window_end_date": window_data[-1][1] if window_data else None,
+            "window_start_date": window_start_date,
+            "window_end_date": window_end_date,
             "window_size": len(window_data),
             "best_strategy": best_trader.high_strategy,
             "rate_of_return": rate_of_return_float,

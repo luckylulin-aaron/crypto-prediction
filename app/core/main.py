@@ -520,6 +520,11 @@ def main():
                 f"Starting moving window simulation for {asset} using {source_exchange.value} data "
                 f"with {len(data_stream)} data points (window size: {MOVING_WINDOW_DAYS} days = {window_size_data_points} data points, step: {MOVING_WINDOW_STEP} days = {step_size_data_points} data points)"
             )
+            logger.info(
+                f"Data interval configuration: {DATA_INTERVAL_HOURS}h intervals, "
+                f"~{data_points_per_day:.2f} data points per day, "
+                f"total data span covers ~{len(data_stream) / data_points_per_day:.1f} days"
+            )
             
             # Run moving window simulation
             moving_window_results = run_moving_window_simulation(

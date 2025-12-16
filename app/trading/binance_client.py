@@ -163,14 +163,7 @@ class BinanceClient:
                     for b in balances
                     if b["asset"] in asset_names and float(b["free"]) > 0
                 ]
-            for wallet in wallets:
-                asset_name_clean = wallet["asset"].replace("LD", "")
-                asset_balance = float(wallet["free"])
-                # log it
-                if asset_balance > 0.05:
-                    self.logger.info(
-                        f"Wallet: {asset_name_clean} - Balance: {asset_balance:.3f}"
-                    )
+            # Wallet balances logging removed to reduce redundancy
             return wallets
         except Exception as e:
             self.logger.error(f"Exception when calling get_wallets: {e}")
