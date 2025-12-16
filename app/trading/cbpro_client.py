@@ -190,14 +190,7 @@ class CBProClient:
             else:
                 wallets = [x for x in accounts_list if x["currency"] in cur_names]
 
-            # Log only non-zero balances
-            for wallet in wallets:
-                try:
-                    balance = float(wallet["available_balance"]["value"])
-                    if balance > 0:
-                        self.logger.info(f"Wallet: {wallet['currency']} - Balance: {balance:.3f}")
-                except Exception as e:
-                    self.logger.error(f"Error processing wallet {wallet['currency']}: {e}")
+            # Wallet balances logging removed to reduce redundancy
 
             return wallets
         except Exception as e:

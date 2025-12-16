@@ -1,6 +1,7 @@
 # built-in packages
 import datetime
 import math
+import time
 from typing import Any, List
 
 # third-party packages
@@ -17,6 +18,15 @@ from app.core.config import (
 )
 from app.trading.strat_trader import StratTrader
 from app.utils.util import timer
+try:
+    from app.core.logger import get_logger
+except ImportError:
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class TraderDriver:
@@ -67,6 +77,7 @@ class TraderDriver:
         Returns:
             None
         """
+        self.name = name
         self.init_amount, self.init_coin = init_amount, cur_coin
         self.mode = mode
         self.traders = []
@@ -222,6 +233,22 @@ class TraderDriver:
         if len(data_stream) < 2:
             raise ValueError(f"Data stream has insufficient data points ({len(data_stream)}). Need at least 2 data points for simulation.")
 
+        # Log data feed details
+        logger.info(f"[{self.name}] Feeding {len(data_stream)} data points to {len(self.traders)} traders")
+        if len(data_stream) > 0:
+            try:
+                start_date = data_stream[0][1]
+                end_date = data_stream[-1][1]
+                logger.info(f"[{self.name}] Data range: {start_date} to {end_date}")
+                # Calculate price range
+                prices = [item[0] for item in data_stream]
+                if prices:
+                    min_price = min(prices)
+                    max_price = max(prices)
+                    logger.info(f"[{self.name}] Price range: ${min_price:.2f} - ${max_price:.2f}")
+            except Exception as e:
+                logger.debug(f"[{self.name}] Could not extract data range info: {e}")
+
         # Helper function to convert date string to datetime if needed
         def parse_date(date_input):
             """Convert date string to datetime object if needed."""
@@ -238,8 +265,13 @@ class TraderDriver:
             raise ValueError(f"Unable to parse date: {date_input}")
 
         max_final_p = -math.inf
+        num_traders = len(self.traders)
+        
+        logger.debug(f"[{self.name}] Processing {num_traders} trading strategies across {len(data_stream)} data points")
 
         for index, t in enumerate(self.traders):
+            trader_start_time = time.perf_counter()
+            
             # compute initial value
             date_obj = parse_date(data_stream[0][1])
             t.add_new_day(
@@ -274,9 +306,20 @@ class TraderDriver:
             except IndexError as e:
                 print('Found error!', t.high_strategy)
             """
+            trader_process_time = time.perf_counter() - trader_start_time
+            
+            # Log trader performance summary (every 10 traders to avoid too much output)
+            if (index + 1) % 10 == 0 or index == num_traders - 1:
+                logger.debug(f"[{self.name}] Processed {index + 1}/{num_traders} traders "
+                           f"(strategy: {t.high_strategy}, final_value: ${tmp_final_p:.2f}, "
+                           f"time: {trader_process_time:.3f}s)")
+            
             if tmp_final_p >= max_final_p:
                 max_final_p = tmp_final_p
                 self.best_trader = t
+        
+        logger.info(f"[{self.name}] Completed feed_data: Best trader strategy={self.best_trader.high_strategy}, "
+                    f"final_value=${max_final_p:.2f}")
 
     @property
     def best_trader_info(self):
