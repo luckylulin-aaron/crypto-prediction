@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Optional
 
 # third-party packages
 import numpy as np
@@ -224,7 +225,7 @@ def main_defi():
     cfg.read(config_path)
     section = "CONFIG"
 
-    def get_secret(key: str, env_fallback: str | None = None) -> str:
+    def get_secret(key: str, env_fallback: Optional[str] = None) -> str:
         if cfg.has_option(section, key):
             return cfg.get(section, key).strip('"')
         return os.environ.get(env_fallback or key, "")
