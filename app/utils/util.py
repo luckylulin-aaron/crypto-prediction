@@ -296,10 +296,55 @@ def run_moving_window_simulation(
         rate_of_return_str = best_info.get("rate_of_return", "0%")
         rate_of_return_float = float(str(rate_of_return_str).replace("%", ""))
         
+        # Get baseline return (asset uplift %)
+        baseline_return = best_trader.baseline_rate_of_return
+        
+        # Get transaction details (dates and actions) - limit to top 20 most recent
+        trade_history = best_trader.all_history_trade_only
+        transaction_details = []
+        
+        # Sort transactions by date (handle both datetime objects and strings)
+        def get_trade_date(trade):
+            trade_date = trade.get("date", "")
+            if isinstance(trade_date, datetime.datetime):
+                return trade_date
+            elif isinstance(trade_date, str):
+                # Try to parse common date formats
+                for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"]:
+                    try:
+                        return datetime.datetime.strptime(trade_date, fmt)
+                    except:
+                        continue
+            return datetime.datetime.min  # Fallback for unparseable dates
+        
+        # Sort by date and take the most recent 20
+        sorted_trades = sorted(trade_history, key=get_trade_date)
+        recent_trades = sorted_trades[-20:] if len(sorted_trades) > 20 else sorted_trades
+        
+        for trade in recent_trades:
+            trade_date = trade.get("date", "")
+            trade_action = trade.get("action", "")
+            # Format date if it's a datetime object
+            if isinstance(trade_date, datetime.datetime):
+                trade_date_str = trade_date.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                trade_date_str = str(trade_date)
+            transaction_details.append(f"{trade_date_str}:{trade_action}")
+        
+        # Format transaction details string
+        if transaction_details:
+            transactions_str = " | ".join(transaction_details)
+            if len(sorted_trades) > 20:
+                transactions_str += f" (showing 20 of {len(sorted_trades)} total)"
+        else:
+            transactions_str = "No transactions"
+        
         logger.info(f"[{asset_name}] Window {window_idx + 1} completed in {window_process_time:.2f}s - "
                     f"Best strategy: {best_trader.high_strategy}, "
                     f"Return: {rate_of_return_float:.2f}%, "
-                    f"Transactions: {best_trader.num_transaction}")
+                    f"Baseline return: {baseline_return:.2f}%, "
+                    f"Transactions: {best_trader.num_transaction} | "
+                    f"Transaction details: {transactions_str}")
         
         window_result = {
             "window_idx": window_idx,
