@@ -33,6 +33,7 @@ try:
     )
     from visualization.visualization import (
         create_comprehensive_dashboard,
+        create_moving_window_signals_report,
         create_portfolio_value_chart,
         create_strategy_performance_chart,
     )
@@ -59,6 +60,7 @@ except ImportError:
     )
     from visualization.visualization import (
         create_comprehensive_dashboard,
+        create_moving_window_signals_report,
         create_portfolio_value_chart,
         create_strategy_performance_chart,
     )
@@ -623,6 +625,23 @@ def main():
                 filename=dashboard_filename,
                 strategy_performance=strategy_performance,
             )
+
+            # Save moving-window buy/sell plots as a single stacked HTML per asset
+            try:
+                plots_dir = os.path.join("app", "visualization", "plots")
+                os.makedirs(plots_dir, exist_ok=True)
+                window_report_filename = os.path.join(
+                    plots_dir,
+                    f"moving_window_signals_{asset}_{source_exchange.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
+                )
+                create_moving_window_signals_report(
+                    asset_name=asset,
+                    window_chart_data=moving_window_results.get("window_chart_data", []),
+                    filename=window_report_filename,
+                    title=f"Moving Window Buy/Sell Signal Report - {asset} ({source_exchange.value})",
+                )
+            except Exception as e:
+                logger.error(f"Failed to create moving window signals report for {asset}: {e}")
 
             # Gather recommended action for email/log
             action_line = f"{datetime.now()} | {source_exchange.value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"

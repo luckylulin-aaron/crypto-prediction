@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
 
 
@@ -620,6 +621,89 @@ def save_chart_as_html(fig: go.Figure, filename: str) -> None:
     """
     fig.write_html(filename)
     print(f"Chart saved to {filename}")
+
+
+def create_moving_window_signals_report(
+    asset_name: str,
+    window_chart_data: List[Dict],
+    filename: str,
+    title: Optional[str] = None,
+) -> str:
+    """
+    Create a single HTML report that stacks buy/sell signal plots for each moving window.
+
+    Args:
+        asset_name (str): Asset symbol (e.g., "SOL").
+        window_chart_data (List[Dict]): Per-window chart payload from run_moving_window_simulation.
+        filename (str): Output HTML filename.
+        title (Optional[str]): Optional report title override.
+
+    Returns:
+        str: The saved filename.
+    """
+    if title is None:
+        title = f"Moving Window Buy/Sell Signal Report - {asset_name}"
+
+    # Build one HTML that includes Plotly JS once, then many figures stacked vertically.
+    html_parts: List[str] = []
+    html_parts.append("<html><head><meta charset='utf-8' />")
+    html_parts.append(f"<title>{title}</title>")
+    html_parts.append(
+        "<style>"
+        "body{font-family:Arial, sans-serif; margin: 16px;}"
+        ".window-block{margin: 18px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px;}"
+        ".window-meta{color:#374151; margin: 0 0 8px 0; font-size: 14px;}"
+        "h1{margin: 0 0 14px 0;}"
+        "</style>"
+    )
+    html_parts.append("</head><body>")
+    html_parts.append(f"<h1>{title}</h1>")
+    html_parts.append(
+        "<p class='window-meta'>Each section is one moving window. Price line is plotted with BUY/SELL markers.</p>"
+    )
+
+    include_js = "cdn"
+    for w in window_chart_data:
+        window_idx = w.get("window_idx")
+        w_start = w.get("window_start_date")
+        w_end = w.get("window_end_date")
+        best_strategy = w.get("best_strategy")
+        ror = w.get("rate_of_return", 0.0)
+        baseline = w.get("baseline_rate_of_return", 0.0)
+        n_tx = w.get("num_transactions", 0)
+
+        fig_title = (
+            f"[{asset_name}] Window {window_idx + 1 if isinstance(window_idx, int) else window_idx}: "
+            f"{w_start} → {w_end} | Strategy={best_strategy} | Return={ror:.2f}% | Baseline={baseline:.2f}% | Tx={n_tx}"
+        )
+
+        fig = create_price_and_signals_chart(
+            crypto_prices=w.get("crypto_prices", []),
+            trade_history=w.get("trade_history", []),
+            title=fig_title,
+        )
+
+        # Only include plotly.js once to keep the HTML smaller.
+        fig_html = pio.to_html(
+            fig,
+            include_plotlyjs=include_js,
+            full_html=False,
+            config={"displayModeBar": False},
+        )
+        include_js = False
+
+        html_parts.append("<div class='window-block'>")
+        html_parts.append(f"<div class='window-meta'>{fig_title}</div>")
+        html_parts.append(fig_html)
+        html_parts.append("</div>")
+
+    html_parts.append("</body></html>")
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("\n".join(html_parts))
+
+    print(f"Moving window signals report saved to {filename}")
+    return filename
 
 
 def display_chart(fig: go.Figure) -> None:
