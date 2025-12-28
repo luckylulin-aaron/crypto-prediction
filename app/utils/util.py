@@ -272,6 +272,7 @@ def run_moving_window_simulation(
     # Store results for each window
     window_results = []
     strategy_performances = defaultdict(list)  # strategy -> list of metrics
+    window_chart_data = []  # per-window price + buy/sell markers for visualization
     
     for window_idx, window_data in enumerate(windows):
         window_start_time = time.perf_counter()
@@ -345,6 +346,37 @@ def run_moving_window_simulation(
                     f"Baseline return: {baseline_return:.2f}%, "
                     f"Transactions: {best_trader.num_transaction} | "
                     f"Transaction details: {transactions_str}")
+
+        # Prepare per-window chart data (price series + buy/sell markers)
+        # Deduplicate actions by timestamp to avoid multiple markers on the same date.
+        action_priority = {"SELL": 2, "BUY": 1}
+        date_to_trade = {}
+        for evt in getattr(best_trader, "trade_history", []) or []:
+            action = evt.get("action")
+            if action not in ("BUY", "SELL"):
+                continue
+            d = evt.get("date")
+            key = str(d)
+            prev = date_to_trade.get(key)
+            if prev is None or action_priority[action] > action_priority.get(prev.get("action"), 0):
+                date_to_trade[key] = {"date": d, "action": action, "price": evt.get("price")}
+
+        dedup_trade_history = list(date_to_trade.values())
+
+        window_chart_data.append(
+            {
+                "window_idx": window_idx,
+                "window_start_date": window_start_date,
+                "window_end_date": window_end_date,
+                "window_size": len(window_data),
+                "best_strategy": best_trader.high_strategy,
+                "rate_of_return": rate_of_return_float,
+                "baseline_rate_of_return": float(baseline_return),
+                "num_transactions": best_trader.num_transaction,
+                "crypto_prices": getattr(best_trader, "crypto_prices", window_data),
+                "trade_history": dedup_trade_history,
+            }
+        )
         
         window_result = {
             "window_idx": window_idx,
@@ -430,4 +462,5 @@ def run_moving_window_simulation(
         "best_strategy_metrics": aggregated_strategies[best_strategy_name],
         "window_results": window_results,
         "best_window_result": best_window_result,
+        "window_chart_data": window_chart_data,
     }
