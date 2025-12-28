@@ -827,54 +827,74 @@ class StratTrader:
 
     @property
     def trade_signal(self):
-        """Given a new day\'s price, determine if there\'s a suggested transaction.
+        """Backwards-compatible: trade signal for the most recent interval (no lag)."""
+        return self.get_trade_signal(lag_intervals=0)
 
-        :argument
-
-        :return
-            (str)
-
-        :raise
+    def get_trade_signal(self, lag_intervals: int = 0) -> dict:
         """
+        Get a trade signal from historical events with an optional lag.
+
+        This is useful in live trading when the most recent candle/interval may be incomplete.
+        For example, lag_intervals=1 means "act today based on the previous interval's signal".
+
+        Args:
+            lag_intervals (int): Number of most-recent intervals to lag by. 0 means latest.
+
+        Returns:
+            dict: {"action": str, "buy_percentage": float, "sell_percentage": float}
+
+        Raises:
+            ValueError: If lag_intervals is negative.
+        """
+        if lag_intervals < 0:
+            raise ValueError("lag_intervals must be >= 0")
+
         res = {
             "action": NO_ACTION_SIGNAL,
             "buy_percentage": self.buy_pct,
             "sell_percentage": self.sell_pct,
         }
-        # find last date on which a transaction occurs
-        last_evt = self.trade_history[-1] if len(self.trade_history) > 0 else {}
-        last_date_str = last_evt.get("date", None)
-        if last_date_str is None:
+
+        # Need at least 1 event (+ lag)
+        if len(self.trade_history) <= lag_intervals:
             return res
 
-        # Support both date-only and datetime formats
-        fmts = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"]
-        last_date_dt_obj = None
-        for fmt in fmts:
-            try:
-                last_date_dt_obj = datetime.datetime.strptime(last_date_str, fmt)
-                break
-            except:
-                pass
-        
-        if last_date_dt_obj is None:
+        last_evt = self.trade_history[-1 - lag_intervals]
+        last_date = last_evt.get("date", None)
+        if last_date is None:
             return res
+
+        # Normalize to datetime
+        if isinstance(last_date, datetime.datetime):
+            last_date_dt_obj = last_date
+        else:
+            last_date_str = str(last_date)
+            fmts = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"]
+            last_date_dt_obj = None
+            for fmt in fmts:
+                try:
+                    last_date_dt_obj = datetime.datetime.strptime(last_date_str, fmt)
+                    break
+                except Exception:
+                    continue
+            if last_date_dt_obj is None:
+                return res
 
         # find today's date, and time delta
         td = datetime.datetime.now()
         diff = td - last_date_dt_obj
 
-        # For sub-daily intervals, check if within the last interval period
+        # For sub-daily intervals, check if within the last (lag + 1) interval periods
         # Default to 6 hours if DATA_INTERVAL_HOURS is not available
         try:
             from core.config import DATA_INTERVAL_HOURS
             interval_hours = DATA_INTERVAL_HOURS
         except ImportError:
             interval_hours = 6
-        
-        # Check if within the last interval (e.g., 6 hours for 6h granularity)
-        if diff.total_seconds() <= interval_hours * 3600:
-            res["action"] = last_evt["action"]
+
+        max_age_seconds = (lag_intervals + 1) * interval_hours * 3600
+        if diff.total_seconds() <= max_age_seconds:
+            res["action"] = last_evt.get("action", NO_ACTION_SIGNAL)
 
         return res
 
