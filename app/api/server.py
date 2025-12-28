@@ -213,7 +213,9 @@ def run_trading_simulation():
                     d=today,
                     misc_p={"open": new_p, "low": new_p, "high": new_p},
                 )
-                signal = best_t.trade_signal
+                # Use a 1-interval lag to avoid acting on an in-progress candle/interval.
+                # This effectively means: execute today based on the previous interval's signal.
+                signal = best_t.get_trade_signal(lag_intervals=1)
 
                 # Generate visualizations
                 try:
