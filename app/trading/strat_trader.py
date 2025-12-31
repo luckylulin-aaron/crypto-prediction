@@ -913,10 +913,17 @@ class StratTrader:
         diff = td - last_date_dt_obj
 
         # For sub-daily intervals, check if within the last (lag + 1) interval periods
-        # Default to 6 hours if DATA_INTERVAL_HOURS is not available
+        # Default to 6 hours if DATA_INTERVAL_HOURS is not available.
+        # IMPORTANT: Stocks are always treated as 1-day granularity (24h), regardless of DATA_INTERVAL_HOURS.
         try:
-            from core.config import DATA_INTERVAL_HOURS
-            interval_hours = DATA_INTERVAL_HOURS
+            try:
+                # Preferred import path when running as a package
+                from app.core.config import DATA_INTERVAL_HOURS, STOCKS
+            except Exception:
+                # Fallback import path used by some scripts/tests
+                from core.config import DATA_INTERVAL_HOURS, STOCKS
+
+            interval_hours = 24 if self.crypto_name in STOCKS else DATA_INTERVAL_HOURS
         except ImportError:
             interval_hours = 6
 

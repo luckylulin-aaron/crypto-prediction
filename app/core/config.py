@@ -91,6 +91,7 @@ SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 # currencies (crptocurrency + stablecoin + fiat)
 # Updated to match actual account holdings
 CURS = [
+    "BTC",
     "SOL",
     "UNI",
     "LTC",
@@ -126,7 +127,7 @@ TIMESPAN = 90
 # Data interval granularity (in hours)
 # Controls the frequency of data points fetched from exchanges
 # Options: 1 (hourly), 6 (6-hourly), 12 (12-hourly), 24 (daily), etc.
-DATA_INTERVAL_HOURS = 1 # 12-hour intervals for finer granularity
+DATA_INTERVAL_HOURS = 6 # 12-hour intervals for finer granularity
 
 # Moving window configuration for simulation
 # For a given TIMESPAN, use overlapping windows of MOVING_WINDOW_DAYS to run multiple simulations
@@ -180,8 +181,8 @@ EXCHANGE_CONFIGS = [
 
 # List of US stock tickers to fetch via yfinance
 STOCKS = [
-    'AAPL',  # Apple
     'TSLA',  # Tesla
+    'AAPL',  # Apple
     'JD', # JD.com
     'ORCL', # Oracle,
     'META', # Meta,
