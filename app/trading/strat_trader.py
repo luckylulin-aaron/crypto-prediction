@@ -243,6 +243,34 @@ class StratTrader:
                         bollinger_sigma=self.bollinger_sigma,
                     )
 
+            elif self.high_strategy == "MA-BOLL-BANDS":
+                # Use the shortest MA (and its corresponding Bollinger window) for regime detection
+                if len(self.bollinger_mas) == 0:
+                    self._record_history(new_p, d, NO_ACTION_SIGNAL)
+                    self.strat_dct[self.high_strategy].append((d, NO_ACTION_SIGNAL))
+                    return
+
+                shortest_queue = str(min([int(x) for x in self.bollinger_mas]))
+                if (
+                    shortest_queue not in self.moving_averages
+                    or len(self.moving_averages[shortest_queue]) == 0
+                    or self.moving_averages[shortest_queue][-1] is None
+                ):
+                    self._record_history(new_p, d, NO_ACTION_SIGNAL)
+                    self.strat_dct[self.high_strategy].append((d, NO_ACTION_SIGNAL))
+                    return
+
+                strategy_func(
+                    trader=self,
+                    queue_name=shortest_queue,
+                    new_p=new_p,
+                    today=d,
+                    tol_pct=self.tol_pct,
+                    buy_pct=self.buy_pct,
+                    sell_pct=self.sell_pct,
+                    bollinger_sigma=self.bollinger_sigma,
+                )
+
             elif self.high_strategy == "RSI":
                 strategy_func(
                     trader=self,

@@ -24,15 +24,15 @@ STRATEGIES = [
     #"ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
     # "DOUBLE-MA",  # Double moving average crossover
     # "MACD",  # MACD momentum indicator
-    # "BOLL-BANDS",  # Bollinger Bands volatility strategy
+    #"BOLL-BANDS",  # Bollinger Bands volatility strategy
     # "KDJ",  # KDJ oscillator
     # "MA-MACD",  # Combined MA + MACD (requires both signals)
     # "MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
     # "RSI-BOLL",  # Combined RSI + Bollinger Bands
-    #"TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
+    # "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
     # "CONSERVATIVE-MA",  # MA with multiple period confirmation
     # "VOLUME-BREAKOUT",  # Volume-based breakout strategy
-    #"MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
+    # "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
     # "TREND-MA-SELVES",  # Trend-aware MA strategy
     # "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
     # "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
@@ -40,6 +40,7 @@ STRATEGIES = [
     # "SIMPLE-RECURRING",  # Simple recurring investment strategy
     # "WEIGHTED-RECURRING",  # Weighted recurring investment based on MA
     # "ECONOMIC-INDICATORS",  # Macroeconomic indicators overlay strategy
+    "MA-BOLL-BANDS", # MA + Bollinger Bands volatility strategy
 ]
 
 # simulation configuration
@@ -125,7 +126,7 @@ TIMESPAN = 90
 # Data interval granularity (in hours)
 # Controls the frequency of data points fetched from exchanges
 # Options: 1 (hourly), 6 (6-hourly), 12 (12-hourly), 24 (daily), etc.
-DATA_INTERVAL_HOURS = 12  # 12-hour intervals for finer granularity
+DATA_INTERVAL_HOURS = 1 # 12-hour intervals for finer granularity
 
 # Moving window configuration for simulation
 # For a given TIMESPAN, use overlapping windows of MOVING_WINDOW_DAYS to run multiple simulations

@@ -225,6 +225,151 @@ def strategy_bollinger_bands(
     return r_buy, r_sell
 
 
+def strategy_ma_boll_bands(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+    bollinger_sigma: int,
+    trend_lookback: int = 3,
+    trend_min_abs_slope_pct: float = 0.002,
+    band_breakout_pct: float = 0.002,
+    cooldown_days: int = 2,
+) -> Tuple[bool, bool]:
+    """
+    MA + Bollinger Bands strategy using the shortest MA trend to define regime.
+
+    Regime definition is based on the direction of the moving average:
+    - Bull market: MA trending upward (last MA > previous MA)
+      - Buy when price "touches" the MA (within tol_pct)
+      - Sell when price exceeds the upper Bollinger Band
+    - Bear market: MA trending downward (last MA < previous MA)
+      - Sell when price "touches" the MA (within tol_pct)
+      - Buy when price goes below the lower Bollinger Band (oversold)
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The MA queue name (should be the shortest MA).
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Touch tolerance as a fraction of MA (e.g. 0.01 = 1%).
+        buy_pct (float): Buy percentage (kept for API consistency).
+        sell_pct (float): Sell percentage (kept for API consistency).
+        bollinger_sigma (int): Bollinger sigma value.
+        trend_lookback (int, optional): Lookback window (in MA points) for trend slope. Defaults to 3.
+        trend_min_abs_slope_pct (float, optional): Minimum absolute MA slope (as % of MA) to trade.
+            Defaults to 0.002 (0.2%).
+        band_breakout_pct (float, optional): Extra margin beyond bands to confirm breakout and reduce churn.
+            Defaults to 0.002 (0.2%).
+        cooldown_days (int, optional): Minimum days between non-NO-ACTION signals to reduce overtrading.
+            Defaults to 2.
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "MA-BOLL-BANDS"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Require enough MA points to (a) determine trend and (b) compute bands without lookahead.
+    not_null_values = list(
+        filter(lambda x: x is not None, trader.moving_averages[queue_name])
+    )
+    if len(not_null_values) < (trend_lookback + 2):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # NOTE: `StratTrader.add_new_day()` appends today's MA value before calling strategies.
+    # To avoid lookahead bias, we use the previous MA for regime + "touch" decisions.
+    signal_ma = not_null_values[-2]
+    if signal_ma is None or signal_ma <= 0:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    ma_now = not_null_values[-2]
+    ma_past = not_null_values[-(trend_lookback + 2)]
+    if ma_past is None or ma_past <= 0:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Trend slope (normalized): positive => bull, negative => bear.
+    slope_pct = (ma_now - ma_past) / ma_now
+    trending_up = slope_pct >= trend_min_abs_slope_pct
+    trending_down = slope_pct <= -trend_min_abs_slope_pct
+
+    # Determine "touch" as being within tol_pct of the MA level
+    touch_ma = abs(new_p - signal_ma) <= (tol_pct * signal_ma)
+
+    # Simple cooldown using the last non-NO-ACTION signal date for this strategy.
+    if cooldown_days > 0 and strat_name in trader.strat_dct:
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                if hasattr(today, "date"):
+                    delta_days = (today.date() - past_dt.date()).days
+                else:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
+    # Compute Bollinger bands from recent MA values (must have >= window length)
+    boll_upper = None
+    boll_lower = None
+    # Avoid lookahead: compute bands using MA values up to yesterday (exclude last appended MA).
+    band_values = not_null_values[:-1]
+    if len(band_values) >= int(queue_name):
+        mas = band_values[-int(queue_name) :]
+        ma_mean, ma_std = np.mean(mas), np.std(mas)
+        boll_upper = ma_mean + bollinger_sigma * ma_std
+        boll_lower = ma_mean - bollinger_sigma * ma_std
+
+    r_buy, r_sell = False, False
+
+    # Bull regime
+    if trending_up:
+        # Sell first if extremely overbought
+        if boll_upper is not None and new_p >= boll_upper * (1.0 + band_breakout_pct):
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+        # Otherwise buy on MA touch
+        elif touch_ma:
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+    # Bear regime
+    elif trending_down:
+        # Buy first if extremely oversold (short-term mean reversion)
+        if boll_lower is not None and new_p <= boll_lower * (1.0 - band_breakout_pct):
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        # Otherwise sell on MA touch
+        elif touch_ma:
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    # add history as well if nothing happens (or execution failed)
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    return r_buy, r_sell
+
+
 def strategy_rsi(
     trader,
     new_p: float,
@@ -2122,6 +2267,7 @@ STRATEGY_REGISTRY = {
     "DOUBLE-MA": strategy_double_moving_averages,
     "MACD": strategy_macd,
     "BOLL-BANDS": strategy_bollinger_bands,
+    "MA-BOLL-BANDS": strategy_ma_boll_bands,
     "KDJ": strategy_kdj,
     "MA-MACD": strategy_ma_macd_combined,
     "MACD-KDJ": strategy_macd_kdj_combined,
