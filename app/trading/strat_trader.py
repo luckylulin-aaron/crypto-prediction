@@ -16,7 +16,7 @@ from app.core.config import (
     NO_ACTION_SIGNAL,
     ROUND_PRECISION,
     SELL_SIGNAL,
-    STRATEGIES,
+    SUPPORTED_STRATEGIES,
     WITHDRAW_CST,
 )
 from app.trading.strategies import STRATEGY_REGISTRY
@@ -77,7 +77,9 @@ class StratTrader:
             None
         """
         # check
-        if stat not in STRATEGIES:
+        # `SUPPORTED_STRATEGIES` is the source of truth for what strategies exist in code.
+        # Enabled strategies differ between crypto vs stocks (see config.CRYPTO_STRATEGIES/STOCK_STRATEGIES).
+        if stat not in SUPPORTED_STRATEGIES:
             raise ValueError("Unknown high-level trading strategy!")
         if not all([x in ma_lengths for x in bollinger_mas]):
             raise ValueError(
@@ -242,6 +244,34 @@ class StratTrader:
                         today=d,
                         bollinger_sigma=self.bollinger_sigma,
                     )
+
+            elif self.high_strategy == "MA-BOLL-BANDS":
+                # Use the shortest MA (and its corresponding Bollinger window) for regime detection
+                if len(self.bollinger_mas) == 0:
+                    self._record_history(new_p, d, NO_ACTION_SIGNAL)
+                    self.strat_dct[self.high_strategy].append((d, NO_ACTION_SIGNAL))
+                    return
+
+                shortest_queue = str(min([int(x) for x in self.bollinger_mas]))
+                if (
+                    shortest_queue not in self.moving_averages
+                    or len(self.moving_averages[shortest_queue]) == 0
+                    or self.moving_averages[shortest_queue][-1] is None
+                ):
+                    self._record_history(new_p, d, NO_ACTION_SIGNAL)
+                    self.strat_dct[self.high_strategy].append((d, NO_ACTION_SIGNAL))
+                    return
+
+                strategy_func(
+                    trader=self,
+                    queue_name=shortest_queue,
+                    new_p=new_p,
+                    today=d,
+                    tol_pct=self.tol_pct,
+                    buy_pct=self.buy_pct,
+                    sell_pct=self.sell_pct,
+                    bollinger_sigma=self.bollinger_sigma,
+                )
 
             elif self.high_strategy == "RSI":
                 strategy_func(
@@ -885,10 +915,17 @@ class StratTrader:
         diff = td - last_date_dt_obj
 
         # For sub-daily intervals, check if within the last (lag + 1) interval periods
-        # Default to 6 hours if DATA_INTERVAL_HOURS is not available
+        # Default to 6 hours if DATA_INTERVAL_HOURS is not available.
+        # IMPORTANT: Stocks are always treated as 1-day granularity (24h), regardless of DATA_INTERVAL_HOURS.
         try:
-            from core.config import DATA_INTERVAL_HOURS
-            interval_hours = DATA_INTERVAL_HOURS
+            try:
+                # Preferred import path when running as a package
+                from app.core.config import DATA_INTERVAL_HOURS, STOCKS
+            except Exception:
+                # Fallback import path used by some scripts/tests
+                from core.config import DATA_INTERVAL_HOURS, STOCKS
+
+            interval_hours = 24 if self.crypto_name in STOCKS else DATA_INTERVAL_HOURS
         except ImportError:
             interval_hours = 6
 

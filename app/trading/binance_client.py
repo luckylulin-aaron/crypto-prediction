@@ -1,4 +1,3 @@
-# Requires: pip install binance-connector
 import time
 from datetime import datetime, timedelta
 from typing import Any, List, Optional
@@ -49,7 +48,48 @@ class BinanceClient:
         Raises:
             ConnectionError: If the API call fails.
         """
-        if use_cache:
+        # NOTE ABOUT GRANULARITY + CACHING:
+        # The current DB schema uses (symbol, date) as the uniqueness key. If we store multiple
+        # granularities (e.g., 12h vs 30m) under the same symbol, rows will collide/overwrite.
+        # To avoid corrupting cached data, we only use DB cache for the original hour-based intervals.
+        interval_minutes = int(round(float(DATA_INTERVAL_HOURS) * 60))
+
+        def _binance_interval_str(minutes: int) -> str:
+            # Binance spot kline interval strings (common subset)
+            if minutes < 1:
+                raise ValueError(f"interval_minutes must be >= 1, got {minutes}")
+            if minutes % 60 == 0:
+                hours = minutes // 60
+                if hours == 1:
+                    return "1h"
+                if hours == 2:
+                    return "2h"
+                if hours == 4:
+                    return "4h"
+                if hours == 6:
+                    return "6h"
+                if hours == 8:
+                    return "8h"
+                if hours == 12:
+                    return "12h"
+                if hours == 24:
+                    return "1d"
+            # minute-based
+            if minutes in (1, 3, 5, 15, 30):
+                return f"{minutes}m"
+            raise ValueError(
+                f"Unsupported Binance kline interval: {minutes} minutes. "
+                f"Try 30m directly, or use 5m/15m and resample."
+            )
+
+        # 10m is not a standard Binance interval; we can fetch 5m and resample.
+        wants_resample_10m = interval_minutes == 10
+        fetch_interval_minutes = 5 if wants_resample_10m else interval_minutes
+        interval_str = _binance_interval_str(fetch_interval_minutes)
+
+        cache_allowed = fetch_interval_minutes in (60, 360, 720, 1440) and not wants_resample_10m
+
+        if use_cache and cache_allowed:
             cached_data = db_manager.get_historical_data(symbol, TIMESPAN)
             if cached_data and db_manager.is_data_fresh(symbol, max_age_hours=72):
                 self.logger.info(
@@ -64,6 +104,11 @@ class BinanceClient:
                 self.logger.info(
                     f"No cached data found for {symbol}, fetching from API"
                 )
+        elif use_cache and not cache_allowed:
+            self.logger.info(
+                f"DB cache disabled for {symbol} at interval={interval_minutes}m "
+                f"(to avoid DB collisions). Fetching from API."
+            )
 
         try:
             end = int(time.time() * 1000)
@@ -71,40 +116,106 @@ class BinanceClient:
                 (datetime.utcnow() - timedelta(days=TIMESPAN)).timestamp() * 1000
             )
             self.logger.info(f"Fetching klines for {symbol} from {datetime.utcfromtimestamp(start/1000).strftime('%Y-%m-%d %H:%M:%S')} to {datetime.utcfromtimestamp(end/1000).strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            # Map interval hours to Binance interval string
-            interval_map = {1: "1h", 6: "6h", 12: "12h", 24: "1d"}
-            interval_str = interval_map.get(DATA_INTERVAL_HOURS, "6h")
-            
-            klines = self.client.klines(symbol, interval_str, startTime=start, endTime=end)
-            self.logger.info(f"Received {len(klines)} klines from API for {symbol} (interval: {interval_str})")
+
+            # Binance returns limited klines per request; paginate to cover long timespans.
+            def _fetch_klines_paginated(
+                sym: str,
+                itv: str,
+                start_ms: int,
+                end_ms: int,
+                limit: int = 1000,
+            ) -> List[list]:
+                out: List[list] = []
+                cur_start = start_ms
+                while True:
+                    batch = self.client.klines(
+                        sym, itv, startTime=cur_start, endTime=end_ms, limit=limit
+                    )
+                    if not batch:
+                        break
+                    out.extend(batch)
+                    last_open_time = batch[-1][0]
+                    # Move start forward; +1ms to avoid infinite loop on identical last_open_time.
+                    next_start = last_open_time + 1
+                    if next_start <= cur_start:
+                        break
+                    cur_start = next_start
+                    # If we got less than the limit, we’re likely done.
+                    if len(batch) < limit:
+                        break
+                    # Be gentle on rate limits
+                    time.sleep(0.05)
+                return out
+
+            klines = _fetch_klines_paginated(symbol, interval_str, start, end, limit=1000)
+            self.logger.info(
+                f"Received {len(klines)} klines from API for {symbol} (interval: {interval_str})"
+            )
             
             if not klines:
                 self.logger.warning(f"No klines returned from API for {symbol}")
                 return []
-            
-            parsed = []
+
+            # Parse into [close, datetime_str, open, low, high, volume]
+            raw = []
             for k in klines:
-                open_time = k[0] // 1000
-                fmt_dt_str = datetime.utcfromtimestamp(open_time).strftime("%Y-%m-%d %H:%M:%S")
+                open_time_s = k[0] // 1000
+                fmt_dt_str = datetime.utcfromtimestamp(open_time_s).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
                 open_price = float(k[1])
                 high = float(k[2])
                 low = float(k[3])
                 closing_price = float(k[4])
                 volume = float(k[5])
-                parsed.append(
-                    [closing_price, fmt_dt_str, open_price, low, high, volume]
-                )
-            parsed = sorted(parsed, key=lambda x: x[1])
-            # Filter out data from the current interval (last 6 hours if using 6h interval)
+                raw.append([closing_price, fmt_dt_str, open_price, low, high, volume])
+            raw = sorted(raw, key=lambda x: x[1])
+
+            # Resample 5m -> 10m if requested
+            parsed = raw
+            if wants_resample_10m:
+                grouped = {}
+                for close_p, dt_str, open_p, low_p, high_p, vol in raw:
+                    dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                    # floor to 10-minute boundary
+                    floored_minute = (dt_obj.minute // 10) * 10
+                    bucket = dt_obj.replace(minute=floored_minute, second=0, microsecond=0)
+                    key = bucket.strftime("%Y-%m-%d %H:%M:%S")
+                    if key not in grouped:
+                        grouped[key] = {
+                            "open": open_p,
+                            "high": high_p,
+                            "low": low_p,
+                            "close": close_p,
+                            "volume": vol,
+                        }
+                    else:
+                        grouped[key]["high"] = max(grouped[key]["high"], high_p)
+                        grouped[key]["low"] = min(grouped[key]["low"], low_p)
+                        grouped[key]["close"] = close_p
+                        grouped[key]["volume"] += vol
+                keys = sorted(grouped.keys())
+                parsed = [
+                    [
+                        grouped[k]["close"],
+                        k,
+                        grouped[k]["open"],
+                        grouped[k]["low"],
+                        grouped[k]["high"],
+                        grouped[k]["volume"],
+                    ]
+                    for k in keys
+                ]
+
+            # Filter out data from the current (possibly incomplete) interval
             now = datetime.utcnow()
-            cutoff_time = now - timedelta(hours=DATA_INTERVAL_HOURS)
+            cutoff_time = now - timedelta(minutes=interval_minutes)
             cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
             parsed = [x for x in parsed if x[1] < cutoff_str]
             
             self.logger.info(f"Processed {len(parsed)} data points for {symbol} after filtering")
             
-            if use_cache and parsed:
+            if use_cache and cache_allowed and parsed:
                 db_manager.store_historical_data(symbol, parsed)
             return parsed
         except Exception as e:

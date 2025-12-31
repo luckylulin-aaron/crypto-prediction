@@ -319,12 +319,166 @@ def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClien
     return None, None
 
 
-def main():
+def _run_stock_simulation(all_actions: list) -> None:
+    """
+    Run stock simulation only (daily candles).
+
+    Args:
+        all_actions (list): List to append formatted action lines for logging/email.
+
+    Returns:
+        None
+    """
+    logger.info("\n" + "=" * 50)
+    logger.info("STARTING STOCK TRADING SIMULATION")
+    logger.info("=" * 50)
+
+    # Check if it's a weekend day (Sunday or Monday) to skip stock simulation
+    # US stock market is closed on weekends, and there's a one-day delay in data
+    current_weekday = datetime.now().weekday()  # Monday=0, Sunday=6
+    if current_weekday in [6, 0]:  # Sunday (6) or Monday (0)
+        logger.info(
+            f"Skipping stock simulation - current day is {'Sunday' if current_weekday == 6 else 'Monday'}"
+        )
+        logger.info("US stock market is closed on weekends, and data has one-day delay")
+        return
+
+    logger.info(
+        f"Proceeding with stock simulation - current day is {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][current_weekday]}"
+    )
+
+    # Initialize US Stock Client
+    stock_client = USStockClient(tickers=STOCKS)
+
+    # only 1 stock for debugging purposes
+    stock_list = STOCKS[:1] if DEBUG else STOCKS
+
+    # Simulate stock trading for each stock
+    for stock in stock_list:
+        logger.info(f"\n\n# --- Simulating for Stock: {stock} --- #")
+
+        try:
+            # Get historical data for the stock using TIMESPAN
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=TIMESPAN)).strftime("%Y-%m-%d")
+            data_stream = stock_client.get_historic_data(stock, start=start_date, end=end_date)
+            logger.info(f"Retrieved {len(data_stream)} data points for {stock} (last {TIMESPAN} days)")
+
+            # Validate data stream before creating trader driver
+            if not data_stream:
+                logger.error(f"No historical data available for stock {stock}")
+                continue
+
+            if len(data_stream) < 2:
+                logger.error(
+                    f"Insufficient historical data for stock {stock}: only {len(data_stream)} data points available"
+                )
+                continue
+
+            # For stock simulation, we'll use a fixed initial amount
+            # You can modify this based on your stock portfolio value
+            initial_stock_amount = 10000  # $10,000 initial investment
+            current_stock_amount = 0  # Assume no current holdings for simulation
+
+            # Run simulation for stocks
+            if DEBUG:
+                SIM_BUY_PCTS = [BUY_PCTS[0]]
+                SIM_SELL_PCTS = [SELL_PCTS[0]]
+            else:
+                SIM_BUY_PCTS = BUY_PCTS
+                SIM_SELL_PCTS = SELL_PCTS
+
+            trader_driver = TraderDriver(
+                name=stock,
+                init_amount=initial_stock_amount,
+                cur_coin=current_stock_amount,
+                # only test 1 strategy for debugging purposes
+                overall_stats=STOCK_STRATEGIES if DEBUG is not True else STOCK_STRATEGIES[:5],
+                tol_pcts=TOL_PCTS,
+                ma_lengths=MA_LENGTHS,
+                ema_lengths=EMA_LENGTHS,
+                bollinger_mas=BOLLINGER_MAS,
+                bollinger_tols=BOLLINGER_TOLS,
+                buy_pcts=SIM_BUY_PCTS,
+                sell_pcts=SIM_SELL_PCTS,
+                buy_stas=BUY_STAS,
+                sell_stas=SELL_STAS,
+                rsi_periods=RSI_PERIODS,
+                rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
+                rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
+                kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
+                kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
+                mode="normal",
+            )
+            trader_driver.feed_data(data_stream)
+            best_info = trader_driver.best_trader_info
+            best_t = trader_driver.traders[best_info["trader_index"]]
+            signal = best_t.trade_signal
+
+            # Log best trader summary for stock
+            init_value = best_info.get("init_value", 0)
+            max_final_value = best_info.get("max_final_value", 0)
+            logger.info(
+                f"\n{'★'*10} BEST TRADER SUMMARY (STOCK: {stock}) {'★'*10}\n"
+                f"Best trader performance:\n"
+                f"  Strategy Parameters:\n"
+                f"    - Buy percentage: {best_info.get('buy_pct', 'N/A')}\n"
+                f"    - Sell percentage: {best_info.get('sell_pct', 'N/A')}\n"
+                f"    - Tolerance percentage: {best_info.get('tol_pct', 'N/A')}\n"
+                f"    - Bollinger sigma: {best_info.get('bollinger_sigma', 'N/A')}\n"
+                f"    - Buy strategy: {best_info.get('buy', 'N/A')}\n"
+                f"    - Sell strategy: {best_info.get('sell', 'N/A')}\n"
+                f"  Performance Metrics:\n"
+                f"    - Initial value: ${init_value:,.2f}\n"
+                f"    - Final value: ${max_final_value:,.2f}\n"
+                f"    - Rate of return: {best_info.get('rate_of_return', 'N/A')}\n"
+                f"    - Baseline rate of return: {best_info.get('baseline_rate_of_return', 'N/A')}\n"
+                f"    - Coin rate of return: {best_info.get('coin_rate_of_return', 'N/A')}\n"
+                f"  Trading Statistics:\n"
+                f"    - Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
+                f"    - Transactions: {best_t.num_transaction}\n"
+                f"    - Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
+                f"    - Strategy: {best_t.high_strategy}\n"
+                f"    - Today's signal: {signal} for stock={best_t.crypto_name}\n"
+                f"{'★'*36}\n"
+            )
+
+            # Save visualizations for stock
+            strategy_performance = trader_driver.get_all_strategy_performance()
+            dashboard_filename = (
+                f"app/visualization/plots/trading_dashboard_{stock}_STOCK_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            )
+            create_comprehensive_dashboard(
+                trader_instance=best_t,
+                save_html=True,
+                filename=dashboard_filename,
+                strategy_performance=strategy_performance,
+            )
+
+            # Gather recommended action for email/log
+            action_line = (
+                f"{datetime.now()} | STOCK | {stock} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
+            )
+            all_actions.append(action_line)
+
+            # Log recommended action to log.txt
+            with open(LOG_FILE, "a") as outfile:
+                outfile.write(action_line + "\n")
+
+        except ValueError as e:
+            logger.error(f"Data validation failed for stock {stock}: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Stock simulation failed for {stock}: {e}")
+            continue
+
+
+def main(asset: str = "all"):
     """
     Run simulation and make trades.
 
     Args:
-        None
+        asset (str): "crypto" | "stock" | "all" (default "all").
 
     Returns:
         None
@@ -333,7 +487,31 @@ def main():
         Exception: If there is an error during portfolio value retrieval or trading simulation.
     """
 
+    asset_mode = (asset or "all").strip().lower()
+    if asset_mode not in ("crypto", "stock", "all"):
+        raise ValueError(f"Unknown asset mode: {asset!r}. Use crypto|stock|all.")
+
     logger.info(f"COMMIT is set to {COMMIT}")
+    logger.info(f"Asset mode: {asset_mode}")
+
+    # Collect recommended actions for email/log
+    all_actions = []
+
+    # Stock-only mode: skip crypto clients entirely.
+    if asset_mode == "stock":
+        _run_stock_simulation(all_actions)
+
+        # Send daily recommendations email if not in debug mode
+        if DEBUG is False:
+            send_daily_recommendations_email(
+                LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
+            )
+
+        # write to log file
+        now = datetime.now()
+        with open(LOG_FILE, "a") as outfile:
+            outfile.write("Finish job at time {}\n\n".format(str(now)))
+        return
 
     # initialise different clients
     coinbase_client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
@@ -427,7 +605,6 @@ def main():
         exchanges.append(exch)
 
     simulated_assets = set()
-    all_actions = []
 
     # Display portfolio information for both exchanges
     logger.info("=== Portfolio Overview ===")
@@ -539,7 +716,7 @@ def main():
                 init_amount=source_exchange_config["stablecoin_value"],
                 cur_coin=sim_coin_amount,
                 # only test 1 strategy for debugging purposes
-                overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
+                overall_stats=CRYPTO_STRATEGIES if DEBUG is not True else CRYPTO_STRATEGIES[:5],
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -569,7 +746,7 @@ def main():
                 init_amount=source_exchange_config["stablecoin_value"],
                 cur_coin=sim_coin_amount,
                 # only test 1 strategy for debugging purposes
-                overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
+                overall_stats=CRYPTO_STRATEGIES if DEBUG is not True else CRYPTO_STRATEGIES[:5],
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -694,137 +871,8 @@ def main():
     )
 
     # --- Stock Trading Simulation ---
-    logger.info("\n" + "="*50)
-    logger.info("STARTING STOCK TRADING SIMULATION")
-    logger.info("="*50)
-    
-    # Check if it's a weekend day (Sunday or Monday) to skip stock simulation
-    # US stock market is closed on weekends, and there's a one-day delay in data
-    current_weekday = datetime.now().weekday()  # Monday=0, Sunday=6
-    if current_weekday in [6, 0]:  # Sunday (6) or Monday (0)
-        logger.info(f"Skipping stock simulation - current day is {'Sunday' if current_weekday == 6 else 'Monday'}")
-        logger.info("US stock market is closed on weekends, and data has one-day delay")
-    else:
-        logger.info(f"Proceeding with stock simulation - current day is {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][current_weekday]}")
-        
-        # Initialize US Stock Client
-        stock_client = USStockClient(tickers=STOCKS)
-        
-        # only 1 stock for debugging purposes
-        stock_list = STOCKS[:1] if DEBUG else STOCKS
-
-        # Simulate stock trading for each stock
-        for stock in stock_list:
-            logger.info(f"\n\n# --- Simulating for Stock: {stock} --- #")
-            
-            try:
-                # Get historical data for the stock using TIMESPAN
-                end_date = datetime.now().strftime('%Y-%m-%d')
-                start_date = (datetime.now() - timedelta(days=TIMESPAN)).strftime('%Y-%m-%d')
-                data_stream = stock_client.get_historic_data(stock, start=start_date, end=end_date)
-                logger.info(f"Retrieved {len(data_stream)} data points for {stock} (last {TIMESPAN} days)")
-                
-                # Validate data stream before creating trader driver
-                if not data_stream:
-                    logger.error(f"No historical data available for stock {stock}")
-                    continue
-                
-                if len(data_stream) < 2:
-                    logger.error(f"Insufficient historical data for stock {stock}: only {len(data_stream)} data points available")
-                    continue
-                
-                # For stock simulation, we'll use a fixed initial amount
-                # You can modify this based on your stock portfolio value
-                initial_stock_amount = 10000  # $10,000 initial investment
-                current_stock_amount = 0  # Assume no current holdings for simulation
-                
-                # Run simulation for stocks
-                if DEBUG:
-                    SIM_BUY_PCTS = [BUY_PCTS[0]]
-                    SIM_SELL_PCTS = [SELL_PCTS[0]]
-                else:
-                    SIM_BUY_PCTS = BUY_PCTS
-                    SIM_SELL_PCTS = SELL_PCTS
-                    
-                trader_driver = TraderDriver(
-                    name=stock,
-                    init_amount=initial_stock_amount,
-                    cur_coin=current_stock_amount,
-                    # only test 1 strategy for debugging purposes
-                    overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
-                    tol_pcts=TOL_PCTS,
-                    ma_lengths=MA_LENGTHS,
-                    ema_lengths=EMA_LENGTHS,
-                    bollinger_mas=BOLLINGER_MAS,
-                    bollinger_tols=BOLLINGER_TOLS,
-                    buy_pcts=SIM_BUY_PCTS,
-                    sell_pcts=SIM_SELL_PCTS,
-                    buy_stas=BUY_STAS,
-                    sell_stas=SELL_STAS,
-                    rsi_periods=RSI_PERIODS,
-                    rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
-                    rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
-                    kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
-                    kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
-                    mode="normal",
-                )
-                trader_driver.feed_data(data_stream)
-                best_info = trader_driver.best_trader_info
-                best_t = trader_driver.traders[best_info["trader_index"]]
-                signal = best_t.trade_signal
-
-                # Log best trader summary for stock
-                init_value = best_info.get('init_value', 0)
-                max_final_value = best_info.get('max_final_value', 0)
-                logger.info(
-                    f"\n{'★'*10} BEST TRADER SUMMARY (STOCK: {stock}) {'★'*10}\n"
-                    f"Best trader performance:\n"
-                    f"  Strategy Parameters:\n"
-                    f"    - Buy percentage: {best_info.get('buy_pct', 'N/A')}\n"
-                    f"    - Sell percentage: {best_info.get('sell_pct', 'N/A')}\n"
-                    f"    - Tolerance percentage: {best_info.get('tol_pct', 'N/A')}\n"
-                    f"    - Bollinger sigma: {best_info.get('bollinger_sigma', 'N/A')}\n"
-                    f"    - Buy strategy: {best_info.get('buy', 'N/A')}\n"
-                    f"    - Sell strategy: {best_info.get('sell', 'N/A')}\n"
-                    f"  Performance Metrics:\n"
-                    f"    - Initial value: ${init_value:,.2f}\n"
-                    f"    - Final value: ${max_final_value:,.2f}\n"
-                    f"    - Rate of return: {best_info.get('rate_of_return', 'N/A')}\n"
-                    f"    - Baseline rate of return: {best_info.get('baseline_rate_of_return', 'N/A')}\n"
-                    f"    - Coin rate of return: {best_info.get('coin_rate_of_return', 'N/A')}\n"
-                    f"  Trading Statistics:\n"
-                    f"    - Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
-                    f"    - Transactions: {best_t.num_transaction}\n"
-                    f"    - Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
-                    f"    - Strategy: {best_t.high_strategy}\n"
-                    f"    - Today's signal: {signal} for stock={best_t.crypto_name}\n"
-                    f"{'★'*36}\n"
-                )
-
-                # Save visualizations for stock
-                strategy_performance = trader_driver.get_all_strategy_performance()
-                dashboard_filename = f"app/visualization/plots/trading_dashboard_{stock}_STOCK_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-                create_comprehensive_dashboard(
-                    trader_instance=best_t,
-                    save_html=True,
-                    filename=dashboard_filename,
-                    strategy_performance=strategy_performance,
-                )
-
-                # Gather recommended action for email/log
-                action_line = f"{datetime.now()} | STOCK | {stock} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
-                all_actions.append(action_line)
-
-                # Log recommended action to log.txt
-                with open(LOG_FILE, "a") as outfile:
-                    outfile.write(action_line + "\n")
-
-            except ValueError as e:
-                logger.error(f"Data validation failed for stock {stock}: {e}")
-                continue
-            except Exception as e:
-                logger.error(f"Stock simulation failed for {stock}: {e}")
-                continue
+    if asset_mode in ("all", "stock"):
+        _run_stock_simulation(all_actions)
 
     # Send daily recommendations email if not in debug mode
     if DEBUG is False:
@@ -852,16 +900,22 @@ def main():
 
 
 def run_trading_job():
-    main()
+    # Default behavior: run both crypto + stocks.
+    main(asset="all")
 
 
 if __name__ == "__main__":
     import sys
 
+    asset_mode = "all"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--asset="):
+            asset_mode = arg.split("=", 1)[1].strip().lower()
+
     if len(sys.argv) > 1 and sys.argv[1] == "--cronjob":
         logger.info("Starting trading bot in schedule-based cronjob mode...")
         # Schedule the job for 1:00 PM UTC (9:00 PM SGT)
-        schedule.every().day.at("13:00").do(run_trading_job)
+        schedule.every().day.at("13:00").do(lambda: main(asset=asset_mode))
         logger.info("Trading bot scheduled to run daily at 9:00 PM SGT (1:00 PM UTC)")
         logger.info("Press Ctrl+C to stop the bot")
         try:
@@ -884,4 +938,4 @@ if __name__ == "__main__":
 
     else:
         logger.info("Starting trading bot in one-time mode...")
-        main()
+        main(asset=asset_mode)

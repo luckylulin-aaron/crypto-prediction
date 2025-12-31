@@ -172,9 +172,11 @@ class TestExpMASelvesStrategy(unittest.TestCase):
 
     def test_config_integration(self):
         """Test that strategy is in the config."""
-        from app.core.config import STRATEGIES
+        from app.core.config import SUPPORTED_STRATEGIES
 
-        self.assertIn("EXP-MA-SELVES", STRATEGIES, "EXP-MA-SELVES not in config")
+        self.assertIn(
+            "EXP-MA-SELVES", SUPPORTED_STRATEGIES, "EXP-MA-SELVES not supported in config"
+        )
 
 
 if __name__ == "__main__":

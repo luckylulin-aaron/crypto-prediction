@@ -7,8 +7,26 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES
+from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES, SUPPORTED_STRATEGIES
 from app.core.logger import get_logger
+
+# IMPORTANT:
+# `config.STRATEGIES` is the *enabled* set (e.g. crypto strategies used in simulations).
+# In this file, asserts should validate against the *supported/implemented* set.
+STRATEGIES = SUPPORTED_STRATEGIES
+
+
+def _is_positive_number(value) -> bool:
+    """
+    Check whether a value is a positive int/float.
+
+    Args:
+        value: Value to check.
+
+    Returns:
+        bool: True if value is an int/float and > 0, else False.
+    """
+    return isinstance(value, (int, float, np.number)) and float(value) > 0
 
 
 def strategy_moving_average_w_tolerance(
@@ -38,12 +56,25 @@ def strategy_moving_average_w_tolerance(
     strat_name = "MA-SELVES"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
+    # Position and cash check (prevents meaningless orders & reduces churn).
+    # Prefer `cash/cur_coin` used by `StratTrader`, but fall back to `wallet` for older tests/mocks.
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
     # retrieve the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
 
     # (1) if too high, we do a sell
     r_sell = False
-    if new_p >= (1 + tol_pct) * last_ma:
+    if has_position and new_p >= (1 + tol_pct) * last_ma:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
@@ -51,7 +82,8 @@ def strategy_moving_average_w_tolerance(
 
     # (2) if too low, we do a buy
     r_buy = False
-    if new_p <= (1 - tol_pct) * last_ma:
+    # Avoid executing both sell and buy in the same tick.
+    if r_sell is False and has_cash and new_p <= (1 - tol_pct) * last_ma:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
@@ -218,6 +250,178 @@ def strategy_bollinger_bands(
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 
     # add history as well if nothing happens
+    if r_buy is False and r_sell is False:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    return r_buy, r_sell
+
+
+def strategy_ma_boll_bands(
+    trader,
+    queue_name: str,
+    new_p: float,
+    today: datetime.datetime,
+    tol_pct: float,
+    buy_pct: float,
+    sell_pct: float,
+    bollinger_sigma: int,
+    trend_lookback: int = 3,
+    trend_min_abs_slope_pct: float = 0.002,
+    band_breakout_pct: float = 0.002,
+    cooldown_days: int = 2,
+    min_bandwidth_pct: float = 0.02,
+    entry_z: float = 1.5,
+    exit_z: float = 0.8,
+) -> Tuple[bool, bool]:
+    """
+    MA + Bollinger Bands strategy using the shortest MA trend to define regime.
+
+    Regime definition is based on the direction of the moving average:
+    - Bull market: MA trending upward (last MA > previous MA)
+      - Buy when price "touches" the MA (within tol_pct)
+      - Sell when price exceeds the upper Bollinger Band
+    - Bear market: MA trending downward (last MA < previous MA)
+      - Sell when price "touches" the MA (within tol_pct)
+      - Buy when price goes below the lower Bollinger Band (oversold)
+
+    Args:
+        trader: The trader instance with necessary methods and attributes.
+        queue_name (str): The MA queue name (should be the shortest MA).
+        new_p (float): Today's new price of a currency.
+        today (datetime.datetime): Date.
+        tol_pct (float): Touch tolerance as a fraction of MA (e.g. 0.01 = 1%).
+        buy_pct (float): Buy percentage (kept for API consistency).
+        sell_pct (float): Sell percentage (kept for API consistency).
+        bollinger_sigma (int): Bollinger sigma value.
+        trend_lookback (int, optional): Lookback window (in MA points) for trend slope. Defaults to 3.
+        trend_min_abs_slope_pct (float, optional): Minimum absolute MA slope (as % of MA) to trade.
+            Defaults to 0.002 (0.2%).
+        band_breakout_pct (float, optional): Extra margin beyond bands to confirm breakout and reduce churn.
+            Defaults to 0.002 (0.2%).
+        cooldown_days (int, optional): Minimum days between non-NO-ACTION signals to reduce overtrading.
+            Defaults to 2.
+        min_bandwidth_pct (float, optional): Minimum Bollinger bandwidth (as % of midline) required to trade.
+            This prevents overtrading in low-volatility regimes. Defaults to 0.02 (2%).
+        entry_z (float, optional): Z-score threshold for entries (buy when z <= -entry_z). Defaults to 1.5.
+        exit_z (float, optional): Z-score threshold for exits (sell when z >= exit_z). Defaults to 0.8.
+
+    Returns:
+        Tuple[bool, bool]: (buy_executed, sell_executed)
+    """
+    strat_name = "MA-BOLL-BANDS"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    # Require enough MA points to (a) determine trend and (b) compute bands without lookahead.
+    not_null_values = list(
+        filter(lambda x: x is not None, trader.moving_averages[queue_name])
+    )
+    if len(not_null_values) < (trend_lookback + 2):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # NOTE: `StratTrader.add_new_day()` appends today's MA value before calling strategies.
+    # To avoid lookahead bias, we use the previous MA for regime + "touch" decisions.
+    signal_ma = not_null_values[-2]
+    if signal_ma is None or signal_ma <= 0:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    ma_now = not_null_values[-2]
+    ma_past = not_null_values[-(trend_lookback + 2)]
+    if ma_past is None or ma_past <= 0:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Trend slope (normalized): positive => bull, negative => bear.
+    # We keep this as a mild bias, but the strategy's core is volatility harvesting.
+    slope_pct = (ma_now - ma_past) / ma_now
+    trending_up = slope_pct >= trend_min_abs_slope_pct
+    trending_down = slope_pct <= -trend_min_abs_slope_pct
+
+    # Simple cooldown using the last non-NO-ACTION signal date for this strategy.
+    if cooldown_days > 0 and strat_name in trader.strat_dct:
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                if hasattr(today, "date"):
+                    delta_days = (today.date() - past_dt.date()).days
+                else:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
+    # Compute Bollinger bands from recent MA values (must have >= window length)
+    boll_upper = None
+    boll_lower = None
+    mid = None
+    std = None
+    # Avoid lookahead: compute bands using MA values up to yesterday (exclude last appended MA).
+    band_values = not_null_values[:-1]
+    if len(band_values) >= int(queue_name):
+        mas = band_values[-int(queue_name) :]
+        mid, std = float(np.mean(mas)), float(np.std(mas))
+        boll_upper = mid + bollinger_sigma * std
+        boll_lower = mid - bollinger_sigma * std
+
+    # If we can't compute bands, we can't meaningfully harvest volatility.
+    if boll_upper is None or boll_lower is None or mid is None or std is None or mid <= 0:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Volatility filter: trade only when the bands are wide enough to overcome fees/spread.
+    bandwidth_pct = (boll_upper - boll_lower) / mid if mid != 0 else 0.0
+    if bandwidth_pct < min_bandwidth_pct:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Z-score of price relative to midline; epsilon prevents division-by-zero.
+    z = (new_p - mid) / (std + 1e-12)
+
+    # position and cash check, really important!
+    has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+    has_cash = _is_positive_number(getattr(trader, "cash", 0))
+
+    r_buy, r_sell = False, False
+
+    # --- Volatility harvesting core ---
+    #
+    # Entry: buy when price is sufficiently below the lower band (or z-score is low enough).
+    # Exit: sell when price is sufficiently above the upper band (or z-score is high enough).
+    #
+    # Trend bias (mild):
+    # - In strong uptrends, require a deeper pullback to buy (avoid buying "not cheap enough")
+    # - In strong downtrends, require a stronger overbought condition to sell (avoid selling into weakness)
+    effective_entry_z = entry_z + (0.3 if trending_up else 0.0)
+    effective_exit_z = exit_z + (0.3 if trending_down else 0.0)
+
+    buy_condition = (
+        (new_p <= boll_lower * (1.0 - band_breakout_pct)) or (z <= -effective_entry_z)
+    )
+    sell_condition = (
+        (new_p >= boll_upper * (1.0 + band_breakout_pct)) or (z >= effective_exit_z)
+    )
+
+    # Prefer exits before entries (risk management) and be position-aware.
+    if has_position and sell_condition:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    elif (not has_position) and has_cash and buy_condition:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+    # add history as well if nothing happens (or execution failed)
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -1314,6 +1518,19 @@ def strategy_exponential_moving_average_w_tolerance(
     strat_name = "EXP-MA-SELVES"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
+    # Position and cash check (prevents meaningless orders & reduces churn).
+    # Prefer `cash/cur_coin` used by `StratTrader`, but fall back to `wallet` for older tests/mocks.
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
     # retrieve the most recent exponential moving average
     last_ema = trader.exp_moving_averages[queue_name][-1]
 
@@ -1325,7 +1542,7 @@ def strategy_exponential_moving_average_w_tolerance(
 
     # (1) if too high, we do a sell
     r_sell = False
-    if new_p >= (1 + tol_pct) * last_ema:
+    if has_position and new_p >= (1 + tol_pct) * last_ema:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
@@ -1333,7 +1550,8 @@ def strategy_exponential_moving_average_w_tolerance(
 
     # (2) if too low, we do a buy
     r_buy = False
-    if new_p <= (1 - tol_pct) * last_ema:
+    # Avoid executing both sell and buy in the same tick.
+    if r_sell is False and has_cash and new_p <= (1 - tol_pct) * last_ema:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
@@ -2122,6 +2340,7 @@ STRATEGY_REGISTRY = {
     "DOUBLE-MA": strategy_double_moving_averages,
     "MACD": strategy_macd,
     "BOLL-BANDS": strategy_bollinger_bands,
+    "MA-BOLL-BANDS": strategy_ma_boll_bands,
     "KDJ": strategy_kdj,
     "MA-MACD": strategy_ma_macd_combined,
     "MACD-KDJ": strategy_macd_kdj_combined,
