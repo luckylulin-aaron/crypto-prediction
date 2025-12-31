@@ -25,6 +25,8 @@ def create_mock_trader():
 
     trader.strat_dct = {"MA-BOLL-BANDS": []}
     trader.moving_averages = {"6": []}
+    trader.cash = 10000.0
+    trader.cur_coin = 0.0
 
     return trader
 
@@ -42,11 +44,10 @@ class TestMABollBandsStrategy(unittest.TestCase):
         self.bollinger_sigma = 2
 
     def test_bull_buy_on_ma_touch(self):
-        """Bull regime: buy when price touches the MA."""
-        # Uptrend: last_ma > prev_ma
-        # Provide 7 points so the strategy can compute bands excluding today's MA.
+        """Volatility mode: buy when price is sufficiently below lower band (even in an uptrend)."""
+        # Uptrend slope exists, but entry is driven by band extreme/z-score + bandwidth filter.
         self.trader.moving_averages["6"] = [100, 101, 102, 103, 104, 105, 106]
-        new_price = 105.0  # Touch yesterday MA (strategy avoids lookahead)
+        new_price = 98.0  # Below lower band for this window -> should buy
 
         buy, sell = strategy_ma_boll_bands(
             self.trader,
@@ -65,9 +66,11 @@ class TestMABollBandsStrategy(unittest.TestCase):
         self.trader._record_history.assert_called_with(new_price, self.today, BUY_SIGNAL)
 
     def test_bull_sell_on_upper_band_break(self):
-        """Bull regime: sell when price exceeds upper Bollinger band."""
+        """Volatility mode: sell when price is sufficiently above upper band (when holding a position)."""
         self.trader.moving_averages["6"] = [100, 101, 102, 103, 104, 105, 106]
-        new_price = 106.5  # Exceeds upper band for this sequence with sigma=2
+        self.trader.cur_coin = 1.0
+        self.trader.cash = 0.0
+        new_price = 110.0  # Above upper band -> should sell
 
         buy, sell = strategy_ma_boll_bands(
             self.trader,
@@ -86,10 +89,9 @@ class TestMABollBandsStrategy(unittest.TestCase):
         self.trader._record_history.assert_called_with(new_price, self.today, SELL_SIGNAL)
 
     def test_bear_sell_on_ma_touch(self):
-        """Bear regime: sell when price touches the MA."""
-        # Downtrend: last_ma < prev_ma
+        """Volatility mode: no sell if we don't hold a position, even in a downtrend."""
         self.trader.moving_averages["6"] = [106, 105, 104, 103, 102, 101, 100]
-        new_price = 101.0  # Touch yesterday MA (strategy avoids lookahead)
+        new_price = 101.0
 
         buy, sell = strategy_ma_boll_bands(
             self.trader,
@@ -103,12 +105,11 @@ class TestMABollBandsStrategy(unittest.TestCase):
         )
 
         self.assertFalse(buy)
-        self.assertTrue(sell)
-        self.trader._execute_one_sell.assert_called_once_with("by_percentage", new_price)
-        self.trader._record_history.assert_called_with(new_price, self.today, SELL_SIGNAL)
+        self.assertFalse(sell)
+        self.trader._record_history.assert_called_with(new_price, self.today, NO_ACTION_SIGNAL)
 
     def test_bear_buy_below_lower_band(self):
-        """Bear regime: buy when price goes below lower Bollinger band."""
+        """Volatility mode: buy when price goes below lower Bollinger band."""
         self.trader.moving_averages["6"] = [106, 105, 104, 103, 102, 101, 100]
         new_price = 98.0  # Below lower band for this sequence with sigma=2
 
@@ -129,8 +130,8 @@ class TestMABollBandsStrategy(unittest.TestCase):
         self.trader._record_history.assert_called_with(new_price, self.today, BUY_SIGNAL)
 
     def test_no_action_on_flat_ma(self):
-        """Neutral regime: no action when MA is flat."""
-        self.trader.moving_averages["6"] = [100, 100, 100, 100, 100, 100]
+        """No action in low-volatility regime (bandwidth too small)."""
+        self.trader.moving_averages["6"] = [100, 100, 100, 100, 100, 100, 100]
         new_price = 100.0
 
         buy, sell = strategy_ma_boll_bands(
