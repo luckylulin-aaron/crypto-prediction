@@ -91,11 +91,11 @@ SELL_STAS = ["by_percentage", "stop_loss", "take_profit"]
 # currencies (crptocurrency + stablecoin + fiat)
 # Updated to match actual account holdings
 CURS = [
+    "ETH",
     "BTC",
     "SOL",
     "UNI",
     "LTC",
-    "ETH",
     "ETC",
     "DOGE",
     "AAVE",
