@@ -9,39 +9,63 @@ COMMIT = False  # Set to True for actual trading deployment
 # debug mode, if True, only test 1 strategy
 DEBUG = True
 
-# strategies
-# MA-SELVES: use moving averages with lengths equal to MA_LENGTHS, trades would be made using comparisons with themselves (no cross-MA comparison)
-# DOUBLE-MA: create several moving averages; trades are made via pair-wise comparison
-# Advanced composite strategies combine multiple signals for better decision-making
-STRATEGIES = [
-    #"MA-SELVES",  # Original moving average strategy
-    #"MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
-    #"EXP-MA-SELVES",  # Exponential moving average strategy
-    # "EXP-MA-SELVES-MACRO",  # EXP-MA-SELVES with macroeconomic overlay
-    # "RSI",  # Relative Strength Index
-    # "RSI-MACRO",  # RSI with macroeconomic overlay
-    #"ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
-    #"ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
-    # "DOUBLE-MA",  # Double moving average crossover
-    # "MACD",  # MACD momentum indicator
-    #"BOLL-BANDS",  # Bollinger Bands volatility strategy
-    # "KDJ",  # KDJ oscillator
-    # "MA-MACD",  # Combined MA + MACD (requires both signals)
-    # "MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
-    # "RSI-BOLL",  # Combined RSI + Bollinger Bands
-    # "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
-    # "CONSERVATIVE-MA",  # MA with multiple period confirmation
-    # "VOLUME-BREAKOUT",  # Volume-based breakout strategy
-    # "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
-    # "TREND-MA-SELVES",  # Trend-aware MA strategy
-    # "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
-    # "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
-    #"FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
-    # "SIMPLE-RECURRING",  # Simple recurring investment strategy
-    # "WEIGHTED-RECURRING",  # Weighted recurring investment based on MA
-    # "ECONOMIC-INDICATORS",  # Macroeconomic indicators overlay strategy
-    "MA-BOLL-BANDS", # MA + Bollinger Bands volatility strategy
+# --- Strategy lists ---
+# We distinguish:
+# - SUPPORTED_STRATEGIES: strategies implemented by the codebase (used for validation/asserts)
+# - CRYPTO_STRATEGIES: enabled strategies for crypto simulations/trading
+# - STOCK_STRATEGIES: enabled strategies for stock simulations/trading (daily candles only)
+#
+# NOTE: We keep `STRATEGIES` as a backward-compatible alias to `CRYPTO_STRATEGIES` because many scripts/tests
+# pass it into `TraderDriver(overall_stats=...)`.
+SUPPORTED_STRATEGIES = [
+    "MA-SELVES",
+    "MA-SELVES-MACRO",
+    "EXP-MA-SELVES",
+    "EXP-MA-SELVES-MACRO",
+    "RSI",
+    "RSI-MACRO",
+    "ADAPTIVE-MA-SELVES",
+    "ADAPTIVE-MA-SELVES-MACRO",
+    "DOUBLE-MA",
+    "MACD",
+    "BOLL-BANDS",
+    "MA-BOLL-BANDS",
+    "KDJ",
+    "MA-MACD",
+    "MACD-KDJ",
+    "RSI-BOLL",
+    "TRIPLE-SIGNAL",
+    "CONSERVATIVE-MA",
+    "VOLUME-BREAKOUT",
+    "MULTI-MA-SELVES",
+    "TREND-MA-SELVES",
+    "VOLUME-MA-SELVES",
+    "MOMENTUM-MA-SELVES",
+    "FEAR-GREED-SENTIMENT",
+    "SIMPLE-RECURRING",
+    "WEIGHTED-RECURRING",
+    "ECONOMIC-INDICATORS",
 ]
+
+# Enabled strategies (crypto)
+CRYPTO_STRATEGIES = [
+    "MA-BOLL-BANDS",
+]
+
+# Enabled strategies (stocks) - daily candles only; keep separate from crypto
+STOCK_STRATEGIES = [
+    "MA-SELVES",  # Original moving average strategy
+    "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
+    "EXP-MA-SELVES",  # Exponential moving average strategy
+    "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
+    "ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
+    "TRIPLE-SIGNAL",
+    "MULTI-MA-SELVES",
+    "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
+]
+
+# Backward-compatible alias (treat as enabled crypto strategies)
+STRATEGIES = CRYPTO_STRATEGIES
 
 # simulation configuration
 TOL_PCTS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]

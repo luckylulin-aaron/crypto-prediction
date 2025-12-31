@@ -7,8 +7,13 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES
+from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES, SUPPORTED_STRATEGIES
 from app.core.logger import get_logger
+
+# IMPORTANT:
+# `config.STRATEGIES` is the *enabled* set (e.g. crypto strategies used in simulations).
+# In this file, asserts should validate against the *supported/implemented* set.
+STRATEGIES = SUPPORTED_STRATEGIES
 
 
 def strategy_moving_average_w_tolerance(

@@ -539,7 +539,7 @@ def main():
                 init_amount=source_exchange_config["stablecoin_value"],
                 cur_coin=sim_coin_amount,
                 # only test 1 strategy for debugging purposes
-                overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
+                overall_stats=CRYPTO_STRATEGIES if DEBUG is not True else CRYPTO_STRATEGIES[:5],
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -569,7 +569,7 @@ def main():
                 init_amount=source_exchange_config["stablecoin_value"],
                 cur_coin=sim_coin_amount,
                 # only test 1 strategy for debugging purposes
-                overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
+                overall_stats=CRYPTO_STRATEGIES if DEBUG is not True else CRYPTO_STRATEGIES[:5],
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -751,7 +751,7 @@ def main():
                     init_amount=initial_stock_amount,
                     cur_coin=current_stock_amount,
                     # only test 1 strategy for debugging purposes
-                    overall_stats=STRATEGIES if DEBUG is not True else STRATEGIES[:5],
+                    overall_stats=STOCK_STRATEGIES if DEBUG is not True else STOCK_STRATEGIES[:5],
                     tol_pcts=TOL_PCTS,
                     ma_lengths=MA_LENGTHS,
                     ema_lengths=EMA_LENGTHS,
