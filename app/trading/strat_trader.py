@@ -16,7 +16,7 @@ from app.core.config import (
     NO_ACTION_SIGNAL,
     ROUND_PRECISION,
     SELL_SIGNAL,
-    STRATEGIES,
+    SUPPORTED_STRATEGIES,
     WITHDRAW_CST,
 )
 from app.trading.strategies import STRATEGY_REGISTRY
@@ -77,7 +77,9 @@ class StratTrader:
             None
         """
         # check
-        if stat not in STRATEGIES:
+        # `SUPPORTED_STRATEGIES` is the source of truth for what strategies exist in code.
+        # Enabled strategies differ between crypto vs stocks (see config.CRYPTO_STRATEGIES/STOCK_STRATEGIES).
+        if stat not in SUPPORTED_STRATEGIES:
             raise ValueError("Unknown high-level trading strategy!")
         if not all([x in ma_lengths for x in bollinger_mas]):
             raise ValueError(

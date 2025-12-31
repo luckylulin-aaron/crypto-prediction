@@ -16,6 +16,19 @@ from app.core.logger import get_logger
 STRATEGIES = SUPPORTED_STRATEGIES
 
 
+def _is_positive_number(value) -> bool:
+    """
+    Check whether a value is a positive int/float.
+
+    Args:
+        value: Value to check.
+
+    Returns:
+        bool: True if value is an int/float and > 0, else False.
+    """
+    return isinstance(value, (int, float, np.number)) and float(value) > 0
+
+
 def strategy_moving_average_w_tolerance(
     trader,
     queue_name: str,
@@ -45,14 +58,16 @@ def strategy_moving_average_w_tolerance(
 
     # Position and cash check (prevents meaningless orders & reduces churn).
     # Prefer `cash/cur_coin` used by `StratTrader`, but fall back to `wallet` for older tests/mocks.
-    has_cash = bool(getattr(trader, "cash", 0) and getattr(trader, "cash", 0) > 0)
-    has_position = bool(
-        getattr(trader, "cur_coin", 0) and getattr(trader, "cur_coin", 0) > 0
-    )
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = bool(trader.wallet.get("USD", 0) > 0 or trader.wallet.get("USDT", 0) > 0)
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
     if not has_position and hasattr(trader, "wallet"):
-        has_position = bool(trader.wallet.get("crypto", 0) > 0)
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
     # retrieve the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
@@ -371,8 +386,8 @@ def strategy_ma_boll_bands(
     z = (new_p - mid) / (std + 1e-12)
 
     # position and cash check, really important!
-    has_position = bool(getattr(trader, "cur_coin", 0) and getattr(trader, "cur_coin", 0) > 0)
-    has_cash = bool(getattr(trader, "cash", 0) and getattr(trader, "cash", 0) > 0)
+    has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+    has_cash = _is_positive_number(getattr(trader, "cash", 0))
 
     r_buy, r_sell = False, False
 
@@ -1505,14 +1520,16 @@ def strategy_exponential_moving_average_w_tolerance(
 
     # Position and cash check (prevents meaningless orders & reduces churn).
     # Prefer `cash/cur_coin` used by `StratTrader`, but fall back to `wallet` for older tests/mocks.
-    has_cash = bool(getattr(trader, "cash", 0) and getattr(trader, "cash", 0) > 0)
-    has_position = bool(
-        getattr(trader, "cur_coin", 0) and getattr(trader, "cur_coin", 0) > 0
-    )
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = bool(trader.wallet.get("USD", 0) > 0 or trader.wallet.get("USDT", 0) > 0)
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
     if not has_position and hasattr(trader, "wallet"):
-        has_position = bool(trader.wallet.get("crypto", 0) > 0)
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
     # retrieve the most recent exponential moving average
     last_ema = trader.exp_moving_averages[queue_name][-1]
