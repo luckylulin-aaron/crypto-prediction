@@ -14,14 +14,14 @@ DEBUG = True
 # DOUBLE-MA: create several moving averages; trades are made via pair-wise comparison
 # Advanced composite strategies combine multiple signals for better decision-making
 STRATEGIES = [
-    "MA-SELVES",  # Original moving average strategy
-    "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
-    "EXP-MA-SELVES",  # Exponential moving average strategy
+    #"MA-SELVES",  # Original moving average strategy
+    #"MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
+    #"EXP-MA-SELVES",  # Exponential moving average strategy
     # "EXP-MA-SELVES-MACRO",  # EXP-MA-SELVES with macroeconomic overlay
     # "RSI",  # Relative Strength Index
     # "RSI-MACRO",  # RSI with macroeconomic overlay
-    "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
-    "ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
+    #"ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
+    #"ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
     # "DOUBLE-MA",  # Double moving average crossover
     # "MACD",  # MACD momentum indicator
     # "BOLL-BANDS",  # Bollinger Bands volatility strategy
@@ -29,14 +29,14 @@ STRATEGIES = [
     # "MA-MACD",  # Combined MA + MACD (requires both signals)
     # "MACD-KDJ",  # Combined MACD + KDJ (momentum + oscillator)
     # "RSI-BOLL",  # Combined RSI + Bollinger Bands
-    "TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
+    #"TRIPLE-SIGNAL",  # MA + MACD + RSI (requires 2/3 agreement)
     # "CONSERVATIVE-MA",  # MA with multiple period confirmation
     # "VOLUME-BREAKOUT",  # Volume-based breakout strategy
-    "MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
+    #"MULTI-MA-SELVES",  # Multi-timeframe MA confirmation strategy
     # "TREND-MA-SELVES",  # Trend-aware MA strategy
     # "VOLUME-MA-SELVES",  # Volume-weighted MA strategy
     # "MOMENTUM-MA-SELVES",  # Momentum-enhanced MA strategy
-    "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
+    #"FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
     # "SIMPLE-RECURRING",  # Simple recurring investment strategy
     # "WEIGHTED-RECURRING",  # Weighted recurring investment based on MA
     # "ECONOMIC-INDICATORS",  # Macroeconomic indicators overlay strategy
