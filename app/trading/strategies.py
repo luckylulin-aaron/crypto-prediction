@@ -292,7 +292,13 @@ def strategy_double_moving_averages(
     return r_buy, r_sell
 
 
-def strategy_macd(trader, new_p: float, today: datetime.datetime) -> Tuple[bool, bool]:
+def strategy_macd(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    hist_threshold: float=0.0,
+    cooldown_days: int=1,
+) -> Tuple[bool, bool]:
     """
     MACD-based trading strategy.
 
@@ -300,6 +306,10 @@ def strategy_macd(trader, new_p: float, today: datetime.datetime) -> Tuple[bool,
         trader: The trader instance with necessary methods and attributes.
         new_p (float): Today's new price of a currency.
         today (datetime.datetime): Date.
+        hist_threshold (float): Minimum absolute MACD histogram value required to act on a crossover.
+            This helps reduce whipsaw around zero. Defaults to 0.0 (disabled).
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -307,27 +317,97 @@ def strategy_macd(trader, new_p: float, today: datetime.datetime) -> Tuple[bool,
     strat_name = "MACD"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
-    if trader.macd_dea[-1] is None:
+    # Need at least 2 points to detect a crossover
+    if (
+        not hasattr(trader, "macd_diff")
+        or not hasattr(trader, "macd_dea")
+        or len(trader.macd_diff) < 2
+        or len(trader.macd_dea) < 2
+        or trader.macd_dea[-1] is None
+        or trader.macd_dea[-2] is None
+    ):
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
-    diff = trader.macd_diff[-1] - trader.macd_dea[-1]
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
 
-    # (1) if (MACD-DIFF - MACD-DEA) is negative, sell
-    r_sell = False
-    if diff < 0:
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
+    # MACD histogram (DIFF - DEA) and crossover detection
+    hist_prev = trader.macd_diff[-2] - trader.macd_dea[-2]
+    hist_cur = trader.macd_diff[-1] - trader.macd_dea[-1]
+
+    cross_up = hist_prev <= 0 and hist_cur > 0
+    cross_down = hist_prev >= 0 and hist_cur < 0
+
+    # Regime: above/below the zero line
+    bullish_regime = trader.macd_diff[-1] > 0 and trader.macd_dea[-1] > 0
+    bearish_regime = trader.macd_diff[-1] < 0 and trader.macd_dea[-1] < 0
+
+    # Threshold filter (optional)
+    if _is_positive_number(hist_threshold):
+        if abs(hist_cur) < float(hist_threshold):
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
+
+    r_buy, r_sell = False, False
+
+    # --- Trading rules (position-aware + regime-aware) ---
+    #
+    # Bullish regime: trade crossovers more aggressively (trend-following).
+    # Bearish regime: avoid chasing; only buy on cross_up if still below zero line (bounce),
+    # and prioritize exits on cross_down.
+    if cross_down and has_position:
+        # Exit signal is valid in any regime; this is risk control.
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
 
-    # (2) if (MACD-DIFF - MACD-DEA) is positive, buy
-    r_buy = False
-    if diff > 0:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy is True:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    elif cross_up and has_cash:
+        if bullish_regime:
+            # Trend-follow in bullish regime
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif bearish_regime:
+            # Mean-reversion bounce in bearish regime: only buy if still below zero line
+            if trader.macd_diff[-1] < 0 and trader.macd_dea[-1] < 0:
+                r_buy = trader._execute_one_buy("by_percentage", new_p)
+                if r_buy is True:
+                    trader._record_history(new_p, today, BUY_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        else:
+            # Neutral regime: allow buy on cross_up
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
