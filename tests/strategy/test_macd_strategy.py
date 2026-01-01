@@ -46,17 +46,17 @@ class TestMACDStrategy(unittest.TestCase):
         self.today = datetime.datetime(2024, 1, 1)
         self.new_price = 100.0
 
-    def test_buy_signal_when_macd_positive(self):
-        """Test buy signal when MACD difference is positive."""
-        # Set up positive MACD difference (0.3 - 0.2 = 0.1 > 0)
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.3]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+    def test_buy_signal_on_bullish_crossover_in_bullish_regime(self):
+        """Buy on bullish histogram crossover (<=0 -> >0) in bullish regime."""
+        # hist_prev = 0.1 - 0.2 = -0.1, hist_cur = 0.3 - 0.2 = 0.1 (cross up)
+        self.trader.macd_diff = [0.1, 0.3]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_macd(self.trader, self.new_price, self.today)
 
-        self.assertTrue(buy, "Should execute buy when MACD difference is positive")
+        self.assertTrue(buy, "Should execute buy on bullish crossover")
         self.assertFalse(
-            sell, "Should not execute sell when MACD difference is positive"
+            sell, "Should not execute sell on bullish crossover"
         )
         self.trader._execute_one_buy.assert_called_once_with(
             "by_percentage", self.new_price
@@ -65,16 +65,16 @@ class TestMACDStrategy(unittest.TestCase):
             self.new_price, self.today, BUY_SIGNAL
         )
 
-    def test_sell_signal_when_macd_negative(self):
-        """Test sell signal when MACD difference is negative."""
-        # Set up negative MACD difference (0.1 - 0.2 = -0.1 < 0)
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.1]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+    def test_sell_signal_on_bearish_crossover_when_holding_position(self):
+        """Sell on bearish histogram crossover (>=0 -> <0) when holding a position."""
+        # hist_prev = 0.3 - 0.2 = 0.1, hist_cur = 0.1 - 0.2 = -0.1 (cross down)
+        self.trader.macd_diff = [0.3, 0.1]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_macd(self.trader, self.new_price, self.today)
 
-        self.assertFalse(buy, "Should not execute buy when MACD difference is negative")
-        self.assertTrue(sell, "Should execute sell when MACD difference is negative")
+        self.assertFalse(buy, "Should not execute buy on bearish crossover")
+        self.assertTrue(sell, "Should execute sell on bearish crossover when holding a position")
         self.trader._execute_one_sell.assert_called_once_with(
             "by_percentage", self.new_price
         )
@@ -82,16 +82,16 @@ class TestMACDStrategy(unittest.TestCase):
             self.new_price, self.today, SELL_SIGNAL
         )
 
-    def test_no_action_when_macd_zero(self):
-        """Test no action when MACD difference is zero."""
-        # Set up zero MACD difference (0.2 - 0.2 = 0)
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.2]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+    def test_no_action_when_no_crossover(self):
+        """No action when there is no histogram crossover."""
+        # hist stays positive (no cross)
+        self.trader.macd_diff = [0.3, 0.31]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_macd(self.trader, self.new_price, self.today)
 
-        self.assertFalse(buy, "Should not execute buy when MACD difference is zero")
-        self.assertFalse(sell, "Should not execute sell when MACD difference is zero")
+        self.assertFalse(buy, "Should not execute buy without a crossover")
+        self.assertFalse(sell, "Should not execute sell without a crossover")
         self.trader._record_history.assert_called_with(
             self.new_price, self.today, NO_ACTION_SIGNAL
         )
@@ -99,8 +99,8 @@ class TestMACDStrategy(unittest.TestCase):
     def test_no_action_when_macd_dea_none(self):
         """Test no action when MACD DEA is None."""
         # Set up None MACD DEA
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.3]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, None]
+        self.trader.macd_diff = [0.1, 0.3]
+        self.trader.macd_dea = [0.2, None]
 
         buy, sell = strategy_macd(self.trader, self.new_price, self.today)
 
@@ -111,9 +111,9 @@ class TestMACDStrategy(unittest.TestCase):
         """Test behavior when buy execution fails."""
         self.trader._execute_one_buy.return_value = False
 
-        # Set up positive MACD difference
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.3]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        # Set up bullish crossover
+        self.trader.macd_diff = [0.1, 0.3]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_macd(self.trader, self.new_price, self.today)
 
@@ -127,9 +127,9 @@ class TestMACDStrategy(unittest.TestCase):
         """Test behavior when sell execution fails."""
         self.trader._execute_one_sell.return_value = False
 
-        # Set up negative MACD difference
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.1]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        # Set up bearish crossover
+        self.trader.macd_diff = [0.3, 0.1]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_macd(self.trader, self.new_price, self.today)
 

@@ -7,7 +7,7 @@ SECONDS_IN_ONE_DAY = 86400
 COMMIT = False  # Set to True for actual trading deployment
 
 # debug mode, if True, only test 1 strategy
-DEBUG = True
+DEBUG = False
 
 # --- Strategy lists ---
 # We distinguish:
@@ -55,6 +55,11 @@ CRYPTO_STRATEGIES = [
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
 STOCK_STRATEGIES = [
     "MA-SELVES",  # Original moving average strategy
+    "DOUBLE-MA", # Double Moving Average Crossover strategy
+    "MACD", # MACD strategy
+    "BOLL-BANDS", # Bollinger Bands strategy
+    "MA-BOLL-BANDS", # MA + Bollinger Bands strategy
+    # --------- #
     "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "EXP-MA-SELVES",  # Exponential moving average strategy
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy

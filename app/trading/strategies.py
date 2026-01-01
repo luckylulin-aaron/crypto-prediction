@@ -37,6 +37,9 @@ def strategy_moving_average_w_tolerance(
     tol_pct: float,
     buy_pct: float,
     sell_pct: float,
+    volatility_window: int=20,
+    volatility_multiplier: float=1.0,
+    cooldown_days: int=2,
 ) -> Tuple[bool, bool]:
     """
     For a new day's price, if beyond tolerance level, execute a buy or sell action.
@@ -49,6 +52,12 @@ def strategy_moving_average_w_tolerance(
         tol_pct (float): Tolerance percentage.
         buy_pct (float): Buy percentage.
         sell_pct (float): Sell percentage.
+        volatility_window (int): Window size (in data points) to estimate recent volatility.
+            Used to widen the tolerance during high volatility to reduce churn. Defaults to 20.
+        volatility_multiplier (float): Multiplier applied to volatility estimate when computing
+            an adaptive tolerance. Defaults to 1.0.
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy.
+            0 disables cooldown. Defaults to 0.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -69,12 +78,47 @@ def strategy_moving_average_w_tolerance(
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
+    # Optional cooldown to reduce flip-flopping
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
     # retrieve the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
 
+    # Volatility-adjusted tolerance: widen thresholds when volatility is high
+    effective_tol = tol_pct
+    try:
+        prices = getattr(trader, "price_history", None)
+        if not prices and hasattr(trader, "crypto_prices"):
+            prices = [x[0] for x in trader.crypto_prices]
+        if (
+            prices
+            and _is_positive_number(volatility_window)
+            and len(prices) >= int(volatility_window)
+        ):
+            window = prices[-int(volatility_window) :]
+            m = float(np.mean(window))
+            s = float(np.std(window))
+            if m > 0:
+                vol_pct = s / m
+                effective_tol = max(tol_pct, float(volatility_multiplier) * vol_pct)
+    except Exception:
+        # Keep base tolerance on any error (e.g., missing attrs)
+        effective_tol = tol_pct
+
     # (1) if too high, we do a sell
     r_sell = False
-    if has_position and new_p >= (1 + tol_pct) * last_ma:
+    if has_position and new_p >= (1 + effective_tol) * last_ma:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
@@ -83,7 +127,7 @@ def strategy_moving_average_w_tolerance(
     # (2) if too low, we do a buy
     r_buy = False
     # Avoid executing both sell and buy in the same tick.
-    if r_sell is False and has_cash and new_p <= (1 - tol_pct) * last_ma:
+    if r_sell is False and has_cash and new_p <= (1 - effective_tol) * last_ma:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
@@ -103,9 +147,22 @@ def strategy_double_moving_averages(
     longer_queue_name: str,
     new_p: float,
     today: datetime.datetime,
+    opportunity_days: int=3,
+    touch_tol_pct: float=0.01,
+    cooldown_days: int=1,
 ) -> Tuple[bool, bool]:
     """
-    For a new day's price, if the shorter MA is greater than the longer MA's, execute a buy; otherwise, execute a sell.
+    Double moving average crossover with a short "opportunity window".
+
+    Idea: the crossover defines a short-lived regime change, but the best entries/exits often
+    happen shortly after the crossover on a pullback/retest.
+
+    - When a golden cross happens (short MA crosses above long MA), we consider there are buy
+      opportunities within the next `opportunity_days` days. We buy when price "touches"
+      the short MA (a pullback to support).
+    - When a death cross happens (short MA crosses below long MA), we consider there are sell
+      opportunities within the next `opportunity_days` days. We sell when price "touches"
+      the short MA (a rebound to resistance).
 
     Args:
         trader: The trader instance with necessary methods and attributes.
@@ -113,6 +170,12 @@ def strategy_double_moving_averages(
         longer_queue_name (str): The name of the queue with longer interval.
         new_p (float): Today's new price of a currency.
         today (datetime.datetime): Date.
+        opportunity_days (int): Window size (in days) after a cross to look for opportunities.
+            Defaults to 3.
+        touch_tol_pct (float): Touch tolerance as a fraction of MA (e.g. 0.01 = 1%).
+            Defaults to 0.01.
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy key.
+            Defaults to 1.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -120,25 +183,106 @@ def strategy_double_moving_averages(
     strat_name = "DOUBLE-MA"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
-    # compute the moving averages for shorter queue and longer queue, respectively
-    shorter_p = trader.moving_averages[shorter_queue_name][-1]
-    longer_p = trader.moving_averages[longer_queue_name][-1]
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
 
-    # (1) if a 'death-cross', sell
-    r_sell = False
-    if longer_p > shorter_p:
-        r_sell = trader._execute_one_sell("by_percentage", new_p)
-        if r_sell is True:
-            trader._record_history(new_p, today, SELL_SIGNAL)
-            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
-    # (2) if a 'golden-cross', buy
-    r_buy = False
-    if shorter_p > longer_p:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy is True:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    def _last_two_non_none(values):
+        not_null = [x for x in values if x is not None]
+        if len(not_null) < 2:
+            return None, None
+        return not_null[-2], not_null[-1]
+
+    s_prev, s_cur = _last_two_non_none(trader.moving_averages[shorter_queue_name])
+    l_prev, l_cur = _last_two_non_none(trader.moving_averages[longer_queue_name])
+
+    if s_prev is None or s_cur is None or l_prev is None or l_cur is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Detect true cross events (using previous vs current)
+    golden_cross = s_prev <= l_prev and s_cur > l_cur
+    death_cross = s_prev >= l_prev and s_cur < l_cur
+
+    # Track opportunity windows per MA pair
+    window_key = f"{shorter_queue_name}:{longer_queue_name}"
+    windows = getattr(trader, "_double_ma_windows", None)
+    # `Mock` will happily fabricate attributes; ensure we have a real dict.
+    if not isinstance(windows, dict):
+        windows = {}
+        setattr(trader, "_double_ma_windows", windows)
+
+    if golden_cross:
+        windows[window_key] = {"type": "BULLISH", "start": today}
+    elif death_cross:
+        windows[window_key] = {"type": "BEARISH", "start": today}
+
+    window = windows.get(window_key)
+    if not window:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Check window age
+    try:
+        days_since = (today.date() - window["start"].date()).days
+    except Exception:
+        days_since = (today - window["start"]).days
+    if days_since > opportunity_days:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Cooldown per window key
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
+    # Price touch logic to reduce whipsaw/chasing
+    short_ma = s_cur
+    if not _is_positive_number(short_ma):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    touch = abs(new_p - short_ma) <= (touch_tol_pct * short_ma)
+
+    r_buy, r_sell = False, False
+
+    if window["type"] == "BULLISH":
+        # Buy on pullback to short MA within window
+        if has_cash and touch and new_p <= short_ma * (1.0 + touch_tol_pct):
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+    elif window["type"] == "BEARISH":
+        # Sell on rebound to short MA within window
+        if has_position and touch and new_p >= short_ma * (1.0 - touch_tol_pct):
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
 
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
@@ -148,7 +292,13 @@ def strategy_double_moving_averages(
     return r_buy, r_sell
 
 
-def strategy_macd(trader, new_p: float, today: datetime.datetime) -> Tuple[bool, bool]:
+def strategy_macd(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    hist_threshold: float=0.0,
+    cooldown_days: int=1,
+) -> Tuple[bool, bool]:
     """
     MACD-based trading strategy.
 
@@ -156,6 +306,10 @@ def strategy_macd(trader, new_p: float, today: datetime.datetime) -> Tuple[bool,
         trader: The trader instance with necessary methods and attributes.
         new_p (float): Today's new price of a currency.
         today (datetime.datetime): Date.
+        hist_threshold (float): Minimum absolute MACD histogram value required to act on a crossover.
+            This helps reduce whipsaw around zero. Defaults to 0.0 (disabled).
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -163,27 +317,97 @@ def strategy_macd(trader, new_p: float, today: datetime.datetime) -> Tuple[bool,
     strat_name = "MACD"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
-    if trader.macd_dea[-1] is None:
+    # Need at least 2 points to detect a crossover
+    if (
+        not hasattr(trader, "macd_diff")
+        or not hasattr(trader, "macd_dea")
+        or len(trader.macd_diff) < 2
+        or len(trader.macd_dea) < 2
+        or trader.macd_dea[-1] is None
+        or trader.macd_dea[-2] is None
+    ):
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
-    diff = trader.macd_diff[-1] - trader.macd_dea[-1]
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
 
-    # (1) if (MACD-DIFF - MACD-DEA) is negative, sell
-    r_sell = False
-    if diff < 0:
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
+    # MACD histogram (DIFF - DEA) and crossover detection
+    hist_prev = trader.macd_diff[-2] - trader.macd_dea[-2]
+    hist_cur = trader.macd_diff[-1] - trader.macd_dea[-1]
+
+    cross_up = hist_prev <= 0 and hist_cur > 0
+    cross_down = hist_prev >= 0 and hist_cur < 0
+
+    # Regime: above/below the zero line
+    bullish_regime = trader.macd_diff[-1] > 0 and trader.macd_dea[-1] > 0
+    bearish_regime = trader.macd_diff[-1] < 0 and trader.macd_dea[-1] < 0
+
+    # Threshold filter (optional)
+    if _is_positive_number(hist_threshold):
+        if abs(hist_cur) < float(hist_threshold):
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
+
+    r_buy, r_sell = False, False
+
+    # --- Trading rules (position-aware + regime-aware) ---
+    #
+    # Bullish regime: trade crossovers more aggressively (trend-following).
+    # Bearish regime: avoid chasing; only buy on cross_up if still below zero line (bounce),
+    # and prioritize exits on cross_down.
+    if cross_down and has_position:
+        # Exit signal is valid in any regime; this is risk control.
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
 
-    # (2) if (MACD-DIFF - MACD-DEA) is positive, buy
-    r_buy = False
-    if diff > 0:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy is True:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    elif cross_up and has_cash:
+        if bullish_regime:
+            # Trend-follow in bullish regime
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif bearish_regime:
+            # Mean-reversion bounce in bearish regime: only buy if still below zero line
+            if trader.macd_diff[-1] < 0 and trader.macd_dea[-1] < 0:
+                r_buy = trader._execute_one_buy("by_percentage", new_p)
+                if r_buy is True:
+                    trader._record_history(new_p, today, BUY_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        else:
+            # Neutral regime: allow buy on cross_up
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
@@ -199,6 +423,10 @@ def strategy_bollinger_bands(
     new_p: float,
     today: datetime.datetime,
     bollinger_sigma: int,
+    band_breakout_pct: float=0.002,
+    min_bandwidth_pct: float=0.02,
+    cooldown_days: int=2,
+    avoid_lookahead: bool=True,
 ) -> Tuple[bool, bool]:
     """
     Trading with Bollinger Band strategy.
@@ -209,6 +437,14 @@ def strategy_bollinger_bands(
         new_p (float): Today's new price of a currency.
         today (datetime.datetime): Date.
         bollinger_sigma (int): Bollinger sigma value.
+        band_breakout_pct (float): Extra margin beyond bands to confirm a band break and reduce whipsaw.
+            Defaults to 0.002 (0.2%).
+        min_bandwidth_pct (float): Minimum band width (as % of midline) required to trade.
+            Prevents overtrading in low-volatility regimes. Defaults to 0.02 (2%).
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy key.
+            Defaults to 2.
+        avoid_lookahead (bool): If True, compute bands using MA values up to yesterday (exclude last MA),
+            since today's MA is computed using today's price. Defaults to True.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -216,16 +452,46 @@ def strategy_bollinger_bands(
     strat_name = "BOLL-BANDS"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
     # if the moving average queue is not long enough to consider, skip
     not_null_values = list(
         filter(lambda x: x is not None, trader.moving_averages[queue_name])
     )
-    if len(not_null_values) < int(queue_name):
+    # When avoiding lookahead, we need one extra MA value so we can exclude today's MA.
+    required_len = int(queue_name) + (1 if avoid_lookahead else 0)
+    if len(not_null_values) < required_len:
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
-    # want the last X number of items
-    mas = not_null_values[-int(queue_name) :]
+    # Use the last X number of items (optionally excluding today's MA to avoid lookahead)
+    band_values = not_null_values[:-1] if avoid_lookahead else not_null_values
+    mas = band_values[-int(queue_name) :]
     # compute mean and standard deviation
     ma_mean, ma_std = np.mean(mas), np.std(mas)
 
@@ -233,9 +499,20 @@ def strategy_bollinger_bands(
     boll_upper = ma_mean + bollinger_sigma * ma_std
     boll_lower = ma_mean - bollinger_sigma * ma_std
 
+    # Volatility filter: bands must be wide enough to overcome fees/spread
+    if ma_mean is None or ma_mean == 0:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    bandwidth_pct = (boll_upper - boll_lower) / ma_mean
+    if bandwidth_pct < min_bandwidth_pct:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
     # (1) if the price exceeds the upper bound, sell
     r_sell = False
-    if new_p >= boll_upper:
+    if has_position and new_p >= boll_upper * (1.0 + band_breakout_pct):
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
@@ -243,7 +520,7 @@ def strategy_bollinger_bands(
 
     # (2) if the price drops below the lower bound, buy
     r_buy = False
-    if new_p <= boll_lower:
+    if r_sell is False and has_cash and new_p <= boll_lower * (1.0 - band_breakout_pct):
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
@@ -451,7 +728,7 @@ def strategy_rsi(
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
-    strat_name = "RSI"
+    strat_name = "RSI" # NOTE: NEXT ONE TO BE OPTIMISED!
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     rsi = trader.compute_rsi(period)
