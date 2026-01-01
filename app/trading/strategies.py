@@ -728,7 +728,7 @@ def strategy_rsi(
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
-    strat_name = "RSI"
+    strat_name = "RSI" # NOTE: NEXT ONE TO BE OPTIMISED!
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     rsi = trader.compute_rsi(period)
