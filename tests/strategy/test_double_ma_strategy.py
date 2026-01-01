@@ -51,10 +51,11 @@ class TestDoubleMAStrategy(unittest.TestCase):
         self.new_price = 100.0
 
     def test_golden_cross_buy_signal(self):
-        """Test buy signal when golden cross occurs (short MA > long MA)."""
-        # Set up golden cross: short MA (105) > long MA (104)
+        """Test buy signal when golden cross occurs and price touches short MA within window."""
+        # True golden cross: yesterday short <= long, today short > long
         self.trader.moving_averages["10"] = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
-        self.trader.moving_averages["20"] = [100.0, 101.0, 102.0, 103.0, 104.0, 104.0]
+        self.trader.moving_averages["20"] = [100.0, 101.0, 102.0, 103.0, 105.0, 104.0]
+        self.new_price = 105.0  # Touch short MA
 
         buy, sell = strategy_double_moving_averages(
             self.trader,
@@ -74,10 +75,11 @@ class TestDoubleMAStrategy(unittest.TestCase):
         )
 
     def test_death_cross_sell_signal(self):
-        """Test sell signal when death cross occurs (long MA > short MA)."""
-        # Set up death cross: long MA (105) > short MA (104)
-        self.trader.moving_averages["10"] = [100.0, 101.0, 102.0, 103.0, 104.0, 104.0]
+        """Test sell signal when death cross occurs and price touches short MA within window."""
+        # True death cross: yesterday short >= long, today short < long
+        self.trader.moving_averages["10"] = [100.0, 101.0, 102.0, 103.0, 105.0, 104.0]
         self.trader.moving_averages["20"] = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
+        self.new_price = 104.0  # Touch short MA
 
         buy, sell = strategy_double_moving_averages(
             self.trader,
@@ -120,9 +122,10 @@ class TestDoubleMAStrategy(unittest.TestCase):
         """Test behavior when buy execution fails."""
         self.trader._execute_one_buy.return_value = False
 
-        # Set up golden cross
+        # Set up true golden cross and touch
         self.trader.moving_averages["10"] = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
-        self.trader.moving_averages["20"] = [100.0, 101.0, 102.0, 103.0, 104.0, 104.0]
+        self.trader.moving_averages["20"] = [100.0, 101.0, 102.0, 103.0, 105.0, 104.0]
+        self.new_price = 105.0
 
         buy, sell = strategy_double_moving_averages(
             self.trader,
@@ -142,9 +145,10 @@ class TestDoubleMAStrategy(unittest.TestCase):
         """Test behavior when sell execution fails."""
         self.trader._execute_one_sell.return_value = False
 
-        # Set up death cross
-        self.trader.moving_averages["10"] = [100.0, 101.0, 102.0, 103.0, 104.0, 104.0]
+        # Set up true death cross and touch
+        self.trader.moving_averages["10"] = [100.0, 101.0, 102.0, 103.0, 105.0, 104.0]
         self.trader.moving_averages["20"] = [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]
+        self.new_price = 104.0
 
         buy, sell = strategy_double_moving_averages(
             self.trader,
