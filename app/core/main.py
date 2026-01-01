@@ -106,6 +106,19 @@ def send_daily_recommendations_email(
     buy_sell_lines = []
     no_action_entries = []
 
+    # Find latest simulation time (best-effort) from the log footer:
+    # `Finish job at time <timestamp>`
+    latest_sim_time = None
+    try:
+        with open(log_file, "r") as f:
+            all_log_lines = f.readlines()
+        for line in reversed(all_log_lines):
+            if "Finish job at time" in line:
+                latest_sim_time = line.split("Finish job at time", 1)[1].strip()
+                break
+    except Exception as e:
+        logger.warning(f"Could not parse latest simulation time from log: {e}")
+
     with open(log_file, "r") as infile:
         for line in infile:
             if line.strip() and line[:10] == today_str:
@@ -150,9 +163,47 @@ def send_daily_recommendations_email(
         else:
             crypto_no_action.append((exch, asset))
 
+    # If there are NO BUY/SELL recommendations at all, mute notifications for non-admin recipients
+    # to avoid spamming with "NO ACTION" emails. We still send a heartbeat to the first recipient
+    # (admin) so you can see the latest simulation time and confirm the bot is running.
+    if not buy_sell_lines:
+        if not recipient_list:
+            logger.info("Recipient list is empty; skipping email notification.")
+            return
+
+        admin_recipient = recipient_list[0]
+        body = ""
+        body += f"Latest simulation time: {latest_sim_time or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        body += "No BUY/SELL recommendations today.\n\n"
+
+        if no_action_entries:
+            from collections import defaultdict
+
+            exch_assets = defaultdict(list)
+            for exch, asset in no_action_entries:
+                exch_assets[exch].append(asset)
+            body += "No action recommended for the following assets today:\n"
+            for exch, assets in exch_assets.items():
+                asset_list = ", ".join(sorted(set(assets)))
+                body += f"- {exch}: {asset_list}\n"
+
+        subject = f"Daily Trading Bot Recommendations ({today_str}) - NO ACTION"
+        send_email(
+            subject=subject,
+            body=body.strip(),
+            to_emails=[admin_recipient],
+            from_email=from_email,
+            app_password=app_password,
+        )
+        logger.info(
+            "No BUY/SELL recommendations today; sent heartbeat to admin only and muted other recipients."
+        )
+        return
+
     # Send different emails to different recipients
     for i, recipient in enumerate(recipient_list):
         body = ""
+        body += f"Latest simulation time: {latest_sim_time or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         
         if i == 0:
             # First recipient (you) - gets everything
@@ -184,6 +235,9 @@ def send_daily_recommendations_email(
                     
         else:
             # Other recipients - crypto only
+            # If there are no crypto BUY/SELL lines, mute this recipient to avoid spamming.
+            if not crypto_lines:
+                continue
             if crypto_lines:
                 header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
                 sep = "-" * len(header)
