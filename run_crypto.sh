@@ -11,12 +11,12 @@ export PATH="/home/ec2-user/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 POETRY_BIN="/home/ec2-user/.local/bin/poetry"
 
 # Log file (absolute path; keep logs inside the repo by default)
-LOG_FILE="$BASE_DIR/trading_bot_cron.log"
+LOG_FILE="$BASE_DIR/trading_bot_crypto_cron.log"
 
 mkdir -p "$BASE_DIR"
 cd "$BASE_DIR"
 
-echo "$(date) - Starting run_bot.sh (cwd=$(pwd))" >> "$LOG_FILE" 2>&1
+echo "$(date) - Starting run_crypto.sh (cwd=$(pwd))" >> "$LOG_FILE" 2>&1
 
 # ---------- INSTALL DEPENDENCIES ----------
 echo "$(date) - Installing poetry dependencies (if missing)..." >> "$LOG_FILE" 2>&1
@@ -30,16 +30,18 @@ if [ ! -f "$VENV_PYTHON" ]; then
 fi
 echo "$(date) - Using virtualenv python: $VENV_PYTHON" >> "$LOG_FILE" 2>&1
 
-# ---------- RUN THE BOT ----------
-echo "$(date) - Running bot..." >> "$LOG_FILE" 2>&1
+# ---------- RUN THE BOT (CRYPTO ONLY) ----------
+echo "$(date) - Running crypto bot..." >> "$LOG_FILE" 2>&1
 "$VENV_PYTHON" -u app/core/main.py --asset=crypto >> "$LOG_FILE" 2>&1
 BOT_EXIT_CODE=$?
 
 if [ $BOT_EXIT_CODE -eq 0 ]; then
-    echo "$(date) - Bot finished successfully" >> "$LOG_FILE" 2>&1
+    echo "$(date) - Crypto bot finished successfully" >> "$LOG_FILE" 2>&1
 else
-    echo "$(date) - Bot exited with code $BOT_EXIT_CODE" >> "$LOG_FILE" 2>&1
+    echo "$(date) - Crypto bot exited with code $BOT_EXIT_CODE" >> "$LOG_FILE" 2>&1
 fi
 
 echo "$(date) - Run completed" >> "$LOG_FILE" 2>&1
 echo "===================================================" >> "$LOG_FILE" 2>&1
+
+
