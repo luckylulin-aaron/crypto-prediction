@@ -423,6 +423,10 @@ def strategy_bollinger_bands(
     new_p: float,
     today: datetime.datetime,
     bollinger_sigma: int,
+    band_breakout_pct: float=0.002,
+    min_bandwidth_pct: float=0.02,
+    cooldown_days: int=2,
+    avoid_lookahead: bool=True,
 ) -> Tuple[bool, bool]:
     """
     Trading with Bollinger Band strategy.
@@ -433,6 +437,14 @@ def strategy_bollinger_bands(
         new_p (float): Today's new price of a currency.
         today (datetime.datetime): Date.
         bollinger_sigma (int): Bollinger sigma value.
+        band_breakout_pct (float): Extra margin beyond bands to confirm a band break and reduce whipsaw.
+            Defaults to 0.002 (0.2%).
+        min_bandwidth_pct (float): Minimum band width (as % of midline) required to trade.
+            Prevents overtrading in low-volatility regimes. Defaults to 0.02 (2%).
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy key.
+            Defaults to 2.
+        avoid_lookahead (bool): If True, compute bands using MA values up to yesterday (exclude last MA),
+            since today's MA is computed using today's price. Defaults to True.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -440,16 +452,46 @@ def strategy_bollinger_bands(
     strat_name = "BOLL-BANDS"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
     # if the moving average queue is not long enough to consider, skip
     not_null_values = list(
         filter(lambda x: x is not None, trader.moving_averages[queue_name])
     )
-    if len(not_null_values) < int(queue_name):
+    # When avoiding lookahead, we need one extra MA value so we can exclude today's MA.
+    required_len = int(queue_name) + (1 if avoid_lookahead else 0)
+    if len(not_null_values) < required_len:
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
-    # want the last X number of items
-    mas = not_null_values[-int(queue_name) :]
+    # Use the last X number of items (optionally excluding today's MA to avoid lookahead)
+    band_values = not_null_values[:-1] if avoid_lookahead else not_null_values
+    mas = band_values[-int(queue_name) :]
     # compute mean and standard deviation
     ma_mean, ma_std = np.mean(mas), np.std(mas)
 
@@ -457,9 +499,20 @@ def strategy_bollinger_bands(
     boll_upper = ma_mean + bollinger_sigma * ma_std
     boll_lower = ma_mean - bollinger_sigma * ma_std
 
+    # Volatility filter: bands must be wide enough to overcome fees/spread
+    if ma_mean is None or ma_mean == 0:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    bandwidth_pct = (boll_upper - boll_lower) / ma_mean
+    if bandwidth_pct < min_bandwidth_pct:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
     # (1) if the price exceeds the upper bound, sell
     r_sell = False
-    if new_p >= boll_upper:
+    if has_position and new_p >= boll_upper * (1.0 + band_breakout_pct):
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
@@ -467,7 +520,7 @@ def strategy_bollinger_bands(
 
     # (2) if the price drops below the lower bound, buy
     r_buy = False
-    if new_p <= boll_lower:
+    if r_sell is False and has_cash and new_p <= boll_lower * (1.0 - band_breakout_pct):
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)

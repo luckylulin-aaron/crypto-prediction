@@ -50,6 +50,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
         """Test buy signal when price is below lower Bollinger Band."""
         # Set up moving averages that will create lower band around 90
         # With sigma=2, std=5, mean=100: lower_band = 100 - 2*5 = 90
+        # Provide 13 values so strategy can avoid lookahead by excluding today's MA.
         self.trader.moving_averages["12"] = [
             95,
             96,
@@ -62,6 +63,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
             103,
             104,
             105,
+            100,
             100,
         ]
         new_price = 85.0  # Below lower band (90)
@@ -81,6 +83,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
         """Test sell signal when price is above upper Bollinger Band."""
         # Set up moving averages that will create upper band around 110
         # With sigma=2, std=5, mean=100: upper_band = 100 + 2*5 = 110
+        # Provide 13 values so strategy can avoid lookahead by excluding today's MA.
         self.trader.moving_averages["12"] = [
             95,
             96,
@@ -94,8 +97,10 @@ class TestBollingerBandsStrategy(unittest.TestCase):
             104,
             105,
             100,
+            100,
         ]
-        new_price = 115.0  # Above upper band (110)
+        # Require a small breakout beyond upper band (default 0.2%)
+        new_price = 116.0
 
         buy, sell = strategy_bollinger_bands(
             self.trader, self.ma_length, new_price, self.today, self.bollinger_sigma
@@ -114,6 +119,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
         """Test no action when price is within Bollinger Bands."""
         # Set up moving averages that will create bands around 100
         # With sigma=2, std=5, mean=100: bands = 90 to 110
+        # Provide 13 values so strategy can avoid lookahead by excluding today's MA.
         self.trader.moving_averages["12"] = [
             95,
             96,
@@ -126,6 +132,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
             103,
             104,
             105,
+            100,
             100,
         ]
         new_price = 100.0  # Within bands (90-110)
@@ -143,11 +150,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
     def test_no_action_when_insufficient_data(self):
         """Test no action when insufficient moving average data."""
         # Set up insufficient data (less than queue length)
-        self.trader.moving_averages["12"] = [
-            100.0,
-            101.0,
-            102.0,
-        ]  # Only 3 values for length 12
+        self.trader.moving_averages["12"] = [100.0, 101.0, 102.0]  # Only 3 values for length 12
         new_price = 100.0
 
         buy, sell = strategy_bollinger_bands(
@@ -162,6 +165,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
         self.trader._execute_one_buy.return_value = False
 
         # Set up moving averages for buy signal
+        # Provide 13 values so strategy can avoid lookahead by excluding today's MA.
         self.trader.moving_averages["12"] = [
             95,
             96,
@@ -174,6 +178,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
             103,
             104,
             105,
+            100,
             100,
         ]
         new_price = 85.0
@@ -193,6 +198,7 @@ class TestBollingerBandsStrategy(unittest.TestCase):
         self.trader._execute_one_sell.return_value = False
 
         # Set up moving averages for sell signal
+        # Provide 13 values so strategy can avoid lookahead by excluding today's MA.
         self.trader.moving_averages["12"] = [
             95,
             96,
@@ -206,8 +212,9 @@ class TestBollingerBandsStrategy(unittest.TestCase):
             104,
             105,
             100,
+            100,
         ]
-        new_price = 115.0
+        new_price = 116.0
 
         buy, sell = strategy_bollinger_bands(
             self.trader, self.ma_length, new_price, self.today, self.bollinger_sigma

@@ -57,6 +57,7 @@ STOCK_STRATEGIES = [
     "MA-SELVES",  # Original moving average strategy
     "DOUBLE-MA", # Double Moving Average Crossover strategy
     "MACD", # MACD strategy
+    "BOLL-BANDS", # Bollinger Bands strategy
     "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "EXP-MA-SELVES",  # Exponential moving average strategy
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
