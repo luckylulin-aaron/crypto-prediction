@@ -50,12 +50,15 @@ class TestKDJStrategy(unittest.TestCase):
         self.new_price = 100.0
 
     def test_buy_signal_when_kdj_oversold(self):
-        """Test buy signal when KDJ is oversold (below threshold)."""
-        # Set up oversold KDJ (20 < 30)
-        self.trader.kdj_dct["K"] = [50.0, 45.0, 40.0, 35.0, 30.0, 20.0]
+        """Buy when K crosses into oversold (prev>=oversold, cur<oversold)."""
+        # Seed prev K
+        self.trader.kdj_dct["K"] = [50.0]
+        strategy_kdj(self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0)
+        # Cross into oversold
+        self.trader.kdj_dct["K"] = [20.0]
 
         buy, sell = strategy_kdj(
-            self.trader, self.new_price, self.today, oversold=30, overbought=70
+            self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0
         )
 
         self.assertTrue(buy, "Should execute buy when KDJ is oversold")
@@ -68,12 +71,15 @@ class TestKDJStrategy(unittest.TestCase):
         )
 
     def test_sell_signal_when_kdj_overbought(self):
-        """Test sell signal when KDJ is overbought (above threshold)."""
-        # Set up overbought KDJ (80 > 70)
-        self.trader.kdj_dct["K"] = [50.0, 55.0, 60.0, 65.0, 70.0, 80.0]
+        """Sell when K crosses into overbought (prev<=overbought, cur>overbought)."""
+        # Seed prev K
+        self.trader.kdj_dct["K"] = [50.0]
+        strategy_kdj(self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0)
+        # Cross into overbought
+        self.trader.kdj_dct["K"] = [80.0]
 
         buy, sell = strategy_kdj(
-            self.trader, self.new_price, self.today, oversold=30, overbought=70
+            self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0
         )
 
         self.assertFalse(buy, "Should not execute buy when KDJ is overbought")
@@ -87,11 +93,13 @@ class TestKDJStrategy(unittest.TestCase):
 
     def test_no_action_when_kdj_neutral(self):
         """Test no action when KDJ is in neutral zone."""
-        # Set up neutral KDJ (50 between 30 and 70)
-        self.trader.kdj_dct["K"] = [50.0, 45.0, 40.0, 35.0, 30.0, 50.0]
+        # Seed prev K and keep neutral (no cross)
+        self.trader.kdj_dct["K"] = [50.0]
+        strategy_kdj(self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0)
+        self.trader.kdj_dct["K"] = [50.0]
 
         buy, sell = strategy_kdj(
-            self.trader, self.new_price, self.today, oversold=30, overbought=70
+            self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0
         )
 
         self.assertFalse(buy, "Should not execute buy when KDJ is neutral")
@@ -128,11 +136,13 @@ class TestKDJStrategy(unittest.TestCase):
         """Test behavior when buy execution fails."""
         self.trader._execute_one_buy.return_value = False
 
-        # Set up oversold KDJ
-        self.trader.kdj_dct["K"] = [50.0, 45.0, 40.0, 35.0, 30.0, 20.0]
+        # Seed prev K then cross into oversold
+        self.trader.kdj_dct["K"] = [50.0]
+        strategy_kdj(self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0)
+        self.trader.kdj_dct["K"] = [20.0]
 
         buy, sell = strategy_kdj(
-            self.trader, self.new_price, self.today, oversold=30, overbought=70
+            self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0
         )
 
         self.assertFalse(buy, "Should return False when buy execution fails")
@@ -142,11 +152,13 @@ class TestKDJStrategy(unittest.TestCase):
         """Test behavior when sell execution fails."""
         self.trader._execute_one_sell.return_value = False
 
-        # Set up overbought KDJ
-        self.trader.kdj_dct["K"] = [50.0, 55.0, 60.0, 65.0, 70.0, 80.0]
+        # Seed prev K then cross into overbought
+        self.trader.kdj_dct["K"] = [50.0]
+        strategy_kdj(self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0)
+        self.trader.kdj_dct["K"] = [80.0]
 
         buy, sell = strategy_kdj(
-            self.trader, self.new_price, self.today, oversold=30, overbought=70
+            self.trader, self.new_price, self.today, oversold=30, overbought=70, cooldown_days=0
         )
 
         self.assertFalse(buy, "Should not execute buy when sell fails")
@@ -155,17 +167,12 @@ class TestKDJStrategy(unittest.TestCase):
     def test_custom_thresholds(self):
         """Test strategy with custom overbought/oversold thresholds."""
         # Test with custom thresholds (40/60 instead of 30/70)
-        self.trader.kdj_dct["K"] = [
-            50.0,
-            45.0,
-            40.0,
-            35.0,
-            30.0,
-            35.0,
-        ]  # Below custom oversold (40)
+        self.trader.kdj_dct["K"] = [50.0]
+        strategy_kdj(self.trader, self.new_price, self.today, oversold=40, overbought=60, cooldown_days=0)
+        self.trader.kdj_dct["K"] = [35.0]  # Cross into custom oversold (40)
 
         buy, sell = strategy_kdj(
-            self.trader, self.new_price, self.today, oversold=40, overbought=60
+            self.trader, self.new_price, self.today, oversold=40, overbought=60, cooldown_days=0
         )
 
         self.assertTrue(buy, "Should execute buy with custom oversold threshold")
@@ -177,6 +184,37 @@ class TestKDJStrategy(unittest.TestCase):
 
         self.assertIn("KDJ", STRATEGY_REGISTRY, "KDJ not in registry")
         self.assertTrue(callable(STRATEGY_REGISTRY["KDJ"]), "KDJ not callable")
+
+    def test_volume_confirmation_blocks_trade_when_volume_is_low(self):
+        """KDJ should not trade on a crossover if volume confirmation fails."""
+        self.trader.volume_history = [100.0] * 25 + [50.0]
+        # Seed prev K then cross into oversold
+        self.trader.kdj_dct["K"] = [50.0]
+        strategy_kdj(
+            self.trader,
+            self.new_price,
+            self.today,
+            oversold=30,
+            overbought=70,
+            cooldown_days=0,
+            volume=50.0,
+            volume_window=20,
+            volume_ratio_threshold=1.2,
+        )
+        self.trader.kdj_dct["K"] = [20.0]
+        buy, sell = strategy_kdj(
+            self.trader,
+            self.new_price,
+            self.today,
+            oversold=30,
+            overbought=70,
+            cooldown_days=0,
+            volume=50.0,
+            volume_window=20,
+            volume_ratio_threshold=1.2,
+        )
+        self.assertFalse(buy)
+        self.assertFalse(sell)
 
 
 if __name__ == "__main__":

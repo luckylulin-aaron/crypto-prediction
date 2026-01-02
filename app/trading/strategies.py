@@ -860,16 +860,34 @@ def strategy_kdj(
     today: datetime.datetime,
     oversold: float = 30,
     overbought: float = 70,
+    cooldown_days: int = 1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
 ) -> Tuple[bool, bool]:
     """
-    KDJ-based trading strategy: buy if KDJ below oversold threshold, sell if above overbought threshold.
+    KDJ-based trading strategy (smarter, less-churn).
+
+    Improvements vs the naive version:
+    - Threshold *cross events* (avoids repeated buys/sells while K stays oversold/overbought)
+    - Position-aware (requires cash for buy, position for sell)
+    - Optional cooldown
+    - Optional volume confirmation (best-effort)
 
     Args:
         trader: The trader instance with necessary methods and attributes.
         new_p (float): Today's new price of a currency.
         today (datetime.datetime): Date.
-        oversold (float, optional): Oversold threshold. Defaults to 20.
-        overbought (float, optional): Overbought threshold. Defaults to 80.
+        oversold (float, optional): Oversold threshold. Defaults to 30.
+        overbought (float, optional): Overbought threshold. Defaults to 70.
+        cooldown_days (int, optional): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -888,28 +906,102 @@ def strategy_kdj(
 
     # Get the latest K value (KDJ indicator)
     current_k = trader.kdj_dct["K"][-1]
+    if not _is_positive_number(current_k) and not isinstance(current_k, (int, float, np.number)):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    current_k = float(current_k)
 
-    # Buy signal: KDJ below oversold threshold
-    if current_k < oversold:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        return r_buy, False
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
-    # Sell signal: KDJ above overbought threshold
-    elif current_k > overbought:
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    setattr(trader, "_prev_kdj_k", current_k)
+                    return False, False
+                break
+
+    # `Mock` objects fabricate missing attributes; read from __dict__ to avoid getting a Mock.
+    prev_k = getattr(trader, "__dict__", {}).get("_prev_kdj_k", None)
+    setattr(trader, "_prev_kdj_k", current_k)
+    if prev_k is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    prev_k = float(prev_k)
+
+    # Cross events
+    cross_into_oversold = prev_k >= oversold and current_k < oversold
+    cross_into_overbought = prev_k <= overbought and current_k > overbought
+
+    # Volume confirmation (best-effort)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
+    # Sell signal: K crosses into overbought
+    if cross_into_overbought and has_position:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        return False, r_sell
-
-    # No action if KDJ is in neutral zone
-    else:
+            return False, True
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
+
+    # Buy signal: K crosses into oversold
+    if cross_into_oversold and has_cash:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+            return True, False
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return False, False
 
 
 def strategy_ma_macd_combined(

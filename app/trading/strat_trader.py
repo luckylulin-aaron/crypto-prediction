@@ -291,6 +291,7 @@ class StratTrader:
                     today=d,
                     oversold=self.kdj_oversold,
                     overbought=self.kdj_overbought,
+                    volume=misc_p.get("volume"),
                 )
 
             elif self.high_strategy == "MULTI-MA-SELVES":
