@@ -1299,6 +1299,19 @@ def strategy_macd_kdj_combined(
     today: datetime.datetime,
     oversold: float = 30,
     overbought: float = 70,
+    cooldown_days: int = 1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    bull_buy_volume_ratio_threshold: float = 1.0,
+    bull_sell_volume_ratio_threshold: float = 1.1,
+    bear_buy_volume_ratio_threshold: float = 1.3,
+    bear_sell_volume_ratio_threshold: float = 1.0,
+    hist_threshold: float = 0.02,
+    bull_kdj_buy_max: float = 70.0,
+    bear_kdj_buy_max: float = 45.0,
+    opportunity_days: int = 5,
+    inactivity_relax_days: int = 30,
+    inactivity_relax_factor: float = 0.85,
 ) -> Tuple[bool, bool]:
     """
     Combined MACD and KDJ strategy.
@@ -1310,6 +1323,33 @@ def strategy_macd_kdj_combined(
         today (datetime.datetime): Date.
         oversold (float): KDJ oversold threshold.
         overbought (float): KDJ overbought threshold.
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 2.
+        volume (Optional[float]): Current interval trading volume. If None, uses the latest
+            value from `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        bull_buy_volume_ratio_threshold (float): In bullish regime, minimum volume ratio (cur/avg)
+            to allow a BUY. Lower means easier buys. Defaults to 1.0.
+        bull_sell_volume_ratio_threshold (float): In bullish regime, minimum volume ratio (cur/avg)
+            to allow a SELL. Higher means harder sells. Defaults to 1.2.
+        bear_buy_volume_ratio_threshold (float): In bearish regime, minimum volume ratio (cur/avg)
+            to allow a BUY. Higher means harder buys. Defaults to 1.3.
+        bear_sell_volume_ratio_threshold (float): In bearish regime, minimum volume ratio (cur/avg)
+            to allow a SELL. Lower means easier sells. Defaults to 1.0.
+        hist_threshold (float): Minimum absolute MACD histogram value required for a crossover
+            to be considered meaningful (noise filter). Defaults to 0.05.
+        bull_kdj_buy_max (float): In bullish regime, BUY confirmation allows KDJ-K up to this value
+            (not necessarily oversold). Defaults to 60.0.
+        bear_kdj_buy_max (float): In bearish regime, BUY confirmation requires KDJ-K to be <= this
+            value (stricter). Defaults to 35.0.
+        opportunity_days (int): After a MACD histogram crossover, allow KDJ/volume confirmation to
+            trigger a trade within this many days (reduces "same-day alignment" conservatism).
+            Defaults to 5.
+        inactivity_relax_days (int): If no BUY/SELL happens for this many days, automatically relax
+            thresholds to avoid going idle for long windows. Defaults to 30.
+        inactivity_relax_factor (float): Multiplicative factor (<1 makes it easier) applied to
+            histogram threshold and volume ratio thresholds after inactivity. Defaults to 0.85.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -1317,40 +1357,214 @@ def strategy_macd_kdj_combined(
     strat_name = "MACD-KDJ"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
-    # Get MACD signal
-    macd_buy_signal = False
-    macd_sell_signal = False
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
-    if trader.macd_dea[-1] is not None:
-        diff = trader.macd_diff[-1] - trader.macd_dea[-1]
-        macd_buy_signal = diff > 0
-        macd_sell_signal = diff < 0
+    # Cooldown to reduce whipsaw / repeated trades
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
 
-    # Get KDJ signal
-    kdj_buy_signal = False
-    kdj_sell_signal = False
+    # If we've been inactive for a long time, relax thresholds to avoid going silent.
+    # (This helps in "slow grind" markets where strict cross+confirm alignment rarely happens.)
+    days_since_trade = None
+    try:
+        last_trade_dt = None
+        for past_dt, past_sig in reversed(getattr(trader, "strat_dct", {}).get(strat_name, [])):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                last_trade_dt = past_dt
+                break
+        if last_trade_dt is not None:
+            try:
+                days_since_trade = (today.date() - last_trade_dt.date()).days
+            except Exception:
+                days_since_trade = (today - last_trade_dt).days
+    except Exception:
+        days_since_trade = None
 
-    if (
-        hasattr(trader, "kdj_dct")
-        and "K" in trader.kdj_dct
-        and len(trader.kdj_dct["K"]) > 0
-    ):
-        current_k = trader.kdj_dct["K"][-1]
-        kdj_buy_signal = current_k < oversold
-        kdj_sell_signal = current_k > overbought
+    relax = False
+    try:
+        relax = (
+            days_since_trade is not None
+            and _is_positive_number(inactivity_relax_days)
+            and int(days_since_trade) >= int(inactivity_relax_days)
+            and isinstance(inactivity_relax_factor, (int, float))
+            and 0 < float(inactivity_relax_factor) < 1.0
+        )
+    except Exception:
+        relax = False
+
+    if relax:
+        hist_threshold = float(hist_threshold) * float(inactivity_relax_factor)
+        bull_buy_volume_ratio_threshold = float(bull_buy_volume_ratio_threshold) * float(
+            inactivity_relax_factor
+        )
+        bull_sell_volume_ratio_threshold = float(bull_sell_volume_ratio_threshold) * float(
+            inactivity_relax_factor
+        )
+        bear_buy_volume_ratio_threshold = float(bear_buy_volume_ratio_threshold) * float(
+            inactivity_relax_factor
+        )
+        bear_sell_volume_ratio_threshold = float(bear_sell_volume_ratio_threshold) * float(
+            inactivity_relax_factor
+        )
+        bull_kdj_buy_max = min(90.0, float(bull_kdj_buy_max) + 10.0)
+        bear_kdj_buy_max = min(70.0, float(bear_kdj_buy_max) + 10.0)
+
+    def _last_two_non_none(values):
+        not_null = [x for x in values if x is not None]
+        if len(not_null) < 2:
+            return None, None
+        return not_null[-2], not_null[-1]
+
+    # MACD histogram cross events (less whipsaw than raw sign checks)
+    diff_prev, diff_cur = _last_two_non_none(getattr(trader, "macd_diff", []))
+    dea_prev, dea_cur = _last_two_non_none(getattr(trader, "macd_dea", []))
+    if diff_prev is None or diff_cur is None or dea_prev is None or dea_cur is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    hist_prev = float(diff_prev) - float(dea_prev)
+    hist_cur = float(diff_cur) - float(dea_cur)
+    # Small epsilon to avoid brittle behavior around equality due to float rounding.
+    _eps = 1e-12
+    _hist_th = max(0.0, float(hist_threshold))
+    macd_bull_cross = (
+        hist_prev <= 0 and hist_cur > 0 and (abs(hist_cur) + _eps) >= _hist_th
+    )
+    macd_bear_cross = (
+        hist_prev >= 0 and hist_cur < 0 and (abs(hist_cur) + _eps) >= _hist_th
+    )
+
+    # Regime: use MACD zero-line (trend-ish) to modulate strictness
+    bullish_regime = float(diff_cur) >= 0 and float(dea_cur) >= 0
+    bearish_regime = not bullish_regime
+
+    # KDJ K cross events
+    k_series = None
+    if hasattr(trader, "kdj_dct") and isinstance(trader.kdj_dct, dict):
+        k_series = trader.kdj_dct.get("K")
+    k_prev, k_cur = _last_two_non_none(k_series or [])
+    if k_prev is None or k_cur is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    k_prev = float(k_prev)
+    k_cur = float(k_cur)
+    kdj_buy_cross = k_prev < float(oversold) and k_cur >= float(oversold)  # exit oversold
+    kdj_sell_cross = k_prev > float(overbought) and k_cur <= float(overbought)  # exit overbought
+
+    # Track a short "opportunity window" after MACD cross so confirmations can come later.
+    # This greatly increases trade frequency vs requiring cross+confirm to happen on the same bar.
+    window = getattr(trader, "__dict__", {}).get("_macd_kdj_window", None)
+    if not isinstance(window, dict):
+        window = {}
+        try:
+            setattr(trader, "_macd_kdj_window", window)
+        except Exception:
+            pass
+
+    if macd_bull_cross:
+        window["type"] = "BULLISH"
+        window["start"] = today
+    elif macd_bear_cross:
+        window["type"] = "BEARISH"
+        window["start"] = today
+
+    in_window = False
+    window_type = window.get("type")
+    if window_type in ("BULLISH", "BEARISH") and window.get("start") is not None:
+        try:
+            days_since_cross = (today.date() - window["start"].date()).days
+        except Exception:
+            days_since_cross = (today - window["start"]).days
+        if _is_positive_number(opportunity_days) and days_since_cross <= int(opportunity_days):
+            in_window = True
+
+    # Volume confirmation (always present in pipeline, but keep safe fallback for tests/mocks)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+    if not isinstance(vols_attr, (list, tuple)):
+        vols_attr = []
+
+    buy_vol_ratio_threshold = (
+        float(bull_buy_volume_ratio_threshold)
+        if bullish_regime
+        else float(bear_buy_volume_ratio_threshold)
+    )
+    sell_vol_ratio_threshold = (
+        float(bull_sell_volume_ratio_threshold)
+        if bullish_regime
+        else float(bear_sell_volume_ratio_threshold)
+    )
+
+    buy_volume_ok = True
+    sell_volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and len(vols_attr) >= int(volume_window) + 1:
+            avg_vol = float(np.mean(list(vols_attr)[-(int(volume_window) + 1) : -1]))
+            if avg_vol > 0:
+                ratio = float(cur_vol) / avg_vol
+                buy_volume_ok = ratio >= buy_vol_ratio_threshold
+                sell_volume_ok = ratio >= sell_vol_ratio_threshold
+    except Exception:
+        buy_volume_ok = True
+        sell_volume_ok = True
 
     # Execute trades only when both signals agree
     r_buy, r_sell = False, False
 
-    # Buy: MACD bullish AND KDJ oversold
-    if macd_buy_signal and kdj_buy_signal:
+    # Asymmetry by regime:
+    # - Bullish regime: easier BUYs, harder SELLs
+    # - Bearish regime: harder BUYs, easier SELLs
+    if bullish_regime:
+        buy_confirm = (kdj_buy_cross or k_cur <= float(bull_kdj_buy_max)) and buy_volume_ok
+        # Harder sells in bull: require KDJ sell-cross (confirmation), but allow it within MACD bear window.
+        sell_confirm = kdj_sell_cross and sell_volume_ok
+        buy_condition = (macd_bull_cross or (in_window and window_type == "BULLISH")) and buy_confirm and has_cash
+        sell_condition = (macd_bear_cross or (in_window and window_type == "BEARISH")) and sell_confirm and has_position
+    else:
+        # Still harder buys in bear, but allow "deep oversold" without requiring an exact cross event.
+        bear_oversold_ok = (kdj_buy_cross or k_cur <= float(oversold)) and k_cur <= float(
+            bear_kdj_buy_max
+        )
+        buy_confirm = bear_oversold_ok and buy_volume_ok
+        # easier sell in bearish regime: allow MACD cross alone OR KDJ cross, but still cooldown'ed
+        sell_confirm = sell_volume_ok and (macd_bear_cross or kdj_sell_cross)
+        buy_condition = (macd_bull_cross or (in_window and window_type == "BULLISH")) and buy_confirm and has_cash
+        sell_condition = sell_confirm and has_position
+
+    # Buy
+    if buy_condition:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 
-    # Sell: MACD bearish AND KDJ overbought
-    elif macd_sell_signal and kdj_sell_signal:
+    # Sell
+    elif sell_condition:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
