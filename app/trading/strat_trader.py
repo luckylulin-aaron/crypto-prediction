@@ -298,6 +298,9 @@ class StratTrader:
                     sell_pct=self.sell_pct,
                     bollinger_sigma=self.bollinger_sigma,
                     volume=misc_p.get("volume"),
+                    open_p=misc_p.get("open"),
+                    low_p=misc_p.get("low"),
+                    high_p=misc_p.get("high"),
                 )
 
             elif self.high_strategy == "RSI":
