@@ -249,6 +249,41 @@ class TestRSIStrategy(unittest.TestCase):
         self.assertIn("RSI", STRATEGY_REGISTRY, "RSI not in registry")
         self.assertTrue(callable(STRATEGY_REGISTRY["RSI"]), "RSI not callable")
 
+    def test_volume_confirmation_blocks_trade_when_volume_is_low(self):
+        """RSI should not trade on a crossover if volume confirmation fails."""
+        # Provide volume history with a stable average of 100, and current volume 50 (< 1.2 * 100)
+        self.trader.volume_history = [100.0] * 25 + [50.0]
+        self.trader.compute_rsi.side_effect = [50.0, 20.0]  # Cross into oversold
+
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+            volume=50.0,
+            volume_window=20,
+            volume_ratio_threshold=1.2,
+        )
+
+        buy, sell = strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+            volume=50.0,
+            volume_window=20,
+            volume_ratio_threshold=1.2,
+        )
+
+        self.assertFalse(buy)
+        self.assertFalse(sell)
+
 
 if __name__ == "__main__":
     unittest.main()

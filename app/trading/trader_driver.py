@@ -281,6 +281,11 @@ class TraderDriver:
                     "open": data_stream[0][2],
                     "low": data_stream[0][3],
                     "high": data_stream[0][4],
+                    **(
+                        {"volume": data_stream[0][5]}
+                        if isinstance(data_stream[0], (list, tuple)) and len(data_stream[0]) > 5
+                        else {}
+                    ),
                 },
             )
             # run simulation
@@ -291,6 +296,11 @@ class TraderDriver:
                     "open": data_stream[i][2],
                     "low": data_stream[i][3],
                     "high": data_stream[i][4],
+                    **(
+                        {"volume": data_stream[i][5]}
+                        if isinstance(data_stream[i], (list, tuple)) and len(data_stream[i]) > 5
+                        else {}
+                    ),
                 }
                 t.add_new_day(p, d, misc_p)
             # decide best trader while we loop, by comparing all traders final portfolio value

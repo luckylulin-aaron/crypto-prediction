@@ -49,7 +49,8 @@ SUPPORTED_STRATEGIES = [
 
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
-    "MA-BOLL-BANDS",
+    # "MA-BOLL-BANDS",
+    "RSI",
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto

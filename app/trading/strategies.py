@@ -714,6 +714,9 @@ def strategy_rsi(
     overbought: float = 70,
     oversold: float = 30,
     cooldown_days: int = 1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
 ) -> Tuple[bool, bool]:
     """
     RSI-based trading strategy (smarter, less-churn).
@@ -735,6 +738,12 @@ def strategy_rsi(
         oversold (float, optional): Oversold threshold. Defaults to 30.
         cooldown_days (int, optional): Minimum days between BUY/SELL signals for this strategy.
             Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -792,7 +801,31 @@ def strategy_rsi(
     cross_into_oversold = float(prev_rsi) >= oversold and float(rsi) < oversold
     cross_into_overbought = float(prev_rsi) <= overbought and float(rsi) > overbought
 
+    # Volume confirmation (best-effort):
+    # If we have enough volume history, require the current volume to be meaningfully above average.
+    cur_vol = volume
+    # `Mock` objects fabricate attributes; use __dict__ and require a real list/tuple.
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                # Exclude the current volume (last item) to avoid self-influence
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
     if cross_into_overbought and has_position:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell:
             trader._record_history(new_p, today, SELL_SIGNAL)
@@ -803,6 +836,10 @@ def strategy_rsi(
         return False, False
 
     if cross_into_oversold and has_cash:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy:
             trader._record_history(new_p, today, BUY_SIGNAL)

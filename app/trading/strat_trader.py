@@ -281,6 +281,7 @@ class StratTrader:
                     period=self.rsi_period,
                     oversold=self.rsi_oversold,
                     overbought=self.rsi_overbought,
+                    volume=misc_p.get("volume"),
                 )
 
             elif self.high_strategy == "KDJ":
