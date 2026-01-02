@@ -50,7 +50,6 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
-    # For Testing Purposes
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
