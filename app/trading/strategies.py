@@ -569,6 +569,9 @@ def strategy_ma_boll_bands(
     buy_pct: float,
     sell_pct: float,
     bollinger_sigma: int,
+    open_p: Optional[float] = None,
+    low_p: Optional[float] = None,
+    high_p: Optional[float] = None,
     trend_lookback: int = 3,
     trend_min_abs_slope_pct: float = 0.002,
     band_breakout_pct: float = 0.002,
@@ -585,6 +588,28 @@ def strategy_ma_boll_bands(
     bull_entry_z_discount: float = 0.3,
     bull_exit_z_premium: float = 0.3,
     bull_require_stronger_sell: bool = True,
+    bull_allow_additional_buys: bool = True,
+    bull_additional_buy_min_cash_ratio: float = 0.20,
+    neutral_scalp_enabled: bool = True,
+    neutral_scalp_min_bandwidth_pct: float = 0.06,
+    neutral_scalp_entry_z: float = 0.6,
+    neutral_scalp_exit_z: float = 0.6,
+    neutral_scalp_volume_ratio_threshold: float = 1.0,
+    high_vol_bandwidth_pct: float = 0.08,
+    low_vol_bandwidth_pct: float = 0.03,
+    cooldown_high_vol_discount_days: int = 1,
+    cooldown_low_vol_bonus_days: int = 1,
+    capitulation_enabled: bool = True,
+    capitulation_z: float = 2.6,
+    capitulation_volume_ratio_threshold: float = 1.8,
+    capitulation_close_near_high_pct: float = 0.6,
+    bull_blowoff_enabled: bool = True,
+    bull_blowoff_z: float = 2.2,
+    bull_trailing_stop_pct: float = 0.05,
+    bull_buy_on_midline_pullback: bool = True,
+    bull_pullback_z: float = 0.0,
+    bull_pullback_volume_ratio_threshold: float = 1.0,
+    bull_disable_take_profit_on_first_touch: bool = True,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -606,6 +631,9 @@ def strategy_ma_boll_bands(
         buy_pct (float): Buy percentage (kept for API consistency).
         sell_pct (float): Sell percentage (kept for API consistency).
         bollinger_sigma (int): Bollinger sigma value.
+        open_p (Optional[float]): Current interval open (used for reversal confirmation). Defaults to None.
+        low_p (Optional[float]): Current interval low (used for reversal confirmation). Defaults to None.
+        high_p (Optional[float]): Current interval high (used for reversal confirmation). Defaults to None.
         trend_lookback (int, optional): Lookback window (in MA points) for trend slope. Defaults to 3.
         trend_min_abs_slope_pct (float, optional): Minimum absolute MA slope (as % of MA) to trade.
             Defaults to 0.002 (0.2%).
@@ -635,6 +663,39 @@ def strategy_ma_boll_bands(
             are harder (let winners run). Defaults to 0.3.
         bull_require_stronger_sell (bool): If True, in uptrends require BOTH band breakout AND z-threshold
             to sell (stronger confirmation). Defaults to True.
+        bull_allow_additional_buys (bool): If True, allow "add-on" buys in strong uptrends even when
+            already holding a position (uses by_percentage of remaining cash). Defaults to True.
+        bull_additional_buy_min_cash_ratio (float): Only allow add-on buys if cash / (cash + position_value)
+            is at least this ratio. Defaults to 0.20.
+        neutral_scalp_enabled (bool): If True, allow smaller mean-reversion trades in neutral/mild-trend
+            regimes, using z-score cross events to avoid repeated signals. Defaults to True.
+        neutral_scalp_min_bandwidth_pct (float): Minimum bandwidth to enable scalp mode. Defaults to 0.06.
+        neutral_scalp_entry_z (float): Entry threshold for scalp mode (cross below -z). Defaults to 0.6.
+        neutral_scalp_exit_z (float): Exit threshold for scalp mode (cross above +z). Defaults to 0.6.
+        neutral_scalp_volume_ratio_threshold (float): Volume ratio required for scalp triggers. Defaults to 1.0.
+        high_vol_bandwidth_pct (float): Bandwidth threshold considered "high vol" for dynamic cooldown. Defaults to 0.08.
+        low_vol_bandwidth_pct (float): Bandwidth threshold considered "low vol" for dynamic cooldown. Defaults to 0.03.
+        cooldown_high_vol_discount_days (int): Reduce cooldown by this many days in high vol. Defaults to 1.
+        cooldown_low_vol_bonus_days (int): Increase cooldown by this many days in low vol. Defaults to 1.
+        capitulation_enabled (bool): If True, allow rare downtrend "capitulation + reversal" buys. Defaults to True.
+        capitulation_z (float): Z-score required to consider capitulation. Defaults to 2.6.
+        capitulation_volume_ratio_threshold (float): Volume ratio required for capitulation buys. Defaults to 1.8.
+        capitulation_close_near_high_pct (float): Require close to be in the top fraction of candle range
+            for reversal confirmation (when OHLC available). Defaults to 0.6.
+        bull_blowoff_enabled (bool): If True, in strong uptrends we don't immediately sell on an upper-band
+            breakout. Instead we "arm" a blow-off state and sell only after a reversal (trailing stop).
+            Defaults to True.
+        bull_blowoff_z (float): Z-score threshold to arm the blow-off state. Defaults to 2.2.
+        bull_trailing_stop_pct (float): Trailing stop percentage from the peak price while blow-off is armed.
+            Defaults to 0.05 (5%).
+        bull_buy_on_midline_pullback (bool): If True, in strong uptrends allow add-on buys on a pullback
+            to/below the midline (z crosses below `bull_pullback_z`). Defaults to True.
+        bull_pullback_z (float): Midline pullback z-threshold (often 0.0). Defaults to 0.0.
+        bull_pullback_volume_ratio_threshold (float): Volume ratio required to confirm pullback add-on buys.
+            Defaults to 1.0.
+        bull_disable_take_profit_on_first_touch (bool): If True, in strong uptrends disable immediate
+            take-profit selling on first upper-band touch; rely on blow-off trailing exit instead.
+            Defaults to True.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -672,15 +733,18 @@ def strategy_ma_boll_bands(
     trending_up = slope_pct >= trend_min_abs_slope_pct
     trending_down = slope_pct <= -trend_min_abs_slope_pct
 
+    # Volatility-adaptive cooldown baseline (may be adjusted after bandwidth is known).
+    effective_cooldown_days = cooldown_days
+
     # Simple cooldown using the last non-NO-ACTION signal date for this strategy.
-    if cooldown_days > 0 and strat_name in trader.strat_dct:
+    if effective_cooldown_days > 0 and strat_name in trader.strat_dct:
         for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
             if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
                 if hasattr(today, "date"):
                     delta_days = (today.date() - past_dt.date()).days
                 else:
                     delta_days = (today - past_dt).days
-                if delta_days < cooldown_days:
+                if delta_days < effective_cooldown_days:
                     trader._record_history(new_p, today, NO_ACTION_SIGNAL)
                     trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
                     return False, False
@@ -712,6 +776,28 @@ def strategy_ma_boll_bands(
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
+    # Now that we know bandwidth, adjust cooldown and re-check it (only if we haven't traded yet).
+    try:
+        if _is_positive_number(high_vol_bandwidth_pct) and bandwidth_pct >= float(high_vol_bandwidth_pct):
+            effective_cooldown_days = max(0, int(cooldown_days) - int(cooldown_high_vol_discount_days))
+        elif _is_positive_number(low_vol_bandwidth_pct) and bandwidth_pct <= float(low_vol_bandwidth_pct):
+            effective_cooldown_days = int(cooldown_days) + int(cooldown_low_vol_bonus_days)
+    except Exception:
+        effective_cooldown_days = cooldown_days
+
+    if effective_cooldown_days > 0 and strat_name in trader.strat_dct:
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < effective_cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
     # Z-score of price relative to midline; epsilon prevents division-by-zero.
     z = (new_p - mid) / (std + 1e-12)
 
@@ -733,6 +819,7 @@ def strategy_ma_boll_bands(
     if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
         cur_vol = vols_attr[-1]
     volume_ok = True
+    vol_ratio = None
     try:
         if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
             vols = list(vols_attr)
@@ -740,6 +827,7 @@ def strategy_ma_boll_bands(
                 avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
                 if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
                     volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+                    vol_ratio = float(cur_vol) / avg_vol
     except Exception:
         volume_ok = True
 
@@ -780,21 +868,174 @@ def strategy_ma_boll_bands(
     if trending_down and require_volume_for_bear_buys:
         buy_condition = buy_condition and volume_ok
 
+    # Rare downtrend opportunities: capitulation + reversal.
+    # This is intentionally strict: extreme z + large volume + (optional) bullish candle shape.
+    capitulation_buy = False
+    if trending_down and capitulation_enabled and has_cash:
+        cap_vol_ok = True
+        try:
+            if vol_ratio is not None and _is_positive_number(capitulation_volume_ratio_threshold):
+                cap_vol_ok = float(vol_ratio) >= float(capitulation_volume_ratio_threshold)
+            elif _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)) and len(vols_attr) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(list(vols_attr)[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0:
+                    cap_vol_ok = float(cur_vol) / avg_vol >= float(capitulation_volume_ratio_threshold)
+        except Exception:
+            cap_vol_ok = True
+
+        reversal_ok = True
+        try:
+            if _is_positive_number(open_p) and _is_positive_number(low_p) and _is_positive_number(high_p) and float(high_p) > float(low_p):
+                close_pos = (float(new_p) - float(low_p)) / (float(high_p) - float(low_p))
+                reversal_ok = float(new_p) >= float(open_p) and close_pos >= float(capitulation_close_near_high_pct)
+        except Exception:
+            reversal_ok = True
+
+        if _is_positive_number(capitulation_z):
+            capitulation_buy = (z <= -float(capitulation_z)) and cap_vol_ok and reversal_ok
+
     # In downtrends, allow taking profit when reverting to midline (helps avoid being trapped).
     if trending_down and bear_midline_take_profit:
         sell_condition = sell_condition or (z >= 0.0)
 
+    # Neutral / mild-trend scalp mode (agile but less whipsaw):
+    # Use z-score cross events to avoid repeated signals when price oscillates.
+    scalp_buy = False
+    scalp_sell = False
+    if neutral_scalp_enabled and (not trending_up) and (not trending_down) and bandwidth_pct >= float(neutral_scalp_min_bandwidth_pct):
+        prev_z_key = f"_ma_boll_prev_z:{queue_name}:{bollinger_sigma}"
+        prev_z = getattr(trader, "__dict__", {}).get(prev_z_key, None)
+        try:
+            prev_z_val = float(prev_z) if prev_z is not None else None
+        except Exception:
+            prev_z_val = None
+
+        scalp_vol_ok = True
+        try:
+            if vol_ratio is not None:
+                scalp_vol_ok = float(vol_ratio) >= float(neutral_scalp_volume_ratio_threshold)
+        except Exception:
+            scalp_vol_ok = True
+
+        if prev_z_val is not None:
+            scalp_buy = prev_z_val > -float(neutral_scalp_entry_z) and z <= -float(neutral_scalp_entry_z) and scalp_vol_ok
+            scalp_sell = prev_z_val < float(neutral_scalp_exit_z) and z >= float(neutral_scalp_exit_z) and scalp_vol_ok
+
+        # store current z for next step
+        try:
+            setattr(trader, prev_z_key, float(z))
+        except Exception:
+            pass
+
+    # Bullish uptrend "let winners run" mode:
+    # Arm on an extreme (upper band / high z), but only sell after a reversal (trailing stop).
+    bull_blowoff_sell = False
+    if trending_up and bull_blowoff_enabled and has_position:
+        state_key = f"_ma_boll_bull_state:{queue_name}:{bollinger_sigma}"
+        state = getattr(trader, "__dict__", {}).get(state_key, None)
+        if not isinstance(state, dict):
+            state = {"armed": False, "peak": None}
+            try:
+                setattr(trader, state_key, state)
+            except Exception:
+                pass
+
+        try:
+            armed = bool(state.get("armed", False))
+        except Exception:
+            armed = False
+
+        # Arm on blow-off conditions (do NOT sell immediately)
+        try:
+            blowoff_arm = (z >= float(bull_blowoff_z)) or (
+                new_p >= boll_upper * (1.0 + band_breakout_pct)
+            )
+        except Exception:
+            blowoff_arm = False
+
+        if not armed and blowoff_arm:
+            state["armed"] = True
+            state["peak"] = float(new_p)
+        elif armed:
+            try:
+                peak = float(state.get("peak") or new_p)
+            except Exception:
+                peak = float(new_p)
+            peak = max(peak, float(new_p))
+            state["peak"] = peak
+            try:
+                if _is_positive_number(bull_trailing_stop_pct) and new_p <= peak * (
+                    1.0 - float(bull_trailing_stop_pct)
+                ):
+                    bull_blowoff_sell = True
+            except Exception:
+                bull_blowoff_sell = False
+
+        # If we triggered a sell (below), disarm so we don't keep selling.
+        if bull_blowoff_sell:
+            state["armed"] = False
+            state["peak"] = None
+
+    # In strong uptrends, avoid selling winners too early:
+    # keep the earlier "stronger sell confirmation" logic, but optionally disable immediate take-profit.
+    if trending_up and bull_disable_take_profit_on_first_touch:
+        sell_condition = False
+        # Still allow a sell on blow-off reversal or if we actually flip to downtrend logic later.
+        if bull_blowoff_sell:
+            sell_condition = True
+
+    # In strong uptrends, allow pullback add-on entries near/below midline (more bullish exposure).
+    bull_pullback_buy = False
+    if trending_up and bull_buy_on_midline_pullback:
+        prev_z_key = f"_ma_boll_prev_z:{queue_name}:{bollinger_sigma}"
+        prev_z = getattr(trader, "__dict__", {}).get(prev_z_key, None)
+        try:
+            prev_z_val = float(prev_z) if prev_z is not None else None
+        except Exception:
+            prev_z_val = None
+        pullback_vol_ok = True
+        try:
+            if vol_ratio is not None:
+                pullback_vol_ok = float(vol_ratio) >= float(bull_pullback_volume_ratio_threshold)
+        except Exception:
+            pullback_vol_ok = True
+        if prev_z_val is not None:
+            bull_pullback_buy = (
+                prev_z_val > float(bull_pullback_z)
+                and z <= float(bull_pullback_z)
+                and pullback_vol_ok
+            )
+
     # Prefer exits before entries (risk management) and be position-aware.
-    if has_position and sell_condition:
+    if has_position and (sell_condition or scalp_sell or bull_blowoff_sell):
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    elif (not has_position) and has_cash and buy_condition:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy is True:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    else:
+        # In strong uptrends, allow add-on buys if we still have meaningful cash left.
+        allow_add_buy = False
+        if trending_up and bull_allow_additional_buys and has_cash:
+            try:
+                pos_val = float(getattr(trader, "cur_coin", 0)) * float(new_p)
+                cash_val_f = float(getattr(trader, "cash", 0))
+                total = cash_val_f + pos_val
+                if total > 0:
+                    cash_ratio = cash_val_f / total
+                    allow_add_buy = cash_ratio >= float(bull_additional_buy_min_cash_ratio)
+            except Exception:
+                allow_add_buy = False
+
+        can_buy = (
+            has_cash
+            and (buy_condition or scalp_buy or capitulation_buy or bull_pullback_buy)
+            and ((not has_position) or allow_add_buy)
+        )
+        if can_buy:
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 
     # add history as well if nothing happens (or execution failed)
     if r_buy is False and r_sell is False:
