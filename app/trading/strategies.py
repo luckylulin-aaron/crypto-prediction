@@ -713,9 +713,18 @@ def strategy_rsi(
     period: int = 14,
     overbought: float = 70,
     oversold: float = 30,
+    cooldown_days: int = 1,
 ) -> Tuple[bool, bool]:
     """
-    RSI-based trading strategy: buy if oversold, sell if overbought.
+    RSI-based trading strategy (smarter, less-churn).
+
+    Instead of firing every time RSI is beyond a threshold (which can overtrade while RSI stays
+    oversold/overbought), this version trades on *threshold cross events*:
+    - Buy when RSI crosses below the oversold threshold (prev >= oversold, cur < oversold)
+    - Sell when RSI crosses above the overbought threshold (prev <= overbought, cur > overbought)
+
+    It is also position-aware (requires cash for buy, position for sell) and supports an optional
+    cooldown to avoid whipsaw.
 
     Args:
         trader: The trader instance with necessary methods and attributes.
@@ -724,36 +733,88 @@ def strategy_rsi(
         period (int, optional): RSI period. Defaults to 14.
         overbought (float, optional): Overbought threshold. Defaults to 70.
         oversold (float, optional): Oversold threshold. Defaults to 30.
+        cooldown_days (int, optional): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
-    strat_name = "RSI" # NOTE: NEXT ONE TO BE OPTIMISED!
+    strat_name = "RSI"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     rsi = trader.compute_rsi(period)
     if rsi is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False  # Not enough data yet
 
-    trader.strat_dct["RSI"].append(rsi)
+    # Store RSI series separately to avoid mixing numeric values with signal tuples.
+    if not hasattr(trader, "rsi_series") or trader.rsi_series is None:
+        trader.rsi_series = []
+    trader.rsi_series.append((today, float(rsi)))
 
-    # Buy signal: RSI below oversold threshold
-    if rsi < oversold:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-        return r_buy, False
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
-    # Sell signal: RSI above overbought threshold
-    elif rsi > overbought:
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    setattr(trader, "_prev_rsi", float(rsi))
+                    return False, False
+                break
+
+    # `Mock` objects fabricate missing attributes; read from __dict__ to avoid getting a Mock.
+    prev_rsi = getattr(trader, "__dict__", {}).get("_prev_rsi", None)
+    setattr(trader, "_prev_rsi", float(rsi))
+    if prev_rsi is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    cross_into_oversold = float(prev_rsi) >= oversold and float(rsi) < oversold
+    cross_into_overbought = float(prev_rsi) <= overbought and float(rsi) > overbought
+
+    if cross_into_overbought and has_position:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell:
             trader._record_history(new_p, today, SELL_SIGNAL)
-        return False, r_sell
-
-    else:
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+            return False, True
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
+
+    if cross_into_oversold and has_cash:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+            return True, False
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return False, False
 
 
 def strategy_kdj(

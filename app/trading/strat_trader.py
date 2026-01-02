@@ -557,7 +557,7 @@ class StratTrader:
         # execution body
         if method == "by_percentage":
             # Use percentage of available cash
-            out_cash = self.cash * self.sell_pct
+            out_cash = self.cash * self.buy_pct
             self.cur_coin += out_cash * (1 - self.broker_pct) / new_p
             self.cash -= out_cash
 
