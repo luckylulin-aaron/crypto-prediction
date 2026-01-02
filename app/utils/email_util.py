@@ -7,7 +7,7 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 
-def send_email(subject, body, to_emails, from_email, app_password):
+def send_email(subject, body, to_emails, from_email, app_password, html_body=None):
     if not to_emails or not from_email or not app_password:
         logger.warning("Gmail credentials not set, skipping email notification.")
         return
@@ -17,7 +17,11 @@ def send_email(subject, body, to_emails, from_email, app_password):
     msg["To"] = from_email
     msg["Bcc"] = ", ".join(to_emails)
     msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
+    # Plain-text fallback always included
+    msg.attach(MIMEText(body or "", "plain"))
+    # Optional HTML part for nicer formatting
+    if html_body:
+        msg.attach(MIMEText(html_body, "html"))
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(from_email, app_password)

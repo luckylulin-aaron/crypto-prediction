@@ -7,7 +7,7 @@ import time
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional
+from typing import Optional, Tuple
 
 # third-party packages
 import numpy as np
@@ -84,7 +84,7 @@ RECIPIENT_LIST = [
 
 
 def send_daily_recommendations_email(
-    log_file, recipient_list, from_email, app_password
+    log_file, recipient_list, from_email, app_password, best_summaries: Optional[list] = None
 ):
     """
     Send daily recommendations email from log.txt for today's actions.
@@ -102,6 +102,7 @@ def send_daily_recommendations_email(
     Returns:
     """
     today_str = datetime.now().strftime("%Y-%m-%d")
+    best_summaries = best_summaries or []
 
     buy_sell_lines = []
     no_action_entries = []
@@ -172,9 +173,13 @@ def send_daily_recommendations_email(
             return
 
         admin_recipient = recipient_list[0]
-        body = ""
-        body += f"Latest simulation time: {latest_sim_time or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        body += "No BUY/SELL recommendations today.\n\n"
+        sim_ts = latest_sim_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        body = f"Latest simulation time: {sim_ts}\n\nNo BUY/SELL recommendations today.\n\n"
+        html_body = (
+            "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial, sans-serif;\">"
+            f"<div style=\"font-size:14px;color:#334155;\">⏱️ Latest simulation time: <b>{sim_ts}</b></div>"
+            "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📭 No BUY/SELL recommendations today</h2>"
+        )
 
         if no_action_entries:
             from collections import defaultdict
@@ -186,6 +191,13 @@ def send_daily_recommendations_email(
             for exch, assets in exch_assets.items():
                 asset_list = ", ".join(sorted(set(assets)))
                 body += f"- {exch}: {asset_list}\n"
+            html_body += "<div style=\"margin-top:10px;font-size:13px;color:#334155;\"><b>No action</b> for:</div>"
+            html_body += "<ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
+            for exch, assets in exch_assets.items():
+                asset_list = ", ".join(sorted(set(assets)))
+                html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
+            html_body += "</ul>"
+        html_body += "</div>"
 
         subject = f"Daily Trading Bot Recommendations ({today_str}) - NO ACTION"
         send_email(
@@ -194,22 +206,92 @@ def send_daily_recommendations_email(
             to_emails=[admin_recipient],
             from_email=from_email,
             app_password=app_password,
+            html_body=html_body,
         )
         logger.info(
             "No BUY/SELL recommendations today; sent heartbeat to admin only and muted other recipients."
         )
         return
 
+    def _fmt_pct(v) -> str:
+        try:
+            if v is None or v == "":
+                return ""
+            return f"{float(v):.2f}"
+        except Exception:
+            return str(v)
+
+    def _render_best_table(rows: list) -> Tuple[str, str]:
+        """Return (plain_text, html) tables for best_summaries rows."""
+        if not rows:
+            return "", ""
+
+        header = (
+            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6}"
+        )
+        sep = "-" * len(header)
+        lines = []
+        for r in rows:
+            lines.append(
+                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | {r.get('best_strategy',''):<20} | {_fmt_pct(r.get('buy_pct')):<6} | {_fmt_pct(r.get('sell_pct')):<6}"
+            )
+        plain = "\n".join([header, sep] + lines) + "\n"
+
+        html = (
+            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
+            "<thead>"
+            "<tr style=\"background:#0f172a;color:#ffffff;\">"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Best strategy</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Buy %</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sell %</th>"
+            "</tr></thead><tbody>"
+        )
+        for idx, r in enumerate(rows):
+            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+            icon = "🪙" if r.get("asset_type") == "CRYPTO" else "📈"
+            html += (
+                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
+                f"<td style=\"padding:10px;color:#0f172a;\">{icon} {r.get('asset_type','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
+                f"<td style=\"padding:10px;color:#334155;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;\">{r.get('best_strategy','')}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('buy_pct'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('sell_pct'))}</td>"
+                "</tr>"
+            )
+        html += "</tbody></table>"
+        return plain, html
+
     # Send different emails to different recipients
     for i, recipient in enumerate(recipient_list):
-        body = ""
-        body += f"Latest simulation time: {latest_sim_time or datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
+        sim_ts = latest_sim_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        body = f"Latest simulation time: {sim_ts}\n\n"
+        html_body = (
+            "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Arial,sans-serif;\">"
+            f"<div style=\"font-size:14px;color:#334155;\">⏱️ Latest simulation time: <b>{sim_ts}</b></div>"
+        )
+
         if i == 0:
-            # First recipient (you) - gets everything
+            # First recipient (admin) - gets everything
             all_lines = crypto_lines + stock_lines
             all_no_action = crypto_no_action + stock_no_action
-            
+
+            summary_rows = sorted(
+                list(best_summaries),
+                key=lambda r: (r.get("asset_type") != "STOCK", r.get("asset", "")),
+            )
+            if summary_rows:
+                body += "Best strategy summary (per asset):\n"
+                plain_tbl, html_tbl = _render_best_table(summary_rows)
+                body += plain_tbl + "\n"
+                html_body += (
+                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📊 Best strategy summary (per asset)</h2>"
+                    + html_tbl
+                )
+
             if all_lines:
                 header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
                 sep = "-" * len(header)
@@ -222,9 +304,17 @@ def send_daily_recommendations_email(
                     "\nBuy %: Recommended proportion of available funds to use for buying this asset.\n"
                     "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n"
                 )
+                html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
+                html_body += (
+                    "<pre style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;"
+                    "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
+                    + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
+                    + "</pre>"
+                )
 
             if all_no_action:
                 from collections import defaultdict
+
                 exch_assets = defaultdict(list)
                 for exch, asset in all_no_action:
                     exch_assets[exch].append(asset)
@@ -232,12 +322,31 @@ def send_daily_recommendations_email(
                 for exch, assets in exch_assets.items():
                     asset_list = ", ".join(sorted(set(assets)))
                     body += f"- {exch}: {asset_list}\n"
-                    
+
+                html_body += "<div style=\"margin-top:12px;font-size:13px;color:#334155;\"><b>⚪ No action</b> for:</div><ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
+                for exch, assets in exch_assets.items():
+                    asset_list = ", ".join(sorted(set(assets)))
+                    html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
+                html_body += "</ul>"
+
         else:
             # Other recipients - crypto only
-            # If there are no crypto BUY/SELL lines, mute this recipient to avoid spamming.
             if not crypto_lines:
                 continue
+
+            summary_rows = sorted(
+                [r for r in best_summaries if r.get("asset_type") == "CRYPTO"],
+                key=lambda r: r.get("asset", ""),
+            )
+            if summary_rows:
+                body += "Best strategy summary (crypto only):\n"
+                plain_tbl, html_tbl = _render_best_table(summary_rows)
+                body += plain_tbl + "\n"
+                html_body += (
+                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🪙 Best strategy summary (crypto)</h2>"
+                    + html_tbl
+                )
+
             if crypto_lines:
                 header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
                 sep = "-" * len(header)
@@ -250,9 +359,17 @@ def send_daily_recommendations_email(
                     "\nBuy %: Recommended proportion of available stablecoin to use for buying this asset.\n"
                     "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n"
                 )
+                html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
+                html_body += (
+                    "<pre style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;"
+                    "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
+                    + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
+                    + "</pre>"
+                )
 
             if crypto_no_action:
                 from collections import defaultdict
+
                 exch_assets = defaultdict(list)
                 for exch, asset in crypto_no_action:
                     exch_assets[exch].append(asset)
@@ -261,16 +378,23 @@ def send_daily_recommendations_email(
                     asset_list = ", ".join(sorted(set(assets)))
                     body += f"- {exch}: {asset_list}\n"
 
-        # Send email to this specific recipient
+                html_body += "<div style=\"margin-top:12px;font-size:13px;color:#334155;\"><b>⚪ No action</b> for:</div><ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
+                for exch, assets in exch_assets.items():
+                    asset_list = ", ".join(sorted(set(assets)))
+                    html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
+                html_body += "</ul>"
+
         subject = f"Daily Trading Bot Recommendations ({today_str})"
+        html_body += "</div>"
         send_email(
             subject=subject,
             body=body.strip(),
-            to_emails=[recipient],  # Send to individual recipient
+            to_emails=[recipient],
             from_email=from_email,
             app_password=app_password,
+            html_body=html_body,
         )
-        
+
     return
 
 
@@ -373,7 +497,7 @@ def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClien
     return None, None
 
 
-def _run_stock_simulation(all_actions: list) -> None:
+def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = None) -> None:
     """
     Run stock simulation only (daily candles).
 
@@ -468,6 +592,17 @@ def _run_stock_simulation(all_actions: list) -> None:
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
             signal = best_t.trade_signal
+            if best_summaries is not None:
+                best_summaries.append(
+                    {
+                        "asset_type": "STOCK",
+                        "exchange": "STOCK",
+                        "asset": stock,
+                        "best_strategy": best_t.high_strategy,
+                        "buy_pct": best_info.get("buy_pct", ""),
+                        "sell_pct": best_info.get("sell_pct", ""),
+                    }
+                )
 
             # Log best trader summary for stock
             init_value = best_info.get("init_value", 0)
@@ -550,15 +685,20 @@ def main(asset: str = "all"):
 
     # Collect recommended actions for email/log
     all_actions = []
+    best_summaries = []
 
     # Stock-only mode: skip crypto clients entirely.
     if asset_mode == "stock":
-        _run_stock_simulation(all_actions)
+        _run_stock_simulation(all_actions, best_summaries)
 
         # Send daily recommendations email if not in debug mode
         if DEBUG is False:
             send_daily_recommendations_email(
-                LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
+                LOG_FILE,
+                RECIPIENT_LIST,
+                GMAIL_ADDRESS,
+                GMAIL_APP_PASSWORD,
+                best_summaries=best_summaries,
             )
 
         # write to log file
@@ -821,6 +961,16 @@ def main(asset: str = "all"):
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
             signal = best_t.trade_signal
+            best_summaries.append(
+                {
+                    "asset_type": "CRYPTO",
+                    "exchange": source_exchange.value,
+                    "asset": asset,
+                    "best_strategy": best_t.high_strategy,
+                    "buy_pct": best_info.get("buy_pct", ""),
+                    "sell_pct": best_info.get("sell_pct", ""),
+                }
+            )
 
             # Log aggregated best trader summary with exchange name
             logger.info(
@@ -926,12 +1076,16 @@ def main(asset: str = "all"):
 
     # --- Stock Trading Simulation ---
     if asset_mode in ("all", "stock"):
-        _run_stock_simulation(all_actions)
+        _run_stock_simulation(all_actions, best_summaries)
 
     # Send daily recommendations email if not in debug mode
     if DEBUG is False:
         send_daily_recommendations_email(
-            LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
+            LOG_FILE,
+            RECIPIENT_LIST,
+            GMAIL_ADDRESS,
+            GMAIL_APP_PASSWORD,
+            best_summaries=best_summaries,
         )
 
     # Send DEFI report email based on configuration

@@ -50,17 +50,12 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
-    "MACD",
-    "RSI"
-    # For Testing Purposes
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
 STOCK_STRATEGIES = [
     "MA-SELVES",  # Original moving average strategy
     "DOUBLE-MA", # Double Moving Average Crossover strategy
-    "MACD", # MACD strategy
-    "BOLL-BANDS", # Bollinger Bands strategy
     "MA-BOLL-BANDS", # MA + Bollinger Bands strategy
     "RSI", # RSI strategy
     "KDJ", # KDJ strategy
@@ -73,6 +68,7 @@ STOCK_STRATEGIES = [
     "MULTI-MA-SELVES",
     "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
 ]
+
 
 # Backward-compatible alias (treat as enabled crypto strategies)
 STRATEGIES = CRYPTO_STRATEGIES

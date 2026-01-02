@@ -1,4 +1,4 @@
-.PHONY: help install install-dev clean format lint type-check test run-server run-bot docker-build docker-run
+.PHONY: help install install-dev clean format lint type-check test test-live-volume run-server run-bot docker-build docker-run
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  lint         Run linting checks"
 	@echo "  type-check   Run type checking with mypy"
 	@echo "  test         Run tests"
+	@echo "  test-live-volume  Run LIVE client volume integration tests (requires LIVE_API_TESTS=1)"
 	@echo ""
 	@echo "Running:"
 	@echo "  run-server   Start the web server"
@@ -62,6 +63,11 @@ type-check:
 test:
 	@echo "Running tests..."
 	poetry run pytest tests/ -v
+
+test-live-volume:
+	@echo "Running LIVE API client volume integration tests..."
+	@echo "Tip: export LIVE_API_TESTS=1 (and COINBASE_API_KEY/COINBASE_API_SECRET for Coinbase)"
+	LIVE_API_TESTS=1 poetry run python -m unittest -v tests/integration/test_clients_live_volume.py
 
 # Running the application
 run-server:
