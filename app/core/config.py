@@ -7,7 +7,7 @@ SECONDS_IN_ONE_DAY = 86400
 COMMIT = False  # Set to True for actual trading deployment
 
 # debug mode, if True, only test 1 strategy
-DEBUG = False
+DEBUG = True
 
 # --- Strategy lists ---
 # We distinguish:
@@ -50,16 +50,19 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     # "MA-BOLL-BANDS",
-    "RSI",
+    # For Testing Purposes
+    "MA-SELVES",
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
 STOCK_STRATEGIES = [
+    """
     "MA-SELVES",  # Original moving average strategy
     "DOUBLE-MA", # Double Moving Average Crossover strategy
     "MACD", # MACD strategy
     "BOLL-BANDS", # Bollinger Bands strategy
     "MA-BOLL-BANDS", # MA + Bollinger Bands strategy
+    "RSI", # RSI strategy
     # --------- #
     "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "EXP-MA-SELVES",  # Exponential moving average strategy
@@ -68,6 +71,9 @@ STOCK_STRATEGIES = [
     "TRIPLE-SIGNAL",
     "MULTI-MA-SELVES",
     "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
+    """
+    # For Testing Purposes
+    "RSI"
 ]
 
 # Backward-compatible alias (treat as enabled crypto strategies)

@@ -917,6 +917,7 @@ def strategy_kdj(
     coin_val = getattr(trader, "cur_coin", 0)
     has_cash = _is_positive_number(cash_val)
     has_position = _is_positive_number(coin_val)
+
     if not has_cash and hasattr(trader, "wallet"):
         has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
             trader.wallet.get("USDT", 0)
@@ -1012,6 +1013,13 @@ def strategy_ma_macd_combined(
     tol_pct: float,
     buy_pct: float,
     sell_pct: float,
+    opportunity_days: int = 3,
+    touch_tol_pct: float = 0.01,
+    cooldown_days: int = 1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
+    min_volatility_pct: float = 0.0,
 ) -> Tuple[bool, bool]:
     """
     Combined Moving Average and MACD strategy.
@@ -1025,6 +1033,20 @@ def strategy_ma_macd_combined(
         tol_pct (float): Tolerance percentage for MA.
         buy_pct (float): Buy percentage.
         sell_pct (float): Sell percentage.
+        opportunity_days (int): Window size (in days) after a MACD crossover to look for MA-based opportunities.
+            Defaults to 3.
+        touch_tol_pct (float): Touch tolerance as a fraction of MA (e.g. 0.01 = 1%).
+            Defaults to 0.01.
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
+        min_volatility_pct (float): Minimum rolling price volatility (std/mean) required to trade.
+            Defaults to 0.0 (disabled).
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -1032,32 +1054,134 @@ def strategy_ma_macd_combined(
     strat_name = "MA-MACD"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
-    # Get MA signal
-    last_ma = trader.moving_averages[queue_name][-1]
-    ma_buy_signal = new_p <= (1 - tol_pct) * last_ma
-    ma_sell_signal = new_p >= (1 + tol_pct) * last_ma
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
-    # Get MACD signal
-    macd_buy_signal = False
-    macd_sell_signal = False
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
 
-    if trader.macd_dea[-1] is not None:
-        diff = trader.macd_diff[-1] - trader.macd_dea[-1]
-        macd_buy_signal = diff > 0
-        macd_sell_signal = diff < 0
+    # MA reference (avoid lookahead): today's MA includes today's price, so use previous MA value
+    not_null_ma = [x for x in trader.moving_averages[queue_name] if x is not None]
+    if len(not_null_ma) < 2:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    ma_ref = not_null_ma[-2]
+    if not _is_positive_number(ma_ref):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
 
-    # Execute trades only when both signals agree
+    ma_touch = abs(new_p - ma_ref) <= (touch_tol_pct * ma_ref)
+    ma_buy_signal = ma_touch or (new_p <= (1 - tol_pct) * ma_ref)
+    ma_sell_signal = ma_touch or (new_p >= (1 + tol_pct) * ma_ref)
+
+    # Volatility filter (best-effort): require some price movement to justify entries/exits
+    if _is_positive_number(min_volatility_pct):
+        prices = getattr(trader, "price_history", None)
+        if not prices and hasattr(trader, "crypto_prices"):
+            prices = [x[0] for x in trader.crypto_prices]
+        if prices and len(prices) >= 20:
+            window = prices[-20:]
+            m = float(np.mean(window))
+            s = float(np.std(window))
+            if m > 0 and (s / m) < float(min_volatility_pct):
+                trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                return False, False
+
+    # Get MACD crossover event (less whipsaw than sign-only)
+    if (
+        not hasattr(trader, "macd_diff")
+        or not hasattr(trader, "macd_dea")
+        or len(trader.macd_diff) < 2
+        or len(trader.macd_dea) < 2
+        or trader.macd_dea[-1] is None
+        or trader.macd_dea[-2] is None
+        or trader.macd_diff[-1] is None
+        or trader.macd_diff[-2] is None
+    ):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    hist_prev = trader.macd_diff[-2] - trader.macd_dea[-2]
+    hist_cur = trader.macd_diff[-1] - trader.macd_dea[-1]
+    macd_cross_up = hist_prev <= 0 and hist_cur > 0
+    macd_cross_down = hist_prev >= 0 and hist_cur < 0
+
+    # Track opportunity windows per MA queue
+    if not isinstance(getattr(trader, "_ma_macd_windows", None), dict):
+        trader._ma_macd_windows = {}
+    w = trader._ma_macd_windows.get(queue_name)
+    if macd_cross_up:
+        trader._ma_macd_windows[queue_name] = {"type": "BULLISH", "start": today}
+        w = trader._ma_macd_windows[queue_name]
+    elif macd_cross_down:
+        trader._ma_macd_windows[queue_name] = {"type": "BEARISH", "start": today}
+        w = trader._ma_macd_windows[queue_name]
+
+    if not w:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    try:
+        days_since = (today.date() - w["start"].date()).days
+    except Exception:
+        days_since = (today - w["start"]).days
+    if days_since > opportunity_days:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Volume confirmation (best-effort)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
     r_buy, r_sell = False, False
 
-    # Buy: MA shows oversold AND MACD shows bullish
-    if ma_buy_signal and macd_buy_signal:
+    # Within bullish window: buy on MA pullback/oversold
+    if w["type"] == "BULLISH" and has_cash and ma_buy_signal and volume_ok:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 
-    # Sell: MA shows overbought AND MACD shows bearish
-    elif ma_sell_signal and macd_sell_signal:
+    # Within bearish window: sell on MA rebound/overbought
+    elif w["type"] == "BEARISH" and has_position and ma_sell_signal and volume_ok:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)

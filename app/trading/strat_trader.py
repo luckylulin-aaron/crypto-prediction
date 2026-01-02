@@ -232,6 +232,31 @@ class StratTrader:
                 self.compute_macd_related()
                 strategy_func(trader=self, new_p=new_p, today=d)
 
+            elif self.high_strategy == "MA-MACD":
+                # Need MACD values computed before evaluating the combined strategy
+                self.compute_macd_related()
+                # Use a single MA queue for decisions (avoid multiple trades per day)
+                ma_lengths_int = [int(x) for x in self.moving_averages.keys()]
+                shortest_queue = str(min(ma_lengths_int))
+                if (
+                    shortest_queue in self.moving_averages
+                    and len(self.moving_averages[shortest_queue]) > 0
+                    and self.moving_averages[shortest_queue][-1] is not None
+                ):
+                    strategy_func(
+                        trader=self,
+                        queue_name=shortest_queue,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        volume=misc_p.get("volume"),
+                    )
+                else:
+                    self._record_history(new_p, d, NO_ACTION_SIGNAL)
+                    self.strat_dct[self.high_strategy].append((d, NO_ACTION_SIGNAL))
+
             elif self.high_strategy == "BOLL-BANDS":
                 for queue_name in self.bollinger_mas:
                     # if we don't have a moving average yet, skip
