@@ -50,6 +50,8 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
+    "MACD",
+    "RSI"
     # For Testing Purposes
 ]
 
