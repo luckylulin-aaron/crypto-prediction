@@ -49,20 +49,19 @@ SUPPORTED_STRATEGIES = [
 
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
-    # "MA-BOLL-BANDS",
+    "MA-BOLL-BANDS",
     # For Testing Purposes
-    "MA-SELVES",
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
 STOCK_STRATEGIES = [
-    """
     "MA-SELVES",  # Original moving average strategy
     "DOUBLE-MA", # Double Moving Average Crossover strategy
     "MACD", # MACD strategy
     "BOLL-BANDS", # Bollinger Bands strategy
     "MA-BOLL-BANDS", # MA + Bollinger Bands strategy
     "RSI", # RSI strategy
+    "KDJ", # KDJ strategy
     # --------- #
     "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "EXP-MA-SELVES",  # Exponential moving average strategy
@@ -71,9 +70,6 @@ STOCK_STRATEGIES = [
     "TRIPLE-SIGNAL",
     "MULTI-MA-SELVES",
     "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
-    """
-    # For Testing Purposes
-    "RSI"
 ]
 
 # Backward-compatible alias (treat as enabled crypto strategies)
@@ -217,8 +213,8 @@ EXCHANGE_CONFIGS = [
 
 # List of US stock tickers to fetch via yfinance
 STOCKS = [
-    'TSLA',  # Tesla
     'AAPL',  # Apple
+    'TSLA',  # Tesla
     'JD', # JD.com
     'ORCL', # Oracle,
     'META', # Meta,

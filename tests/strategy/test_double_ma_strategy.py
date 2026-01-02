@@ -173,6 +173,33 @@ class TestDoubleMAStrategy(unittest.TestCase):
             callable(STRATEGY_REGISTRY["DOUBLE-MA"]), "DOUBLE-MA not callable"
         )
 
+    def test_volume_confirmation_blocks_trade_when_volume_is_low(self):
+        """DOUBLE-MA should not trade if volume confirmation fails."""
+        # Make volume average ~100, current 50 (< 1.2 * 100)
+        self.trader.volume_history = [100.0] * 25 + [50.0]
+
+        # True golden cross (prev <=, current >) and price touches short MA
+        self.trader.moving_averages["10"] = [100.0, 100.0]
+        self.trader.moving_averages["20"] = [100.0, 99.0]
+        self.new_price = 100.0
+
+        buy, sell = strategy_double_moving_averages(
+            self.trader,
+            self.shorter_queue_name,
+            self.longer_queue_name,
+            self.new_price,
+            self.today,
+            opportunity_days=3,
+            touch_tol_pct=0.01,
+            cooldown_days=0,
+            volume=50.0,
+            volume_window=20,
+            volume_ratio_threshold=1.2,
+        )
+
+        self.assertFalse(buy)
+        self.assertFalse(sell)
+
 
 if __name__ == "__main__":
     unittest.main()

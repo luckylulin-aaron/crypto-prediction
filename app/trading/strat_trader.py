@@ -226,6 +226,7 @@ class StratTrader:
                             longer_queue_name=l_qn,
                             new_p=new_p,
                             today=d,
+                            volume=misc_p.get("volume"),
                         )
 
             elif self.high_strategy == "MACD":
@@ -296,6 +297,7 @@ class StratTrader:
                     buy_pct=self.buy_pct,
                     sell_pct=self.sell_pct,
                     bollinger_sigma=self.bollinger_sigma,
+                    volume=misc_p.get("volume"),
                 )
 
             elif self.high_strategy == "RSI":

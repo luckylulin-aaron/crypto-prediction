@@ -150,6 +150,9 @@ def strategy_double_moving_averages(
     opportunity_days: int=3,
     touch_tol_pct: float=0.01,
     cooldown_days: int=1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
 ) -> Tuple[bool, bool]:
     """
     Double moving average crossover with a short "opportunity window".
@@ -176,6 +179,12 @@ def strategy_double_moving_averages(
             Defaults to 0.01.
         cooldown_days (int): Minimum days between BUY/SELL signals for this strategy key.
             Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -266,11 +275,28 @@ def strategy_double_moving_averages(
 
     touch = abs(new_p - short_ma) <= (touch_tol_pct * short_ma)
 
+    # Volume confirmation (best-effort): if we have enough volume history, require above-average volume.
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
     r_buy, r_sell = False, False
 
     if window["type"] == "BULLISH":
         # Buy on pullback to short MA within window
-        if has_cash and touch and new_p <= short_ma * (1.0 + touch_tol_pct):
+        if has_cash and touch and volume_ok and new_p <= short_ma * (1.0 + touch_tol_pct):
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
@@ -278,7 +304,7 @@ def strategy_double_moving_averages(
 
     elif window["type"] == "BEARISH":
         # Sell on rebound to short MA within window
-        if has_position and touch and new_p >= short_ma * (1.0 - touch_tol_pct):
+        if has_position and touch and volume_ok and new_p >= short_ma * (1.0 - touch_tol_pct):
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
@@ -550,6 +576,15 @@ def strategy_ma_boll_bands(
     min_bandwidth_pct: float = 0.02,
     entry_z: float = 1.5,
     exit_z: float = 0.8,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
+    require_volume_for_bear_buys: bool = True,
+    bear_exit_z_discount: float = 0.3,
+    bear_midline_take_profit: bool = True,
+    bull_entry_z_discount: float = 0.3,
+    bull_exit_z_premium: float = 0.3,
+    bull_require_stronger_sell: bool = True,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -582,6 +617,24 @@ def strategy_ma_boll_bands(
             This prevents overtrading in low-volatility regimes. Defaults to 0.02 (2%).
         entry_z (float, optional): Z-score threshold for entries (buy when z <= -entry_z). Defaults to 1.5.
         exit_z (float, optional): Z-score threshold for exits (sell when z >= exit_z). Defaults to 0.8.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm certain signals. Defaults to 1.2.
+        require_volume_for_bear_buys (bool): If True, require volume confirmation for buy entries when
+            the MA trend is downward (helps avoid catching a falling knife). Defaults to True.
+        bear_exit_z_discount (float): In downtrends, reduce the sell z-threshold by this amount so we
+            take profits sooner on rebounds. Defaults to 0.3.
+        bear_midline_take_profit (bool): If True, in downtrends allow taking profit when price reverts
+            back to the midline (z >= 0). Defaults to True.
+        bull_entry_z_discount (float): In uptrends, reduce the buy z-threshold by this amount so entries
+            are easier (buy dips more readily). Defaults to 0.3.
+        bull_exit_z_premium (float): In uptrends, increase the sell z-threshold by this amount so exits
+            are harder (let winners run). Defaults to 0.3.
+        bull_require_stronger_sell (bool): If True, in uptrends require BOTH band breakout AND z-threshold
+            to sell (stronger confirmation). Defaults to True.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -663,8 +716,32 @@ def strategy_ma_boll_bands(
     z = (new_p - mid) / (std + 1e-12)
 
     # position and cash check, really important!
-    has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
-    has_cash = _is_positive_number(getattr(trader, "cash", 0))
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_position = _is_positive_number(coin_val)
+    has_cash = _is_positive_number(cash_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # Volume confirmation (best-effort)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
 
     r_buy, r_sell = False, False
 
@@ -676,15 +753,36 @@ def strategy_ma_boll_bands(
     # Trend bias (mild):
     # - In strong uptrends, require a deeper pullback to buy (avoid buying "not cheap enough")
     # - In strong downtrends, require a stronger overbought condition to sell (avoid selling into weakness)
-    effective_entry_z = entry_z + (0.3 if trending_up else 0.0)
-    effective_exit_z = exit_z + (0.3 if trending_down else 0.0)
+    # In uptrends, entries are easier; in downtrends, leave entry stricter by default.
+    effective_entry_z = entry_z - (bull_entry_z_discount if trending_up else 0.0)
+    effective_entry_z = max(0.1, float(effective_entry_z))
 
-    buy_condition = (
-        (new_p <= boll_lower * (1.0 - band_breakout_pct)) or (z <= -effective_entry_z)
-    )
-    sell_condition = (
-        (new_p >= boll_upper * (1.0 + band_breakout_pct)) or (z >= effective_exit_z)
-    )
+    # In downtrends, take profits sooner on rebounds (otherwise it's easy to get stuck).
+    # In uptrends, take profits later (otherwise you sell winners too early).
+    effective_exit_z = exit_z
+    if trending_down:
+        effective_exit_z = exit_z - bear_exit_z_discount
+    elif trending_up:
+        effective_exit_z = exit_z + bull_exit_z_premium
+    effective_exit_z = max(0.1, float(effective_exit_z))
+
+    # Base conditions
+    buy_condition = (new_p <= boll_lower * (1.0 - band_breakout_pct)) or (z <= -effective_entry_z)
+    sell_condition = (new_p >= boll_upper * (1.0 + band_breakout_pct)) or (z >= effective_exit_z)
+
+    # In uptrends, require stronger confirmation to sell (harder exits).
+    if trending_up and bull_require_stronger_sell:
+        sell_condition = (new_p >= boll_upper * (1.0 + band_breakout_pct)) and (
+            z >= effective_exit_z
+        )
+
+    # Make bearish entries more selective: require volume confirmation by default.
+    if trending_down and require_volume_for_bear_buys:
+        buy_condition = buy_condition and volume_ok
+
+    # In downtrends, allow taking profit when reverting to midline (helps avoid being trapped).
+    if trending_down and bear_midline_take_profit:
+        sell_condition = sell_condition or (z >= 0.0)
 
     # Prefer exits before entries (risk management) and be position-aware.
     if has_position and sell_condition:
