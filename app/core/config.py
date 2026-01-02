@@ -50,6 +50,9 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
+    "MACD",
+    "RSI"
+    # For Testing Purposes
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
@@ -59,6 +62,8 @@ STOCK_STRATEGIES = [
     "MACD", # MACD strategy
     "BOLL-BANDS", # Bollinger Bands strategy
     "MA-BOLL-BANDS", # MA + Bollinger Bands strategy
+    "RSI", # RSI strategy
+    "KDJ", # KDJ strategy
     # --------- #
     "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "EXP-MA-SELVES",  # Exponential moving average strategy
@@ -210,8 +215,8 @@ EXCHANGE_CONFIGS = [
 
 # List of US stock tickers to fetch via yfinance
 STOCKS = [
-    'TSLA',  # Tesla
     'AAPL',  # Apple
+    'TSLA',  # Tesla
     'JD', # JD.com
     'ORCL', # Oracle,
     'META', # Meta,

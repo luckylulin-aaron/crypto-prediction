@@ -44,9 +44,19 @@ class TestRSIStrategy(unittest.TestCase):
         self.new_price = 100.0
 
     def test_buy_signal_when_rsi_oversold(self):
-        """Test buy signal when RSI is oversold (below threshold)."""
-        # Set up oversold RSI (20 < 30)
-        self.trader.compute_rsi.return_value = 20.0
+        """Test buy signal when RSI crosses into oversold (prev>=oversold, cur<oversold)."""
+        self.trader.compute_rsi.side_effect = [50.0, 20.0]
+
+        # First call seeds prev RSI (no action), second triggers buy
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+        )
 
         buy, sell = strategy_rsi(
             self.trader,
@@ -55,6 +65,7 @@ class TestRSIStrategy(unittest.TestCase):
             period=14,
             overbought=70,
             oversold=30,
+            cooldown_days=0,
         )
 
         self.assertTrue(buy, "Should execute buy when RSI is oversold")
@@ -67,9 +78,18 @@ class TestRSIStrategy(unittest.TestCase):
         )
 
     def test_sell_signal_when_rsi_overbought(self):
-        """Test sell signal when RSI is overbought (above threshold)."""
-        # Set up overbought RSI (80 > 70)
-        self.trader.compute_rsi.return_value = 80.0
+        """Test sell signal when RSI crosses into overbought (prev<=overbought, cur>overbought)."""
+        self.trader.compute_rsi.side_effect = [50.0, 80.0]
+
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+        )
 
         buy, sell = strategy_rsi(
             self.trader,
@@ -78,6 +98,7 @@ class TestRSIStrategy(unittest.TestCase):
             period=14,
             overbought=70,
             oversold=30,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when RSI is overbought")
@@ -91,8 +112,17 @@ class TestRSIStrategy(unittest.TestCase):
 
     def test_no_action_when_rsi_neutral(self):
         """Test no action when RSI is in neutral zone."""
-        # Set up neutral RSI (50 between 30 and 70)
-        self.trader.compute_rsi.return_value = 50.0
+        self.trader.compute_rsi.side_effect = [50.0, 50.0]
+
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+        )
 
         buy, sell = strategy_rsi(
             self.trader,
@@ -101,6 +131,7 @@ class TestRSIStrategy(unittest.TestCase):
             period=14,
             overbought=70,
             oversold=30,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when RSI is neutral")
@@ -121,6 +152,7 @@ class TestRSIStrategy(unittest.TestCase):
             period=14,
             overbought=70,
             oversold=30,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when RSI is None")
@@ -129,7 +161,17 @@ class TestRSIStrategy(unittest.TestCase):
     def test_buy_execution_failure(self):
         """Test behavior when buy execution fails."""
         self.trader._execute_one_buy.return_value = False
-        self.trader.compute_rsi.return_value = 20.0  # Oversold
+        self.trader.compute_rsi.side_effect = [50.0, 20.0]
+
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+        )
 
         buy, sell = strategy_rsi(
             self.trader,
@@ -138,6 +180,7 @@ class TestRSIStrategy(unittest.TestCase):
             period=14,
             overbought=70,
             oversold=30,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should return False when buy execution fails")
@@ -146,7 +189,17 @@ class TestRSIStrategy(unittest.TestCase):
     def test_sell_execution_failure(self):
         """Test behavior when sell execution fails."""
         self.trader._execute_one_sell.return_value = False
-        self.trader.compute_rsi.return_value = 80.0  # Overbought
+        self.trader.compute_rsi.side_effect = [50.0, 80.0]
+
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+        )
 
         buy, sell = strategy_rsi(
             self.trader,
@@ -155,6 +208,7 @@ class TestRSIStrategy(unittest.TestCase):
             period=14,
             overbought=70,
             oversold=30,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when sell fails")
@@ -163,7 +217,17 @@ class TestRSIStrategy(unittest.TestCase):
     def test_custom_thresholds(self):
         """Test strategy with custom overbought/oversold thresholds."""
         # Test with custom thresholds (40/60 instead of 30/70)
-        self.trader.compute_rsi.return_value = 35.0  # Below custom oversold (40)
+        self.trader.compute_rsi.side_effect = [50.0, 35.0]  # Cross into custom oversold (40)
+
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=60,
+            oversold=40,
+            cooldown_days=0,
+        )
 
         buy, sell = strategy_rsi(
             self.trader,
@@ -172,6 +236,7 @@ class TestRSIStrategy(unittest.TestCase):
             period=14,
             overbought=60,
             oversold=40,
+            cooldown_days=0,
         )
 
         self.assertTrue(buy, "Should execute buy with custom oversold threshold")
@@ -183,6 +248,41 @@ class TestRSIStrategy(unittest.TestCase):
 
         self.assertIn("RSI", STRATEGY_REGISTRY, "RSI not in registry")
         self.assertTrue(callable(STRATEGY_REGISTRY["RSI"]), "RSI not callable")
+
+    def test_volume_confirmation_blocks_trade_when_volume_is_low(self):
+        """RSI should not trade on a crossover if volume confirmation fails."""
+        # Provide volume history with a stable average of 100, and current volume 50 (< 1.2 * 100)
+        self.trader.volume_history = [100.0] * 25 + [50.0]
+        self.trader.compute_rsi.side_effect = [50.0, 20.0]  # Cross into oversold
+
+        strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+            volume=50.0,
+            volume_window=20,
+            volume_ratio_threshold=1.2,
+        )
+
+        buy, sell = strategy_rsi(
+            self.trader,
+            self.new_price,
+            self.today,
+            period=14,
+            overbought=70,
+            oversold=30,
+            cooldown_days=0,
+            volume=50.0,
+            volume_window=20,
+            volume_ratio_threshold=1.2,
+        )
+
+        self.assertFalse(buy)
+        self.assertFalse(sell)
 
 
 if __name__ == "__main__":

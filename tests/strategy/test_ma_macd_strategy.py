@@ -53,14 +53,14 @@ class TestMAMACDStrategy(unittest.TestCase):
         self.sell_pct = 0.3
 
     def test_buy_signal_when_both_ma_and_macd_positive(self):
-        """Test buy signal when both MA and MACD signals are positive."""
-        # Set up MA buy signal (price below MA - tolerance)
+        """Buy when MACD crosses up and price is oversold vs MA within the opportunity window."""
+        # MA reference uses previous MA (avoid lookahead)
         self.trader.moving_averages["12"] = [105.0, 105.0, 105.0, 105.0, 105.0, 105.0]
-        new_price = 94.0  # Below MA (105) - tolerance (10.5) = 94.5
+        new_price = 94.0  # Oversold vs MA (105) with tol 0.1
 
-        # Set up MACD buy signal (positive difference)
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.3]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        # MACD histogram cross up: hist_prev<=0, hist_cur>0
+        self.trader.macd_diff = [0.1, 0.3]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_ma_macd_combined(
             self.trader,
@@ -70,6 +70,7 @@ class TestMAMACDStrategy(unittest.TestCase):
             self.tol_pct,
             self.buy_pct,
             self.sell_pct,
+            cooldown_days=0,
         )
 
         self.assertTrue(
@@ -82,14 +83,13 @@ class TestMAMACDStrategy(unittest.TestCase):
         )
 
     def test_sell_signal_when_both_ma_and_macd_negative(self):
-        """Test sell signal when both MA and MACD signals are negative."""
-        # Set up MA sell signal (price above MA + tolerance)
+        """Sell when MACD crosses down and price is overbought vs MA within the opportunity window."""
         self.trader.moving_averages["12"] = [95.0, 95.0, 95.0, 95.0, 95.0, 95.0]
-        new_price = 106.0  # Above MA (95) + tolerance (9.5) = 104.5
+        new_price = 106.0  # Overbought vs MA (95) with tol 0.1
 
-        # Set up MACD sell signal (negative difference)
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.1]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        # MACD histogram cross down: hist_prev>=0, hist_cur<0
+        self.trader.macd_diff = [0.3, 0.1]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_ma_macd_combined(
             self.trader,
@@ -99,6 +99,7 @@ class TestMAMACDStrategy(unittest.TestCase):
             self.tol_pct,
             self.buy_pct,
             self.sell_pct,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when both signals are negative")
@@ -113,14 +114,12 @@ class TestMAMACDStrategy(unittest.TestCase):
         )
 
     def test_no_action_when_ma_positive_macd_negative(self):
-        """Test no action when MA is positive but MACD is negative."""
-        # Set up MA buy signal
+        """No action if MA says buy but there's no MACD crossover window."""
         self.trader.moving_averages["12"] = [105.0, 105.0, 105.0, 105.0, 105.0, 105.0]
         new_price = 94.0
-
-        # Set up MACD sell signal
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.1]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        # No crossover: histogram stays negative
+        self.trader.macd_diff = [0.1, 0.1]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_ma_macd_combined(
             self.trader,
@@ -130,6 +129,7 @@ class TestMAMACDStrategy(unittest.TestCase):
             self.tol_pct,
             self.buy_pct,
             self.sell_pct,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when signals conflict")
@@ -139,14 +139,12 @@ class TestMAMACDStrategy(unittest.TestCase):
         )
 
     def test_no_action_when_ma_negative_macd_positive(self):
-        """Test no action when MA is negative but MACD is positive."""
-        # Set up MA sell signal
+        """No action if MA says sell but there's no MACD crossover window."""
         self.trader.moving_averages["12"] = [95.0, 95.0, 95.0, 95.0, 95.0, 95.0]
         new_price = 106.0
-
-        # Set up MACD buy signal
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.3]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        # No crossover: histogram stays positive
+        self.trader.macd_diff = [0.3, 0.31]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_ma_macd_combined(
             self.trader,
@@ -156,6 +154,7 @@ class TestMAMACDStrategy(unittest.TestCase):
             self.tol_pct,
             self.buy_pct,
             self.sell_pct,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when signals conflict")
@@ -165,14 +164,13 @@ class TestMAMACDStrategy(unittest.TestCase):
         )
 
     def test_no_action_when_both_signals_neutral(self):
-        """Test no action when both MA and MACD signals are neutral."""
-        # Set up neutral MA (price within tolerance)
+        """Test no action when both MA and MACD conditions are neutral."""
         self.trader.moving_averages["12"] = [100.0, 100.0, 100.0, 100.0, 100.0, 100.0]
         new_price = 100.0
 
-        # Set up neutral MACD (zero difference)
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.2]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        # No crossover and neutral-ish histogram
+        self.trader.macd_diff = [0.2, 0.2]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_ma_macd_combined(
             self.trader,
@@ -182,6 +180,7 @@ class TestMAMACDStrategy(unittest.TestCase):
             self.tol_pct,
             self.buy_pct,
             self.sell_pct,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when both signals are neutral")
@@ -194,11 +193,11 @@ class TestMAMACDStrategy(unittest.TestCase):
         """Test behavior when buy execution fails."""
         self.trader._execute_one_buy.return_value = False
 
-        # Set up both positive signals
+        # Set up MACD cross up + MA oversold
         self.trader.moving_averages["12"] = [105.0, 105.0, 105.0, 105.0, 105.0, 105.0]
         new_price = 94.0
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.3]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        self.trader.macd_diff = [0.1, 0.3]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_ma_macd_combined(
             self.trader,
@@ -208,6 +207,7 @@ class TestMAMACDStrategy(unittest.TestCase):
             self.tol_pct,
             self.buy_pct,
             self.sell_pct,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should return False when buy execution fails")
@@ -220,11 +220,11 @@ class TestMAMACDStrategy(unittest.TestCase):
         """Test behavior when sell execution fails."""
         self.trader._execute_one_sell.return_value = False
 
-        # Set up both negative signals
+        # Set up MACD cross down + MA overbought
         self.trader.moving_averages["12"] = [95.0, 95.0, 95.0, 95.0, 95.0, 95.0]
         new_price = 106.0
-        self.trader.macd_diff = [0.5, 0.3, 0.1, -0.1, -0.3, 0.1]
-        self.trader.macd_dea = [0.2, 0.2, 0.2, 0.2, 0.2, 0.2]
+        self.trader.macd_diff = [0.3, 0.1]
+        self.trader.macd_dea = [0.2, 0.2]
 
         buy, sell = strategy_ma_macd_combined(
             self.trader,
@@ -234,6 +234,7 @@ class TestMAMACDStrategy(unittest.TestCase):
             self.tol_pct,
             self.buy_pct,
             self.sell_pct,
+            cooldown_days=0,
         )
 
         self.assertFalse(buy, "Should not execute buy when sell fails")

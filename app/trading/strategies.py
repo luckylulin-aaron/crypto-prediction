@@ -150,6 +150,9 @@ def strategy_double_moving_averages(
     opportunity_days: int=3,
     touch_tol_pct: float=0.01,
     cooldown_days: int=1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
 ) -> Tuple[bool, bool]:
     """
     Double moving average crossover with a short "opportunity window".
@@ -176,6 +179,12 @@ def strategy_double_moving_averages(
             Defaults to 0.01.
         cooldown_days (int): Minimum days between BUY/SELL signals for this strategy key.
             Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -266,11 +275,28 @@ def strategy_double_moving_averages(
 
     touch = abs(new_p - short_ma) <= (touch_tol_pct * short_ma)
 
+    # Volume confirmation (best-effort): if we have enough volume history, require above-average volume.
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
     r_buy, r_sell = False, False
 
     if window["type"] == "BULLISH":
         # Buy on pullback to short MA within window
-        if has_cash and touch and new_p <= short_ma * (1.0 + touch_tol_pct):
+        if has_cash and touch and volume_ok and new_p <= short_ma * (1.0 + touch_tol_pct):
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
@@ -278,7 +304,7 @@ def strategy_double_moving_averages(
 
     elif window["type"] == "BEARISH":
         # Sell on rebound to short MA within window
-        if has_position and touch and new_p >= short_ma * (1.0 - touch_tol_pct):
+        if has_position and touch and volume_ok and new_p >= short_ma * (1.0 - touch_tol_pct):
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
@@ -550,6 +576,15 @@ def strategy_ma_boll_bands(
     min_bandwidth_pct: float = 0.02,
     entry_z: float = 1.5,
     exit_z: float = 0.8,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
+    require_volume_for_bear_buys: bool = True,
+    bear_exit_z_discount: float = 0.3,
+    bear_midline_take_profit: bool = True,
+    bull_entry_z_discount: float = 0.3,
+    bull_exit_z_premium: float = 0.3,
+    bull_require_stronger_sell: bool = True,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -582,6 +617,24 @@ def strategy_ma_boll_bands(
             This prevents overtrading in low-volatility regimes. Defaults to 0.02 (2%).
         entry_z (float, optional): Z-score threshold for entries (buy when z <= -entry_z). Defaults to 1.5.
         exit_z (float, optional): Z-score threshold for exits (sell when z >= exit_z). Defaults to 0.8.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm certain signals. Defaults to 1.2.
+        require_volume_for_bear_buys (bool): If True, require volume confirmation for buy entries when
+            the MA trend is downward (helps avoid catching a falling knife). Defaults to True.
+        bear_exit_z_discount (float): In downtrends, reduce the sell z-threshold by this amount so we
+            take profits sooner on rebounds. Defaults to 0.3.
+        bear_midline_take_profit (bool): If True, in downtrends allow taking profit when price reverts
+            back to the midline (z >= 0). Defaults to True.
+        bull_entry_z_discount (float): In uptrends, reduce the buy z-threshold by this amount so entries
+            are easier (buy dips more readily). Defaults to 0.3.
+        bull_exit_z_premium (float): In uptrends, increase the sell z-threshold by this amount so exits
+            are harder (let winners run). Defaults to 0.3.
+        bull_require_stronger_sell (bool): If True, in uptrends require BOTH band breakout AND z-threshold
+            to sell (stronger confirmation). Defaults to True.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -663,8 +716,32 @@ def strategy_ma_boll_bands(
     z = (new_p - mid) / (std + 1e-12)
 
     # position and cash check, really important!
-    has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
-    has_cash = _is_positive_number(getattr(trader, "cash", 0))
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_position = _is_positive_number(coin_val)
+    has_cash = _is_positive_number(cash_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # Volume confirmation (best-effort)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
 
     r_buy, r_sell = False, False
 
@@ -676,15 +753,36 @@ def strategy_ma_boll_bands(
     # Trend bias (mild):
     # - In strong uptrends, require a deeper pullback to buy (avoid buying "not cheap enough")
     # - In strong downtrends, require a stronger overbought condition to sell (avoid selling into weakness)
-    effective_entry_z = entry_z + (0.3 if trending_up else 0.0)
-    effective_exit_z = exit_z + (0.3 if trending_down else 0.0)
+    # In uptrends, entries are easier; in downtrends, leave entry stricter by default.
+    effective_entry_z = entry_z - (bull_entry_z_discount if trending_up else 0.0)
+    effective_entry_z = max(0.1, float(effective_entry_z))
 
-    buy_condition = (
-        (new_p <= boll_lower * (1.0 - band_breakout_pct)) or (z <= -effective_entry_z)
-    )
-    sell_condition = (
-        (new_p >= boll_upper * (1.0 + band_breakout_pct)) or (z >= effective_exit_z)
-    )
+    # In downtrends, take profits sooner on rebounds (otherwise it's easy to get stuck).
+    # In uptrends, take profits later (otherwise you sell winners too early).
+    effective_exit_z = exit_z
+    if trending_down:
+        effective_exit_z = exit_z - bear_exit_z_discount
+    elif trending_up:
+        effective_exit_z = exit_z + bull_exit_z_premium
+    effective_exit_z = max(0.1, float(effective_exit_z))
+
+    # Base conditions
+    buy_condition = (new_p <= boll_lower * (1.0 - band_breakout_pct)) or (z <= -effective_entry_z)
+    sell_condition = (new_p >= boll_upper * (1.0 + band_breakout_pct)) or (z >= effective_exit_z)
+
+    # In uptrends, require stronger confirmation to sell (harder exits).
+    if trending_up and bull_require_stronger_sell:
+        sell_condition = (new_p >= boll_upper * (1.0 + band_breakout_pct)) and (
+            z >= effective_exit_z
+        )
+
+    # Make bearish entries more selective: require volume confirmation by default.
+    if trending_down and require_volume_for_bear_buys:
+        buy_condition = buy_condition and volume_ok
+
+    # In downtrends, allow taking profit when reverting to midline (helps avoid being trapped).
+    if trending_down and bear_midline_take_profit:
+        sell_condition = sell_condition or (z >= 0.0)
 
     # Prefer exits before entries (risk management) and be position-aware.
     if has_position and sell_condition:
@@ -713,9 +811,21 @@ def strategy_rsi(
     period: int = 14,
     overbought: float = 70,
     oversold: float = 30,
+    cooldown_days: int = 1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
 ) -> Tuple[bool, bool]:
     """
-    RSI-based trading strategy: buy if oversold, sell if overbought.
+    RSI-based trading strategy (smarter, less-churn).
+
+    Instead of firing every time RSI is beyond a threshold (which can overtrade while RSI stays
+    oversold/overbought), this version trades on *threshold cross events*:
+    - Buy when RSI crosses below the oversold threshold (prev >= oversold, cur < oversold)
+    - Sell when RSI crosses above the overbought threshold (prev <= overbought, cur > overbought)
+
+    It is also position-aware (requires cash for buy, position for sell) and supports an optional
+    cooldown to avoid whipsaw.
 
     Args:
         trader: The trader instance with necessary methods and attributes.
@@ -724,36 +834,122 @@ def strategy_rsi(
         period (int, optional): RSI period. Defaults to 14.
         overbought (float, optional): Overbought threshold. Defaults to 70.
         oversold (float, optional): Oversold threshold. Defaults to 30.
+        cooldown_days (int, optional): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
-    strat_name = "RSI" # NOTE: NEXT ONE TO BE OPTIMISED!
+    strat_name = "RSI"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     rsi = trader.compute_rsi(period)
     if rsi is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False  # Not enough data yet
 
-    trader.strat_dct["RSI"].append(rsi)
+    # Store RSI series separately to avoid mixing numeric values with signal tuples.
+    if not hasattr(trader, "rsi_series") or trader.rsi_series is None:
+        trader.rsi_series = []
+    trader.rsi_series.append((today, float(rsi)))
 
-    # Buy signal: RSI below oversold threshold
-    if rsi < oversold:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-        return r_buy, False
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
-    # Sell signal: RSI above overbought threshold
-    elif rsi > overbought:
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    setattr(trader, "_prev_rsi", float(rsi))
+                    return False, False
+                break
+
+    # `Mock` objects fabricate missing attributes; read from __dict__ to avoid getting a Mock.
+    prev_rsi = getattr(trader, "__dict__", {}).get("_prev_rsi", None)
+    setattr(trader, "_prev_rsi", float(rsi))
+    if prev_rsi is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    cross_into_oversold = float(prev_rsi) >= oversold and float(rsi) < oversold
+    cross_into_overbought = float(prev_rsi) <= overbought and float(rsi) > overbought
+
+    # Volume confirmation (best-effort):
+    # If we have enough volume history, require the current volume to be meaningfully above average.
+    cur_vol = volume
+    # `Mock` objects fabricate attributes; use __dict__ and require a real list/tuple.
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                # Exclude the current volume (last item) to avoid self-influence
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
+    if cross_into_overbought and has_position:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell:
             trader._record_history(new_p, today, SELL_SIGNAL)
-        return False, r_sell
-
-    else:
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+            return False, True
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
+
+    if cross_into_oversold and has_cash:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+            return True, False
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return False, False
 
 
 def strategy_kdj(
@@ -762,16 +958,34 @@ def strategy_kdj(
     today: datetime.datetime,
     oversold: float = 30,
     overbought: float = 70,
+    cooldown_days: int = 1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
 ) -> Tuple[bool, bool]:
     """
-    KDJ-based trading strategy: buy if KDJ below oversold threshold, sell if above overbought threshold.
+    KDJ-based trading strategy (smarter, less-churn).
+
+    Improvements vs the naive version:
+    - Threshold *cross events* (avoids repeated buys/sells while K stays oversold/overbought)
+    - Position-aware (requires cash for buy, position for sell)
+    - Optional cooldown
+    - Optional volume confirmation (best-effort)
 
     Args:
         trader: The trader instance with necessary methods and attributes.
         new_p (float): Today's new price of a currency.
         today (datetime.datetime): Date.
-        oversold (float, optional): Oversold threshold. Defaults to 20.
-        overbought (float, optional): Overbought threshold. Defaults to 80.
+        oversold (float, optional): Oversold threshold. Defaults to 30.
+        overbought (float, optional): Overbought threshold. Defaults to 70.
+        cooldown_days (int, optional): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -790,28 +1004,103 @@ def strategy_kdj(
 
     # Get the latest K value (KDJ indicator)
     current_k = trader.kdj_dct["K"][-1]
+    if not _is_positive_number(current_k) and not isinstance(current_k, (int, float, np.number)):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    current_k = float(current_k)
 
-    # Buy signal: KDJ below oversold threshold
-    if current_k < oversold:
-        r_buy = trader._execute_one_buy("by_percentage", new_p)
-        if r_buy:
-            trader._record_history(new_p, today, BUY_SIGNAL)
-            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        return r_buy, False
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
 
-    # Sell signal: KDJ above overbought threshold
-    elif current_k > overbought:
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    setattr(trader, "_prev_kdj_k", current_k)
+                    return False, False
+                break
+
+    # `Mock` objects fabricate missing attributes; read from __dict__ to avoid getting a Mock.
+    prev_k = getattr(trader, "__dict__", {}).get("_prev_kdj_k", None)
+    setattr(trader, "_prev_kdj_k", current_k)
+    if prev_k is None:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    prev_k = float(prev_k)
+
+    # Cross events
+    cross_into_oversold = prev_k >= oversold and current_k < oversold
+    cross_into_overbought = prev_k <= overbought and current_k > overbought
+
+    # Volume confirmation (best-effort)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
+    # Sell signal: K crosses into overbought
+    if cross_into_overbought and has_position:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell:
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        return False, r_sell
-
-    # No action if KDJ is in neutral zone
-    else:
+            return False, True
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
+
+    # Buy signal: K crosses into oversold
+    if cross_into_oversold and has_cash:
+        if not volume_ok:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+            return False, False
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+            return True, False
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return False, False
 
 
 def strategy_ma_macd_combined(
@@ -822,6 +1111,13 @@ def strategy_ma_macd_combined(
     tol_pct: float,
     buy_pct: float,
     sell_pct: float,
+    opportunity_days: int = 3,
+    touch_tol_pct: float = 0.01,
+    cooldown_days: int = 1,
+    volume: Optional[float] = None,
+    volume_window: int = 20,
+    volume_ratio_threshold: float = 1.2,
+    min_volatility_pct: float = 0.0,
 ) -> Tuple[bool, bool]:
     """
     Combined Moving Average and MACD strategy.
@@ -835,6 +1131,20 @@ def strategy_ma_macd_combined(
         tol_pct (float): Tolerance percentage for MA.
         buy_pct (float): Buy percentage.
         sell_pct (float): Sell percentage.
+        opportunity_days (int): Window size (in days) after a MACD crossover to look for MA-based opportunities.
+            Defaults to 3.
+        touch_tol_pct (float): Touch tolerance as a fraction of MA (e.g. 0.01 = 1%).
+            Defaults to 0.01.
+        cooldown_days (int): Minimum days between BUY/SELL signals for this strategy.
+            Defaults to 1.
+        volume (Optional[float]): Current interval volume. If not provided, uses the latest value from
+            `trader.volume_history` when available. Defaults to None.
+        volume_window (int): Rolling window size used to compute average volume for confirmation.
+            Defaults to 20.
+        volume_ratio_threshold (float): Require current volume to be at least this multiple of the
+            rolling average volume to confirm a signal. Defaults to 1.2.
+        min_volatility_pct (float): Minimum rolling price volatility (std/mean) required to trade.
+            Defaults to 0.0 (disabled).
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -842,32 +1152,134 @@ def strategy_ma_macd_combined(
     strat_name = "MA-MACD"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
-    # Get MA signal
-    last_ma = trader.moving_averages[queue_name][-1]
-    ma_buy_signal = new_p <= (1 - tol_pct) * last_ma
-    ma_sell_signal = new_p >= (1 + tol_pct) * last_ma
+    # Position/cash checks (avoid meaningless orders)
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_cash = _is_positive_number(cash_val)
+    has_position = _is_positive_number(coin_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
-    # Get MACD signal
-    macd_buy_signal = False
-    macd_sell_signal = False
+    # Cooldown to reduce churn
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < cooldown_days:
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
 
-    if trader.macd_dea[-1] is not None:
-        diff = trader.macd_diff[-1] - trader.macd_dea[-1]
-        macd_buy_signal = diff > 0
-        macd_sell_signal = diff < 0
+    # MA reference (avoid lookahead): today's MA includes today's price, so use previous MA value
+    not_null_ma = [x for x in trader.moving_averages[queue_name] if x is not None]
+    if len(not_null_ma) < 2:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+    ma_ref = not_null_ma[-2]
+    if not _is_positive_number(ma_ref):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
 
-    # Execute trades only when both signals agree
+    ma_touch = abs(new_p - ma_ref) <= (touch_tol_pct * ma_ref)
+    ma_buy_signal = ma_touch or (new_p <= (1 - tol_pct) * ma_ref)
+    ma_sell_signal = ma_touch or (new_p >= (1 + tol_pct) * ma_ref)
+
+    # Volatility filter (best-effort): require some price movement to justify entries/exits
+    if _is_positive_number(min_volatility_pct):
+        prices = getattr(trader, "price_history", None)
+        if not prices and hasattr(trader, "crypto_prices"):
+            prices = [x[0] for x in trader.crypto_prices]
+        if prices and len(prices) >= 20:
+            window = prices[-20:]
+            m = float(np.mean(window))
+            s = float(np.std(window))
+            if m > 0 and (s / m) < float(min_volatility_pct):
+                trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                return False, False
+
+    # Get MACD crossover event (less whipsaw than sign-only)
+    if (
+        not hasattr(trader, "macd_diff")
+        or not hasattr(trader, "macd_dea")
+        or len(trader.macd_diff) < 2
+        or len(trader.macd_dea) < 2
+        or trader.macd_dea[-1] is None
+        or trader.macd_dea[-2] is None
+        or trader.macd_diff[-1] is None
+        or trader.macd_diff[-2] is None
+    ):
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    hist_prev = trader.macd_diff[-2] - trader.macd_dea[-2]
+    hist_cur = trader.macd_diff[-1] - trader.macd_dea[-1]
+    macd_cross_up = hist_prev <= 0 and hist_cur > 0
+    macd_cross_down = hist_prev >= 0 and hist_cur < 0
+
+    # Track opportunity windows per MA queue
+    if not isinstance(getattr(trader, "_ma_macd_windows", None), dict):
+        trader._ma_macd_windows = {}
+    w = trader._ma_macd_windows.get(queue_name)
+    if macd_cross_up:
+        trader._ma_macd_windows[queue_name] = {"type": "BULLISH", "start": today}
+        w = trader._ma_macd_windows[queue_name]
+    elif macd_cross_down:
+        trader._ma_macd_windows[queue_name] = {"type": "BEARISH", "start": today}
+        w = trader._ma_macd_windows[queue_name]
+
+    if not w:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    try:
+        days_since = (today.date() - w["start"].date()).days
+    except Exception:
+        days_since = (today - w["start"]).days
+    if days_since > opportunity_days:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+        return False, False
+
+    # Volume confirmation (best-effort)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+    volume_ok = True
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)):
+            vols = list(vols_attr)
+            if len(vols) >= int(volume_window) + 1:
+                avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
+                if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
+                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+    except Exception:
+        volume_ok = True
+
     r_buy, r_sell = False, False
 
-    # Buy: MA shows oversold AND MACD shows bullish
-    if ma_buy_signal and macd_buy_signal:
+    # Within bullish window: buy on MA pullback/oversold
+    if w["type"] == "BULLISH" and has_cash and ma_buy_signal and volume_ok:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 
-    # Sell: MA shows overbought AND MACD shows bearish
-    elif ma_sell_signal and macd_sell_signal:
+    # Within bearish window: sell on MA rebound/overbought
+    elif w["type"] == "BEARISH" and has_position and ma_sell_signal and volume_ok:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)

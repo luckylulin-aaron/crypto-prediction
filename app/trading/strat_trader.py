@@ -226,11 +226,37 @@ class StratTrader:
                             longer_queue_name=l_qn,
                             new_p=new_p,
                             today=d,
+                            volume=misc_p.get("volume"),
                         )
 
             elif self.high_strategy == "MACD":
                 self.compute_macd_related()
                 strategy_func(trader=self, new_p=new_p, today=d)
+
+            elif self.high_strategy == "MA-MACD":
+                # Need MACD values computed before evaluating the combined strategy
+                self.compute_macd_related()
+                # Use a single MA queue for decisions (avoid multiple trades per day)
+                ma_lengths_int = [int(x) for x in self.moving_averages.keys()]
+                shortest_queue = str(min(ma_lengths_int))
+                if (
+                    shortest_queue in self.moving_averages
+                    and len(self.moving_averages[shortest_queue]) > 0
+                    and self.moving_averages[shortest_queue][-1] is not None
+                ):
+                    strategy_func(
+                        trader=self,
+                        queue_name=shortest_queue,
+                        new_p=new_p,
+                        today=d,
+                        tol_pct=self.tol_pct,
+                        buy_pct=self.buy_pct,
+                        sell_pct=self.sell_pct,
+                        volume=misc_p.get("volume"),
+                    )
+                else:
+                    self._record_history(new_p, d, NO_ACTION_SIGNAL)
+                    self.strat_dct[self.high_strategy].append((d, NO_ACTION_SIGNAL))
 
             elif self.high_strategy == "BOLL-BANDS":
                 for queue_name in self.bollinger_mas:
@@ -271,6 +297,7 @@ class StratTrader:
                     buy_pct=self.buy_pct,
                     sell_pct=self.sell_pct,
                     bollinger_sigma=self.bollinger_sigma,
+                    volume=misc_p.get("volume"),
                 )
 
             elif self.high_strategy == "RSI":
@@ -281,6 +308,7 @@ class StratTrader:
                     period=self.rsi_period,
                     oversold=self.rsi_oversold,
                     overbought=self.rsi_overbought,
+                    volume=misc_p.get("volume"),
                 )
 
             elif self.high_strategy == "KDJ":
@@ -290,6 +318,7 @@ class StratTrader:
                     today=d,
                     oversold=self.kdj_oversold,
                     overbought=self.kdj_overbought,
+                    volume=misc_p.get("volume"),
                 )
 
             elif self.high_strategy == "MULTI-MA-SELVES":
@@ -557,7 +586,7 @@ class StratTrader:
         # execution body
         if method == "by_percentage":
             # Use percentage of available cash
-            out_cash = self.cash * self.sell_pct
+            out_cash = self.cash * self.buy_pct
             self.cur_coin += out_cash * (1 - self.broker_pct) / new_p
             self.cash -= out_cash
 
