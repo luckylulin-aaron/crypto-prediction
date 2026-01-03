@@ -61,7 +61,6 @@ STOCK_STRATEGIES = [
     "KDJ", # KDJ strategy
     # --------- #
     "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
-    "EXP-MA-SELVES",  # Exponential moving average strategy
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
     "ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
     "TRIPLE-SIGNAL",

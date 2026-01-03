@@ -2643,6 +2643,24 @@ def strategy_exponential_moving_average_w_tolerance(
     tol_pct: float,
     buy_pct: float,
     sell_pct: float,
+    volume: Optional[float] = None,
+    open_p: Optional[float] = None,
+    low_p: Optional[float] = None,
+    high_p: Optional[float] = None,
+    trend_lookback: int = 3,
+    trend_min_abs_slope_pct: float = 0.001,
+    cooldown_days: int = 2,
+    volume_window: int = 20,
+    bull_buy_tol_multiplier: float = 0.7,
+    bull_sell_tol_multiplier: float = 1.6,
+    bear_buy_tol_multiplier: float = 1.3,
+    bear_sell_tol_multiplier: float = 0.5,
+    bull_buy_volume_ratio_threshold: float = 1.0,
+    bear_buy_volume_ratio_threshold: float = 1.3,
+    bull_blowoff_enabled: bool = True,
+    bull_trailing_stop_pct: float = 0.06,
+    bull_blowoff_rel_threshold: float = 0.06,
+    bear_reversal_close_near_high_pct: float = 0.6,
 ) -> Tuple[bool, bool]:
     """
     For a new day's price, if beyond tolerance level, execute a buy or sell action using exponential moving averages.
@@ -2655,6 +2673,27 @@ def strategy_exponential_moving_average_w_tolerance(
         tol_pct (float): Tolerance percentage.
         buy_pct (float): Buy percentage.
         sell_pct (float): Sell percentage.
+        volume (Optional[float]): Current interval trading volume (always present in live pipeline).
+            If None, strategy falls back to `trader.volume_history` when available. Defaults to None.
+        open_p (Optional[float]): Current interval open (used for reversal confirmation). Defaults to None.
+        low_p (Optional[float]): Current interval low (used for reversal confirmation). Defaults to None.
+        high_p (Optional[float]): Current interval high (used for reversal confirmation). Defaults to None.
+        trend_lookback (int): EMA lookback points for slope/regime. Defaults to 3.
+        trend_min_abs_slope_pct (float): Minimum EMA slope (as % of EMA) to call bull/bear. Defaults to 0.001.
+        cooldown_days (int): Minimum days between BUY/SELL signals to reduce whipsaw. Defaults to 2.
+        volume_window (int): Rolling window for volume ratio confirmation. Defaults to 20.
+        bull_buy_tol_multiplier (float): In bullish regime, buy is easier (smaller deviation). Defaults to 0.7.
+        bull_sell_tol_multiplier (float): In bullish regime, sell is harder (larger deviation). Defaults to 1.6.
+        bear_buy_tol_multiplier (float): In bearish regime, buy is harder (larger deviation). Defaults to 1.3.
+        bear_sell_tol_multiplier (float): In bearish regime, sell is easier (smaller deviation). Defaults to 0.7.
+        bull_buy_volume_ratio_threshold (float): Volume ratio required to confirm buys in bullish regime. Defaults to 1.0.
+        bear_buy_volume_ratio_threshold (float): Volume ratio required to confirm buys in bearish regime. Defaults to 1.3.
+        bull_blowoff_enabled (bool): If True, in bullish regime avoid selling on the first spike; sell on reversal
+            via trailing stop. Defaults to True.
+        bull_trailing_stop_pct (float): Trailing stop % from peak while blowoff armed. Defaults to 0.06.
+        bull_blowoff_rel_threshold (float): Relative deviation above EMA to arm blowoff. Defaults to 0.06.
+        bear_reversal_close_near_high_pct (float): For bearish-regime buys, require close near the candle high
+            (if OHLC available). Defaults to 0.6.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -2675,6 +2714,20 @@ def strategy_exponential_moving_average_w_tolerance(
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
+    # Cooldown to reduce whipsaw / repeated trades
+    if cooldown_days > 0 and strat_name in getattr(trader, "strat_dct", {}):
+        for past_dt, past_sig in reversed(trader.strat_dct[strat_name]):
+            if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
+                try:
+                    delta_days = (today.date() - past_dt.date()).days
+                except Exception:
+                    delta_days = (today - past_dt).days
+                if delta_days < int(cooldown_days):
+                    trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+                    trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+                    return False, False
+                break
+
     # retrieve the most recent exponential moving average
     last_ema = trader.exp_moving_averages[queue_name][-1]
 
@@ -2684,9 +2737,120 @@ def strategy_exponential_moving_average_w_tolerance(
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
+    # Determine regime from EMA slope (last vs lookback)
+    ema_vals = [x for x in trader.exp_moving_averages[queue_name] if x is not None]
+    trending_up = False
+    trending_down = False
+    try:
+        if len(ema_vals) >= int(trend_lookback) + 1 and float(ema_vals[-1]) > 0:
+            ema_now = float(ema_vals[-1])
+            ema_past = float(ema_vals[-(int(trend_lookback) + 1)])
+            slope_pct = (ema_now - ema_past) / ema_now
+            trending_up = slope_pct >= float(trend_min_abs_slope_pct)
+            trending_down = slope_pct <= -float(trend_min_abs_slope_pct)
+    except Exception:
+        trending_up = False
+        trending_down = False
+
+    # Relative deviation from EMA
+    try:
+        rel = (float(new_p) - float(last_ema)) / float(last_ema)
+    except Exception:
+        rel = 0.0
+
+    # Volume ratio confirmation (best-effort, but volume is present in live pipeline)
+    cur_vol = volume
+    vols_attr = getattr(trader, "__dict__", {}).get("volume_history", None)
+    if cur_vol is None and isinstance(vols_attr, (list, tuple)) and len(vols_attr) > 0:
+        cur_vol = vols_attr[-1]
+
+    vol_ratio = None
+    try:
+        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)) and len(vols_attr) >= int(volume_window) + 1:
+            avg_vol = float(np.mean(list(vols_attr)[-(int(volume_window) + 1) : -1]))
+            if avg_vol > 0:
+                vol_ratio = float(cur_vol) / avg_vol
+    except Exception:
+        vol_ratio = None
+
+    # Regime-aware thresholds
+    buy_tol = float(tol_pct)
+    sell_tol = float(tol_pct)
+    if trending_up:
+        buy_tol = float(tol_pct) * float(bull_buy_tol_multiplier)
+        sell_tol = float(tol_pct) * float(bull_sell_tol_multiplier)
+    elif trending_down:
+        buy_tol = float(tol_pct) * float(bear_buy_tol_multiplier)
+        sell_tol = float(tol_pct) * float(bear_sell_tol_multiplier)
+
+    buy_vol_ok = True
+    if vol_ratio is not None:
+        buy_vol_ok = float(vol_ratio) >= (float(bull_buy_volume_ratio_threshold) if trending_up else float(bear_buy_volume_ratio_threshold))
+
+    # Pullback detection: use previous rel to trigger only on cross events (less churn)
+    prev_rel_key = f"_exp_ma_prev_rel:{queue_name}"
+    prev_rel = getattr(trader, "__dict__", {}).get(prev_rel_key, None)
+    try:
+        prev_rel_val = float(prev_rel) if prev_rel is not None else None
+    except Exception:
+        prev_rel_val = None
+    try:
+        setattr(trader, prev_rel_key, float(rel))
+    except Exception:
+        pass
+
+    pullback_buy = False
+    if trending_up and prev_rel_val is not None:
+        # Buy on pullback cross: from above EMA to slightly below EMA (or below -buy_tol)
+        pullback_buy = (prev_rel_val > 0.0 and rel <= 0.0) or (prev_rel_val > -buy_tol and rel <= -buy_tol)
+
+    # Bearish "rare chance": require reversal-style candle if OHLC is available
+    reversal_ok = True
+    if trending_down:
+        try:
+            if _is_positive_number(open_p) and _is_positive_number(low_p) and _is_positive_number(high_p) and float(high_p) > float(low_p):
+                close_pos = (float(new_p) - float(low_p)) / (float(high_p) - float(low_p))
+                reversal_ok = float(new_p) >= float(open_p) and close_pos >= float(bear_reversal_close_near_high_pct)
+        except Exception:
+            reversal_ok = True
+
     # (1) if too high, we do a sell
     r_sell = False
-    if has_position and new_p >= (1 + tol_pct) * last_ema:
+    bull_blowoff_sell = False
+    if trending_up and bull_blowoff_enabled and has_position:
+        state_key = f"_exp_ma_bull_state:{queue_name}"
+        state = getattr(trader, "__dict__", {}).get(state_key, None)
+        if not isinstance(state, dict):
+            state = {"armed": False, "peak": None}
+            try:
+                setattr(trader, state_key, state)
+            except Exception:
+                pass
+
+        armed = bool(state.get("armed", False)) if isinstance(state, dict) else False
+        arm = rel >= float(bull_blowoff_rel_threshold) or rel >= sell_tol
+        if (not armed) and arm:
+            state["armed"] = True
+            state["peak"] = float(new_p)
+        elif armed:
+            peak = float(state.get("peak") or new_p)
+            peak = max(peak, float(new_p))
+            state["peak"] = peak
+            try:
+                if _is_positive_number(bull_trailing_stop_pct) and float(new_p) <= peak * (1.0 - float(bull_trailing_stop_pct)):
+                    bull_blowoff_sell = True
+            except Exception:
+                bull_blowoff_sell = False
+        if bull_blowoff_sell:
+            state["armed"] = False
+            state["peak"] = None
+
+    sell_condition = rel >= sell_tol
+    if trending_up and bull_blowoff_enabled:
+        # Harder sells: don't sell just because it's above EMA; wait for reversal/stop
+        sell_condition = bull_blowoff_sell
+
+    if has_position and sell_condition:
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             trader._record_history(new_p, today, SELL_SIGNAL)
@@ -2695,7 +2859,18 @@ def strategy_exponential_moving_average_w_tolerance(
     # (2) if too low, we do a buy
     r_buy = False
     # Avoid executing both sell and buy in the same tick.
-    if r_sell is False and has_cash and new_p <= (1 - tol_pct) * last_ema:
+    buy_condition = rel <= -buy_tol
+    if trending_up:
+        # Easier buys in bull: allow pullback entries near EMA
+        buy_condition = buy_condition or pullback_buy
+    if trending_down:
+        # Harder buys in bear: require volume + reversal confirmation
+        buy_condition = buy_condition and buy_vol_ok and reversal_ok
+    else:
+        # In neutral/bull, still prefer volume >= baseline if available
+        buy_condition = buy_condition and buy_vol_ok
+
+    if r_sell is False and has_cash and buy_condition:
         r_buy = trader._execute_one_buy("by_percentage", new_p)
         if r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
