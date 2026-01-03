@@ -104,6 +104,93 @@ def send_daily_recommendations_email(
     today_str = datetime.now().strftime("%Y-%m-%d")
     best_summaries = best_summaries or []
 
+    def _to_dt(x):
+        try:
+            if isinstance(x, datetime):
+                return x
+            return datetime.fromisoformat(str(x).replace("Z", "+00:00"))
+        except Exception:
+            try:
+                return datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                return None
+
+    def _fmt_pct(v) -> str:
+        try:
+            if v is None or v == "":
+                return ""
+            return f"{float(v):.2f}"
+        except Exception:
+            return str(v)
+
+    def _fmt_int(v) -> str:
+        try:
+            if v is None or v == "":
+                return ""
+            return str(int(v))
+        except Exception:
+            return str(v)
+
+    def _render_best_table(rows: list) -> Tuple[str, str]:
+        """
+        Return (plain_text, html) table with best strategy + signal frequency per asset.
+        Expected keys:
+          asset_type, exchange, asset, best_strategy, buy_pct, sell_pct,
+          num_buy, num_sell, num_intervals, signal_rate_pct,
+          signals_per_30d, avg_days_between_signals
+        """
+        if not rows:
+            return "", ""
+
+        header = (
+            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6} | {'BUY':<3} | {'SELL':<4} | {'Sig%':<5} | {'Sig/30d':<7} | {'AvgDays':<6}"
+        )
+        sep = "-" * len(header)
+        lines = []
+        for r in rows:
+            lines.append(
+                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | {r.get('best_strategy',''):<20} | {_fmt_pct(r.get('buy_pct')):<6} | {_fmt_pct(r.get('sell_pct')):<6} | {_fmt_int(r.get('num_buy')):<3} | {_fmt_int(r.get('num_sell')):<4} | {_fmt_pct(r.get('signal_rate_pct')):<5} | {_fmt_pct(r.get('signals_per_30d')):<7} | {_fmt_pct(r.get('avg_days_between_signals')):<6}"
+            )
+        plain = "\n".join([header, sep] + lines) + "\n"
+
+        html = (
+            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
+            "<thead>"
+            "<tr style=\"background:#0f172a;color:#ffffff;\">"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Best strategy</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Buy %</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sell %</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">BUY</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">SELL</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig%</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig/30d</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">AvgDays</th>"
+            "</tr></thead><tbody>"
+        )
+        for idx, r in enumerate(rows):
+            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+            icon = "🪙" if r.get("asset_type") == "CRYPTO" else "📈"
+            html += (
+                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
+                f"<td style=\"padding:10px;color:#0f172a;\">{icon} {r.get('asset_type','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
+                f"<td style=\"padding:10px;color:#334155;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;\">{r.get('best_strategy','')}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('buy_pct'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('sell_pct'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_int(r.get('num_buy'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_int(r.get('num_sell'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('signal_rate_pct'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('signals_per_30d'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('avg_days_between_signals'))}</td>"
+                "</tr>"
+            )
+        html += "</tbody></table>"
+        return plain, html
+
     buy_sell_lines = []
     no_action_entries = []
 
@@ -139,7 +226,9 @@ def send_daily_recommendations_email(
                     # fallback: treat as no action
                     no_action_entries.append(("?", "?"))
 
-    if not buy_sell_lines and not no_action_entries:
+    # If we have no parsed log entries for today, we can still send the best summary table
+    # (when simulations ran in this process and provided `best_summaries`).
+    if not buy_sell_lines and not no_action_entries and not best_summaries:
         logger.info("No trading actions found for today, skipping email notification.")
         return
 
@@ -197,6 +286,17 @@ def send_daily_recommendations_email(
                 asset_list = ", ".join(sorted(set(assets)))
                 html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
             html_body += "</ul>"
+
+        if best_summaries:
+            summary_rows = sorted(
+                list(best_summaries),
+                key=lambda r: (r.get("asset_type") != "STOCK", r.get("asset", "")),
+            )
+            body += "\nBest strategy + signal frequency (per asset):\n"
+            plain_tbl, html_tbl = _render_best_table(summary_rows)
+            body += plain_tbl + "\n"
+            html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📊 Strategy + signal frequency</h2>"
+            html_body += html_tbl
         html_body += "</div>"
 
         subject = f"Daily Trading Bot Recommendations ({today_str}) - NO ACTION"
@@ -212,58 +312,6 @@ def send_daily_recommendations_email(
             "No BUY/SELL recommendations today; sent heartbeat to admin only and muted other recipients."
         )
         return
-
-    def _fmt_pct(v) -> str:
-        try:
-            if v is None or v == "":
-                return ""
-            return f"{float(v):.2f}"
-        except Exception:
-            return str(v)
-
-    def _render_best_table(rows: list) -> Tuple[str, str]:
-        """Return (plain_text, html) tables for best_summaries rows."""
-        if not rows:
-            return "", ""
-
-        header = (
-            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6}"
-        )
-        sep = "-" * len(header)
-        lines = []
-        for r in rows:
-            lines.append(
-                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | {r.get('best_strategy',''):<20} | {_fmt_pct(r.get('buy_pct')):<6} | {_fmt_pct(r.get('sell_pct')):<6}"
-            )
-        plain = "\n".join([header, sep] + lines) + "\n"
-
-        html = (
-            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
-            "<thead>"
-            "<tr style=\"background:#0f172a;color:#ffffff;\">"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Best strategy</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Buy %</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sell %</th>"
-            "</tr></thead><tbody>"
-        )
-        for idx, r in enumerate(rows):
-            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
-            icon = "🪙" if r.get("asset_type") == "CRYPTO" else "📈"
-            html += (
-                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
-                f"<td style=\"padding:10px;color:#0f172a;\">{icon} {r.get('asset_type','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
-                f"<td style=\"padding:10px;color:#334155;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;\">{r.get('best_strategy','')}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('buy_pct'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('sell_pct'))}</td>"
-                "</tr>"
-            )
-        html += "</tbody></table>"
-        return plain, html
 
     # Send different emails to different recipients
     for i, recipient in enumerate(recipient_list):
@@ -593,6 +641,50 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
             best_t = trader_driver.traders[best_info["trader_index"]]
             signal = best_t.trade_signal
             if best_summaries is not None:
+                # Signal frequency stats from the best trader's full trade history
+                th = getattr(best_t, "trade_history", []) or []
+                num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
+                num_sell = len([x for x in th if str(x.get("action", "")).upper() == "SELL"])
+                num_intervals = len(th)
+                signal_rate_pct = (
+                    100.0 * (num_buy + num_sell) / num_intervals if num_intervals > 0 else 0.0
+                )
+                # Time-based stats (more interpretable)
+                sig_dates = [
+                    x.get("date")
+                    for x in th
+                    if str(x.get("action", "")).upper() in ("BUY", "SELL")
+                ]
+                sig_dates_dt = []
+                for d0 in sig_dates:
+                    try:
+                        dt0 = d0 if isinstance(d0, datetime) else datetime.fromisoformat(str(d0))
+                    except Exception:
+                        dt0 = None
+                    if dt0 is not None:
+                        sig_dates_dt.append(dt0)
+                sig_dates_dt = sorted(sig_dates_dt)
+
+                span_days = 0.0
+                if th:
+                    try:
+                        d_start = th[0].get("date")
+                        d_end = th[-1].get("date")
+                        dt_start = d_start if isinstance(d_start, datetime) else datetime.fromisoformat(str(d_start))
+                        dt_end = d_end if isinstance(d_end, datetime) else datetime.fromisoformat(str(d_end))
+                        span_days = max(0.0, (dt_end - dt_start).total_seconds() / 86400.0)
+                    except Exception:
+                        span_days = float(num_intervals)
+
+                num_signals = num_buy + num_sell
+                signals_per_30d = (num_signals / span_days * 30.0) if span_days > 0 else 0.0
+                avg_days_between = ""
+                if len(sig_dates_dt) >= 2:
+                    deltas = [
+                        (sig_dates_dt[i] - sig_dates_dt[i - 1]).total_seconds() / 86400.0
+                        for i in range(1, len(sig_dates_dt))
+                    ]
+                    avg_days_between = float(np.mean(deltas)) if deltas else ""
                 best_summaries.append(
                     {
                         "asset_type": "STOCK",
@@ -601,6 +693,14 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                         "best_strategy": best_t.high_strategy,
                         "buy_pct": best_info.get("buy_pct", ""),
                         "sell_pct": best_info.get("sell_pct", ""),
+                        "num_buy": num_buy,
+                        "num_sell": num_sell,
+                        "num_intervals": num_intervals,
+                        "signal_rate_pct": round(signal_rate_pct, 2),
+                        "signals_per_30d": round(signals_per_30d, 2),
+                        "avg_days_between_signals": round(avg_days_between, 2)
+                        if isinstance(avg_days_between, (int, float))
+                        else "",
                     }
                 )
 
@@ -961,6 +1061,50 @@ def main(asset: str = "all"):
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
             signal = best_t.trade_signal
+            th = getattr(best_t, "trade_history", []) or []
+            num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
+            num_sell = len([x for x in th if str(x.get("action", "")).upper() == "SELL"])
+            num_intervals = len(th)
+            signal_rate_pct = (
+                100.0 * (num_buy + num_sell) / num_intervals if num_intervals > 0 else 0.0
+            )
+
+            sig_dates = [
+                x.get("date")
+                for x in th
+                if str(x.get("action", "")).upper() in ("BUY", "SELL")
+            ]
+            sig_dates_dt = []
+            for d0 in sig_dates:
+                try:
+                    dt0 = d0 if isinstance(d0, datetime) else datetime.fromisoformat(str(d0))
+                except Exception:
+                    dt0 = None
+                if dt0 is not None:
+                    sig_dates_dt.append(dt0)
+            sig_dates_dt = sorted(sig_dates_dt)
+
+            span_days = 0.0
+            if th:
+                try:
+                    d_start = th[0].get("date")
+                    d_end = th[-1].get("date")
+                    dt_start = d_start if isinstance(d_start, datetime) else datetime.fromisoformat(str(d_start))
+                    dt_end = d_end if isinstance(d_end, datetime) else datetime.fromisoformat(str(d_end))
+                    span_days = max(0.0, (dt_end - dt_start).total_seconds() / 86400.0)
+                except Exception:
+                    span_days = float(num_intervals)
+
+            num_signals = num_buy + num_sell
+            signals_per_30d = (num_signals / span_days * 30.0) if span_days > 0 else 0.0
+            avg_days_between = ""
+            if len(sig_dates_dt) >= 2:
+                deltas = [
+                    (sig_dates_dt[i] - sig_dates_dt[i - 1]).total_seconds() / 86400.0
+                    for i in range(1, len(sig_dates_dt))
+                ]
+                avg_days_between = float(np.mean(deltas)) if deltas else ""
+
             best_summaries.append(
                 {
                     "asset_type": "CRYPTO",
@@ -969,6 +1113,14 @@ def main(asset: str = "all"):
                     "best_strategy": best_t.high_strategy,
                     "buy_pct": best_info.get("buy_pct", ""),
                     "sell_pct": best_info.get("sell_pct", ""),
+                    "num_buy": num_buy,
+                    "num_sell": num_sell,
+                    "num_intervals": num_intervals,
+                    "signal_rate_pct": round(signal_rate_pct, 2),
+                    "signals_per_30d": round(signals_per_30d, 2),
+                    "avg_days_between_signals": round(avg_days_between, 2)
+                    if isinstance(avg_days_between, (int, float))
+                    else "",
                 }
             )
 
