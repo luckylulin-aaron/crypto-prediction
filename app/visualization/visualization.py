@@ -15,6 +15,76 @@ import plotly.io as pio
 from plotly.subplots import make_subplots
 
 
+def _to_price_df(crypto_prices: List[Tuple]) -> pd.DataFrame:
+    """
+    Convert crypto_prices list to a normalized DataFrame.
+
+    Supports tuples of:
+    - (close, date, open, low, high)
+    - (close, date, open, low, high, volume)
+    """
+    if not crypto_prices:
+        return pd.DataFrame(columns=["price", "date", "open", "low", "high", "volume"])
+
+    width = len(crypto_prices[0])
+    if width >= 6:
+        cols = ["price", "date", "open", "low", "high", "volume"]
+    else:
+        cols = ["price", "date", "open", "low", "high"]
+    df = pd.DataFrame(crypto_prices, columns=cols)
+    df["date"] = pd.to_datetime(df["date"], format="mixed", dayfirst=False)
+    if "volume" not in df.columns:
+        df["volume"] = np.nan
+    return df
+
+
+def _compute_macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+    """Compute standard MACD (DIF/DEA/HIST) from close series."""
+    c = close.astype(float)
+    ema_fast = c.ewm(span=fast, adjust=False).mean()
+    ema_slow = c.ewm(span=slow, adjust=False).mean()
+    dif = ema_fast - ema_slow
+    dea = dif.ewm(span=signal, adjust=False).mean()
+    hist = dif - dea
+    return pd.DataFrame({"dif": dif, "dea": dea, "hist": hist})
+
+
+def _compute_rsi(close: pd.Series, period: int = 14) -> pd.Series:
+    """Compute standard RSI from close series."""
+    c = close.astype(float)
+    delta = c.diff()
+    gain = delta.where(delta > 0, 0.0)
+    loss = -delta.where(delta < 0, 0.0)
+    avg_gain = gain.ewm(alpha=1 / period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / period, adjust=False).mean()
+    rs = avg_gain / (avg_loss + 1e-12)
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
+def _compute_kdj(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    n: int = 9,
+    k_smooth: int = 3,
+    d_smooth: int = 3,
+) -> pd.DataFrame:
+    """Compute standard KDJ from OHLC series."""
+    h = high.astype(float)
+    l = low.astype(float)
+    c = close.astype(float)
+    low_n = l.rolling(window=n, min_periods=1).min()
+    high_n = h.rolling(window=n, min_periods=1).max()
+    rsv = (c - low_n) / ((high_n - low_n) + 1e-12) * 100.0
+
+    # K and D as smoothed RSV
+    k = rsv.ewm(alpha=1 / k_smooth, adjust=False).mean()
+    d = k.ewm(alpha=1 / d_smooth, adjust=False).mean()
+    j = 3 * k - 2 * d
+    return pd.DataFrame({"k": k, "d": d, "j": j})
+
+
 def create_portfolio_value_chart(
     trade_history: List[Dict],
     title: str = "Portfolio Value Over Time with Buy/Sell Signals",
@@ -222,6 +292,7 @@ def create_price_and_signals_chart(
     crypto_prices: List[Tuple],
     trade_history: List[Dict],
     title: str = "Price History with Trading Signals",
+    include_indicators: bool = True,
 ) -> go.Figure:
     """
     Create a candlestick-like chart with price and trading signals.
@@ -237,12 +308,7 @@ def create_price_and_signals_chart(
     if not crypto_prices:
         return go.Figure()
 
-    # Convert crypto_prices to DataFrame
-    price_df = pd.DataFrame(
-        crypto_prices, columns=["price", "date", "open", "low", "high"]
-    )
-    # Handle multiple date formats
-    price_df["date"] = pd.to_datetime(price_df["date"], format="mixed", dayfirst=False)
+    price_df = _to_price_df(crypto_prices)
 
     # Convert trade history to DataFrame
     trade_df = pd.DataFrame(trade_history)
@@ -252,7 +318,17 @@ def create_price_and_signals_chart(
             trade_df["date"], format="mixed", dayfirst=False
         )
 
-    fig = go.Figure()
+    if include_indicators:
+        fig = make_subplots(
+            rows=4,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.04,
+            row_heights=[0.46, 0.20, 0.17, 0.17],
+            subplot_titles=("Price + Signals", "MACD", "RSI", "KDJ"),
+        )
+    else:
+        fig = go.Figure()
 
     # Add price line
     fig.add_trace(
@@ -263,7 +339,9 @@ def create_price_and_signals_chart(
             name="Price",
             line=dict(color="black", width=1),
             hovertemplate="<b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<extra></extra>",
-        )
+        ),
+        row=1 if include_indicators else None,
+        col=1 if include_indicators else None,
     )
 
     # Add buy signals
@@ -278,7 +356,9 @@ def create_price_and_signals_chart(
                     name="Buy Signal",
                     marker=dict(color="green", size=12, symbol="triangle-up"),
                     hovertemplate="<b>BUY</b><br><b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<extra></extra>",
-                )
+                ),
+                row=1 if include_indicators else None,
+                col=1 if include_indicators else None,
             )
 
         # Add sell signals
@@ -292,8 +372,104 @@ def create_price_and_signals_chart(
                     name="Sell Signal",
                     marker=dict(color="red", size=12, symbol="triangle-down"),
                     hovertemplate="<b>SELL</b><br><b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<extra></extra>",
-                )
+                ),
+                row=1 if include_indicators else None,
+                col=1 if include_indicators else None,
             )
+
+    # Add indicators
+    if include_indicators:
+        # MACD
+        macd = _compute_macd(price_df["price"])
+        fig.add_trace(
+            go.Scatter(
+                x=price_df["date"],
+                y=macd["dif"],
+                mode="lines",
+                name="MACD DIF",
+                line=dict(color="#2563eb", width=1),
+            ),
+            row=2,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=price_df["date"],
+                y=macd["dea"],
+                mode="lines",
+                name="MACD DEA",
+                line=dict(color="#f59e0b", width=1),
+            ),
+            row=2,
+            col=1,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=price_df["date"],
+                y=macd["hist"],
+                name="MACD HIST",
+                marker_color=np.where(macd["hist"] >= 0, "#22c55e", "#ef4444"),
+                opacity=0.5,
+            ),
+            row=2,
+            col=1,
+        )
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", row=2, col=1)
+
+        # RSI
+        rsi = _compute_rsi(price_df["price"])
+        fig.add_trace(
+            go.Scatter(
+                x=price_df["date"],
+                y=rsi,
+                mode="lines",
+                name="RSI(14)",
+                line=dict(color="#7c3aed", width=1),
+            ),
+            row=3,
+            col=1,
+        )
+        fig.add_hline(y=70, line_dash="dash", line_color="#ef4444", row=3, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="#22c55e", row=3, col=1)
+        fig.update_yaxes(range=[0, 100], row=3, col=1)
+
+        # KDJ
+        kdj = _compute_kdj(price_df["high"], price_df["low"], price_df["price"])
+        fig.add_trace(
+            go.Scatter(
+                x=price_df["date"],
+                y=kdj["k"],
+                mode="lines",
+                name="K",
+                line=dict(color="#0ea5e9", width=1),
+            ),
+            row=4,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=price_df["date"],
+                y=kdj["d"],
+                mode="lines",
+                name="D",
+                line=dict(color="#f97316", width=1),
+            ),
+            row=4,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=price_df["date"],
+                y=kdj["j"],
+                mode="lines",
+                name="J",
+                line=dict(color="#22c55e", width=1),
+            ),
+            row=4,
+            col=1,
+        )
+        fig.add_hline(y=80, line_dash="dash", line_color="#ef4444", row=4, col=1)
+        fig.add_hline(y=20, line_dash="dash", line_color="#22c55e", row=4, col=1)
 
     fig.update_layout(
         title=title,
@@ -487,23 +663,29 @@ def create_comprehensive_dashboard(
     # Create execution strategy subtitle
     execution_subtitle = f"Buy: {buy_strat_display} | Sell: {sell_strat_display}"
 
-    # Create subplots
     fig = make_subplots(
-        rows=3,
+        rows=5,
         cols=2,
         subplot_titles=(
             f"Portfolio Value Over Time - {strategy_name}",
             f"Asset Allocation - {strategy_name}",
-            f"Price History with Signals - {strategy_name}",
+            f"Price + Signals - {strategy_name}",
             f"Drawdown Analysis - {strategy_name}",
+            f"MACD - {strategy_name}",
             f"Strategy Performance Comparison - {strategy_name}",
+            f"RSI - {strategy_name}",
             f"Returns Distribution - {strategy_name}",
+            f"KDJ - {strategy_name}",
+            f"Strategy vs Buy & Hold - {strategy_name}",
         ),
         specs=[
             [{"secondary_y": False}, {"secondary_y": False}],
             [{"secondary_y": False}, {"secondary_y": False}],
             [{"secondary_y": False}, {"secondary_y": False}],
+            [{"secondary_y": False}, {"secondary_y": False}],
+            [{"secondary_y": False}, {"secondary_y": False}],
         ],
+        vertical_spacing=0.05,
     )
 
     # Get data from trader instance
@@ -529,14 +711,50 @@ def create_comprehensive_dashboard(
     for trace in allocation_fig.data:
         fig.add_trace(trace, row=1, col=2)
 
-    # 3. Price and Signals Chart
-    price_fig = create_price_and_signals_chart(
-        crypto_prices,
-        trade_history,
-        title=f"Price History with Signals - {strategy_name}",
+    # 3. Price + Signals (row 2 col 1)
+    price_df = _to_price_df(crypto_prices)
+    trade_df = pd.DataFrame(trade_history)
+    if not trade_df.empty:
+        trade_df["date"] = pd.to_datetime(trade_df["date"], format="mixed", dayfirst=False)
+
+    fig.add_trace(
+        go.Scatter(
+            x=price_df["date"],
+            y=price_df["price"],
+            mode="lines",
+            name="Price",
+            line=dict(color="black", width=1),
+        ),
+        row=2,
+        col=1,
     )
-    for trace in price_fig.data:
-        fig.add_trace(trace, row=2, col=1)
+    if not trade_df.empty:
+        buy_signals = trade_df[trade_df["action"] == "BUY"]
+        if not buy_signals.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=buy_signals["date"],
+                    y=buy_signals["price"],
+                    mode="markers",
+                    name="Buy Signal",
+                    marker=dict(color="green", size=10, symbol="triangle-up"),
+                ),
+                row=2,
+                col=1,
+            )
+        sell_signals = trade_df[trade_df["action"] == "SELL"]
+        if not sell_signals.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=sell_signals["date"],
+                    y=sell_signals["price"],
+                    mode="markers",
+                    name="Sell Signal",
+                    marker=dict(color="red", size=10, symbol="triangle-down"),
+                ),
+                row=2,
+                col=1,
+            )
 
     # 4. Drawdown Chart
     drawdown_fig = create_drawdown_chart(
@@ -545,7 +763,32 @@ def create_comprehensive_dashboard(
     for trace in drawdown_fig.data:
         fig.add_trace(trace, row=2, col=2)
 
-    # 5. Strategy Performance Comparison (bar chart)
+    # 5. MACD (row 3 col 1)
+    macd = _compute_macd(price_df["price"])
+    fig.add_trace(
+        go.Scatter(x=price_df["date"], y=macd["dif"], mode="lines", name="MACD DIF", line=dict(color="#2563eb", width=1)),
+        row=3,
+        col=1,
+    )
+    fig.add_trace(
+        go.Scatter(x=price_df["date"], y=macd["dea"], mode="lines", name="MACD DEA", line=dict(color="#f59e0b", width=1)),
+        row=3,
+        col=1,
+    )
+    fig.add_trace(
+        go.Bar(
+            x=price_df["date"],
+            y=macd["hist"],
+            name="MACD HIST",
+            marker_color=np.where(macd["hist"] >= 0, "#22c55e", "#ef4444"),
+            opacity=0.5,
+        ),
+        row=3,
+        col=1,
+    )
+    fig.add_hline(y=0, line_dash="dash", line_color="gray", row=3, col=1)
+
+    # 6. Strategy Performance Comparison (bar chart) -> row 3 col 2
     if (
         strategy_performance is None
         and hasattr(trader_instance, "driver")
@@ -563,14 +806,14 @@ def create_comprehensive_dashboard(
             top_n=20,
         )
         for trace in perf_fig.data:
-            fig.add_trace(trace, row=3, col=1)
+            fig.add_trace(trace, row=3, col=2)
         # Add layout updates from perf_fig (e.g., hlines)
         if perf_fig.layout.shapes:
             for shape in perf_fig.layout.shapes:
-                fig.add_shape(shape, row=3, col=1)
+                fig.add_shape(shape, row=3, col=2)
         if perf_fig.layout.annotations:
             for annotation in perf_fig.layout.annotations:
-                fig.add_annotation(annotation, row=3, col=1)
+                fig.add_annotation(annotation, row=3, col=2)
     else:
         # fallback: show strategy line as before
         df = pd.DataFrame(trade_history)
@@ -584,21 +827,50 @@ def create_comprehensive_dashboard(
                 line=dict(color="blue", width=2),
             ),
             row=3,
-            col=1,
+            col=2,
         )
 
-    # 6. Returns Distribution
+    # 7. RSI (row 4 col 1)
+    rsi = _compute_rsi(price_df["price"])
+    fig.add_trace(
+        go.Scatter(x=price_df["date"], y=rsi, mode="lines", name="RSI(14)", line=dict(color="#7c3aed", width=1)),
+        row=4,
+        col=1,
+    )
+    fig.add_hline(y=70, line_dash="dash", line_color="#ef4444", row=4, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="#22c55e", row=4, col=1)
+    fig.update_yaxes(range=[0, 100], row=4, col=1)
+
+    # 8. Returns Distribution (row 4 col 2)
     returns_fig = create_returns_distribution_chart(
         trade_history, title=f"Returns Distribution - {strategy_name}"
     )
     for trace in returns_fig.data:
-        fig.add_trace(trace, row=3, col=2)
+        fig.add_trace(trace, row=4, col=2)
+
+    # 9. KDJ (row 5 col 1)
+    kdj = _compute_kdj(price_df["high"], price_df["low"], price_df["price"])
+    fig.add_trace(go.Scatter(x=price_df["date"], y=kdj["k"], mode="lines", name="K", line=dict(color="#0ea5e9", width=1)), row=5, col=1)
+    fig.add_trace(go.Scatter(x=price_df["date"], y=kdj["d"], mode="lines", name="D", line=dict(color="#f97316", width=1)), row=5, col=1)
+    fig.add_trace(go.Scatter(x=price_df["date"], y=kdj["j"], mode="lines", name="J", line=dict(color="#22c55e", width=1)), row=5, col=1)
+    fig.add_hline(y=80, line_dash="dash", line_color="#ef4444", row=5, col=1)
+    fig.add_hline(y=20, line_dash="dash", line_color="#22c55e", row=5, col=1)
+
+    # 10. Strategy vs Buy & Hold (row 5 col 2)
+    baseline_prices = [(p[0], p[1]) for p in crypto_prices] if crypto_prices else []
+    perf_comp_fig = create_performance_comparison_chart(
+        trade_history,
+        baseline_prices,
+        title=f"Strategy vs Buy & Hold - {strategy_name}",
+    )
+    for trace in perf_comp_fig.data:
+        fig.add_trace(trace, row=5, col=2)
 
     # Update layout with strategy name and execution strategies
     strategy_name = getattr(trader_instance, "high_strategy", "Unknown Strategy")
     fig.update_layout(
         title=f"Trading Strategy Dashboard - {trader_instance.crypto_name} ({strategy_name})<br><sub>{execution_subtitle}</sub>",
-        height=1200,
+        height=1700,
         showlegend=True,
         template="seaborn",
     )
