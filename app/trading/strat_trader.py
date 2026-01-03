@@ -202,6 +202,10 @@ class StratTrader:
                         tol_pct=self.tol_pct,
                         buy_pct=self.buy_pct,
                         sell_pct=self.sell_pct,
+                        volume=misc_p.get("volume"),
+                        open_p=misc_p.get("open"),
+                        low_p=misc_p.get("low"),
+                        high_p=misc_p.get("high"),
                     )
 
             elif self.high_strategy == "DOUBLE-MA":
