@@ -233,6 +233,22 @@ def run_moving_window_simulation(
         Dictionary containing aggregated performance metrics and best strategy info
     """
     from collections import defaultdict
+    try:
+        # Preferred when running as a package
+        from app.core.config import (
+            MOVING_WINDOW_BEST_STRATEGY_METRIC,
+            MOVING_WINDOW_BEST_STRATEGY_MIN_WINS,
+        )
+    except Exception:
+        try:
+            # Fallback used by some scripts/tests
+            from core.config import (
+                MOVING_WINDOW_BEST_STRATEGY_METRIC,
+                MOVING_WINDOW_BEST_STRATEGY_MIN_WINS,
+            )
+        except Exception:
+            MOVING_WINDOW_BEST_STRATEGY_METRIC = "risk_adjusted_return"
+            MOVING_WINDOW_BEST_STRATEGY_MIN_WINS = 2
 
     # Log interval configuration details
     asset_name = trader_driver_kwargs.get("name", "UNKNOWN")
@@ -439,10 +455,28 @@ def run_moving_window_simulation(
             "risk_adjusted_return": np.mean(rates_of_return) - np.std(rates_of_return) if rates_of_return else 0,
         }
     
-    # Find best strategy based on mean rate of return (can be changed to risk_adjusted_return)
-    best_strategy_name = max(
-        aggregated_strategies.keys(),
-        key=lambda s: aggregated_strategies[s]["mean_rate_of_return"],
+    # Find best strategy across windows.
+    # Default: risk_adjusted_return (mean - std) with a minimum-win-count guard.
+    metric = str(MOVING_WINDOW_BEST_STRATEGY_METRIC or "risk_adjusted_return")
+    min_wins = int(MOVING_WINDOW_BEST_STRATEGY_MIN_WINS or 0)
+
+    eligible = {
+        s: m for s, m in aggregated_strategies.items() if int(m.get("num_windows", 0)) >= min_wins
+    }
+    if not eligible:
+        eligible = aggregated_strategies
+
+    def _score(s: str):
+        m = eligible[s]
+        primary = float(m.get(metric, m.get("risk_adjusted_return", m.get("mean_rate_of_return", 0.0))))
+        # tie-breaker: prefer higher mean return
+        secondary = float(m.get("mean_rate_of_return", 0.0))
+        return (primary, secondary)
+
+    best_strategy_name = max(eligible.keys(), key=_score)
+    logger.info(
+        f"[{asset_name}] Aggregated best strategy selection: metric={metric}, "
+        f"min_wins={min_wins}, best={best_strategy_name}"
     )
     
     # Get the best window result for the best strategy
