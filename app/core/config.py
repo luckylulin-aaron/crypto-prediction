@@ -65,8 +65,7 @@ STOCK_STRATEGIES = [
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
     "ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
     "TRIPLE-SIGNAL",
-    "MULTI-MA-SELVES",
-    "FEAR-GREED-SENTIMENT",  # Fear & Greed Index sentiment strategy
+    "MULTI-MA-SELVES"
 ]
 
 
