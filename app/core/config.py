@@ -50,6 +50,10 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
+    "MA-SELVES",
+    "DOUBLE-MA",
+    "RSI",
+    "KDJ",
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
@@ -80,6 +84,14 @@ MA_LENGTHS = [6, 12, 30]
 EMA_LENGTHS = [6, 12, 26, 30]
 BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4, 5]
+
+# --- Moving-window best strategy selection (aggregated across windows) ---
+# Recommended: "risk_adjusted_return" (mean - std) for stability.
+# Other options: "mean_rate_of_return" (more aggressive).
+MOVING_WINDOW_BEST_STRATEGY_METRIC = "risk_adjusted_return"
+# Minimum number of windows a strategy must win to be eligible; prevents picking a strategy that
+# happened to win only once due to noise.
+MOVING_WINDOW_BEST_STRATEGY_MIN_WINS = 2
 
 # RSI Strategy Configuration
 RSI_PERIODS = [7, 14, 21]  # RSI calculation periods
