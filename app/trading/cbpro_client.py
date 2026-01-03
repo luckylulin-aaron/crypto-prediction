@@ -49,16 +49,21 @@ class CBProClient:
             ConnectionError: If the API call fails or the response is invalid.
         """
         # Try to get data from cache first
+        # IMPORTANT: DB uniqueness is (symbol, date). If DATA_INTERVAL_HOURS changes (e.g. 12h -> 6h),
+        # cached rows can silently mismatch the requested granularity. Use a granularity-specific cache key.
+        granularity_map = {1: "ONE_HOUR", 6: "SIX_HOURS", 12: "TWELVE_HOURS", 24: "ONE_DAY"}
+        granularity = granularity_map.get(DATA_INTERVAL_HOURS, "SIX_HOURS")
+        cache_key = f"{name}__{granularity}"
         if use_cache:
-            cached_data = db_manager.get_historical_data(name, TIMESPAN)
-            if cached_data and db_manager.is_data_fresh(name, max_age_hours=72):
+            cached_data = db_manager.get_historical_data(cache_key, TIMESPAN)
+            if cached_data and db_manager.is_data_fresh(cache_key, max_age_hours=72):
                 self.logger.info(
-                    f"Using cached data for {name} ({len(cached_data)} records)"
+                    f"Using cached data for {name} ({len(cached_data)} records, granularity: {granularity})"
                 )
                 return cached_data
             elif cached_data:
                 self.logger.info(
-                    f"Cached data for {name} is stale, fetching fresh data"
+                    f"Cached data for {name} is stale, fetching fresh data (granularity: {granularity})"
                 )
             else:
                 self.logger.info(f"No cached data found for {name}, fetching from API")
@@ -68,10 +73,6 @@ class CBProClient:
             end = datetime.now(timezone.utc)
             start = end - timedelta(days=TIMESPAN)
             self.logger.info(f"Fetching candles for {name} from {start.strftime('%Y-%m-%d %H:%M:%S')} to {end.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            # Map interval hours to Coinbase granularity
-            granularity_map = {1: "ONE_HOUR", 6: "SIX_HOURS", 12: "TWELVE_HOURS", 24: "ONE_DAY"}
-            granularity = granularity_map.get(DATA_INTERVAL_HOURS, "SIX_HOURS")
             
             res = self.rest_client.get_candles(
                 name,
@@ -119,7 +120,7 @@ class CBProClient:
 
             # Store data in database for future use
             if use_cache and parsed:
-                db_manager.store_historical_data(name, parsed)
+                db_manager.store_historical_data(cache_key, parsed)
 
             return parsed
 
