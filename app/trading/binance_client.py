@@ -88,21 +88,24 @@ class BinanceClient:
         interval_str = _binance_interval_str(fetch_interval_minutes)
 
         cache_allowed = fetch_interval_minutes in (60, 360, 720, 1440) and not wants_resample_10m
+        # IMPORTANT: DB uniqueness is (symbol, date). If DATA_INTERVAL_HOURS changes (e.g. 12h -> 6h),
+        # cached rows can silently mismatch the requested granularity. Use an interval-specific cache key.
+        cache_key = f"{symbol}__{interval_str}"
 
         if use_cache and cache_allowed:
-            cached_data = db_manager.get_historical_data(symbol, TIMESPAN)
-            if cached_data and db_manager.is_data_fresh(symbol, max_age_hours=72):
+            cached_data = db_manager.get_historical_data(cache_key, TIMESPAN)
+            if cached_data and db_manager.is_data_fresh(cache_key, max_age_hours=72):
                 self.logger.info(
-                    f"Using cached data for {symbol} ({len(cached_data)} records)"
+                    f"Using cached data for {symbol} ({len(cached_data)} records, interval={interval_str})"
                 )
                 return cached_data
             elif cached_data:
                 self.logger.info(
-                    f"Cached data for {symbol} is stale, fetching fresh data"
+                    f"Cached data for {symbol} is stale, fetching fresh data (interval={interval_str})"
                 )
             else:
                 self.logger.info(
-                    f"No cached data found for {symbol}, fetching from API"
+                    f"No cached data found for {symbol}, fetching from API (interval={interval_str})"
                 )
         elif use_cache and not cache_allowed:
             self.logger.info(
@@ -216,7 +219,7 @@ class BinanceClient:
             self.logger.info(f"Processed {len(parsed)} data points for {symbol} after filtering")
             
             if use_cache and cache_allowed and parsed:
-                db_manager.store_historical_data(symbol, parsed)
+                db_manager.store_historical_data(cache_key, parsed)
             return parsed
         except Exception as e:
             self.logger.error(f"Error fetching historical data for {symbol}: {e}")
