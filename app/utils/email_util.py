@@ -11,7 +11,9 @@ def send_email(subject, body, to_emails, from_email, app_password, html_body=Non
     if not to_emails or not from_email or not app_password:
         logger.warning("Gmail credentials not set, skipping email notification.")
         return
-    msg = MIMEMultipart()
+    # Use multipart/alternative so email clients render either HTML (preferred) OR plain text (fallback),
+    # instead of showing both versions back-to-back.
+    msg = MIMEMultipart("alternative")
     msg["From"] = from_email
     # For privacy, only show sender in To, put all recipients in BCC
     msg["To"] = from_email
