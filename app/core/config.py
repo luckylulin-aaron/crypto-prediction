@@ -227,4 +227,14 @@ STOCKS = [
     'ORCL', # Oracle,
     'META', # Meta,
     'MSFT', # Microsoft
+    'NVDA', # Nvidia
+    'AMZN', # Amazon
+    'GOOGL', # Google
+    'NFLX', # Netflix
+    'SNAP', # Snapchat
+    'BIDU', # Baidu
+    'BABA', # Alibaba
+    'TECHY', # Tencent
+    'UBER', # Uber
+    'DASH' # Doordash
 ]
