@@ -238,6 +238,8 @@ def run_moving_window_simulation(
         from app.core.config import (
             MOVING_WINDOW_BEST_STRATEGY_METRIC,
             MOVING_WINDOW_BEST_STRATEGY_MIN_WINS,
+            MOVING_WINDOW_AUTO_TUNE_PARAMS,
+            MOVING_WINDOW_TUNE_NEIGHBORHOOD,
         )
     except Exception:
         try:
@@ -245,10 +247,60 @@ def run_moving_window_simulation(
             from core.config import (
                 MOVING_WINDOW_BEST_STRATEGY_METRIC,
                 MOVING_WINDOW_BEST_STRATEGY_MIN_WINS,
+                MOVING_WINDOW_AUTO_TUNE_PARAMS,
+                MOVING_WINDOW_TUNE_NEIGHBORHOOD,
             )
         except Exception:
             MOVING_WINDOW_BEST_STRATEGY_METRIC = "risk_adjusted_return"
             MOVING_WINDOW_BEST_STRATEGY_MIN_WINS = 2
+            MOVING_WINDOW_AUTO_TUNE_PARAMS = False
+            MOVING_WINDOW_TUNE_NEIGHBORHOOD = 1
+
+    def _neighbors(values, target, k: int):
+        """Return a small neighborhood around target in an ordered list of values."""
+        if not values:
+            return []
+        try:
+            vals = list(values)
+            vals_sorted = sorted(vals)
+            idx = vals_sorted.index(target) if target in vals_sorted else None
+            if idx is None:
+                return [target]
+            lo = max(0, idx - int(k))
+            hi = min(len(vals_sorted), idx + int(k) + 1)
+            return vals_sorted[lo:hi]
+        except Exception:
+            return [target]
+
+    def _best_params_by_strategy(driver) -> Dict[str, dict]:
+        """Pick the best trader (by final portfolio value) per strategy and return its params."""
+        best = {}
+        for t in getattr(driver, "traders", []) or []:
+            s = getattr(t, "high_strategy", None)
+            if not s:
+                continue
+            pv = getattr(t, "portfolio_value", None)
+            try:
+                score = float(pv)
+            except Exception:
+                continue
+            if s not in best or score > best[s]["score"]:
+                best[s] = {
+                    "score": score,
+                    "tol_pct": getattr(t, "tol_pct", None),
+                    "buy_pct": getattr(t, "buy_pct", None),
+                    "sell_pct": getattr(t, "sell_pct", None),
+                    "bollinger_sigma": getattr(t, "bollinger_sigma", None),
+                    "rsi_period": getattr(t, "rsi_period", None),
+                    "rsi_oversold": getattr(t, "rsi_oversold", None),
+                    "rsi_overbought": getattr(t, "rsi_overbought", None),
+                    "kdj_oversold": getattr(t, "kdj_oversold", None),
+                    "kdj_overbought": getattr(t, "kdj_overbought", None),
+                }
+        # remove score field
+        for s in list(best.keys()):
+            best[s].pop("score", None)
+        return best
 
     # Log interval configuration details
     asset_name = trader_driver_kwargs.get("name", "UNKNOWN")
@@ -289,6 +341,9 @@ def run_moving_window_simulation(
     window_results = []
     strategy_performances = defaultdict(list)  # strategy -> list of metrics
     window_chart_data = []  # per-window price + buy/sell markers for visualization
+
+    # Walk-forward parameter tuning: keep last best parameters per strategy and narrow the next window's grid.
+    last_best_params: Dict[str, dict] = {}
     
     for window_idx, window_data in enumerate(windows):
         window_start_time = time.perf_counter()
@@ -299,8 +354,77 @@ def run_moving_window_simulation(
         logger.info(f"[{asset_name}] Processing window {window_idx + 1}/{len(windows)}: "
                     f"{window_start_date} to {window_end_date} ({len(window_data)} data points)")
         
-        # Create a new TraderDriver for this window
-        driver = trader_driver_class(**trader_driver_kwargs)
+        # Create a new TraderDriver for this window.
+        # If auto-tuning is enabled, narrow the search space around last best parameters (no leakage).
+        td_kwargs = dict(trader_driver_kwargs)
+        if MOVING_WINDOW_AUTO_TUNE_PARAMS and window_idx > 0 and last_best_params:
+            k = int(MOVING_WINDOW_TUNE_NEIGHBORHOOD)
+            # Base lists (full search space)
+            tol_pcts = list(td_kwargs.get("tol_pcts", []))
+            buy_pcts = list(td_kwargs.get("buy_pcts", []))
+            sell_pcts = list(td_kwargs.get("sell_pcts", []))
+            boll_tols = list(td_kwargs.get("bollinger_tols", []))
+            rsi_periods = list(td_kwargs.get("rsi_periods", []))
+            rsi_os = list(td_kwargs.get("rsi_oversold_thresholds", []))
+            rsi_ob = list(td_kwargs.get("rsi_overbought_thresholds", []))
+            kdj_os = list(td_kwargs.get("kdj_oversold_thresholds", []))
+            kdj_ob = list(td_kwargs.get("kdj_overbought_thresholds", []))
+
+            # Union of neighborhoods around each strategy's last best params (still small).
+            tuned_tol = set()
+            tuned_buy = set()
+            tuned_sell = set()
+            tuned_boll = set()
+            tuned_rsi_p = set()
+            tuned_rsi_os = set()
+            tuned_rsi_ob = set()
+            tuned_kdj_os = set()
+            tuned_kdj_ob = set()
+
+            for s, p in last_best_params.items():
+                if p.get("tol_pct") is not None:
+                    tuned_tol.update(_neighbors(tol_pcts, p["tol_pct"], k))
+                if p.get("buy_pct") is not None:
+                    tuned_buy.update(_neighbors(buy_pcts, p["buy_pct"], k))
+                if p.get("sell_pct") is not None:
+                    tuned_sell.update(_neighbors(sell_pcts, p["sell_pct"], k))
+                if p.get("bollinger_sigma") is not None:
+                    tuned_boll.update(_neighbors(boll_tols, p["bollinger_sigma"], k))
+                if p.get("rsi_period") is not None:
+                    tuned_rsi_p.update(_neighbors(rsi_periods, p["rsi_period"], k))
+                if p.get("rsi_oversold") is not None:
+                    tuned_rsi_os.update(_neighbors(rsi_os, p["rsi_oversold"], k))
+                if p.get("rsi_overbought") is not None:
+                    tuned_rsi_ob.update(_neighbors(rsi_ob, p["rsi_overbought"], k))
+                if p.get("kdj_oversold") is not None:
+                    tuned_kdj_os.update(_neighbors(kdj_os, p["kdj_oversold"], k))
+                if p.get("kdj_overbought") is not None:
+                    tuned_kdj_ob.update(_neighbors(kdj_ob, p["kdj_overbought"], k))
+
+            if tuned_tol:
+                td_kwargs["tol_pcts"] = sorted(tuned_tol)
+            if tuned_buy:
+                td_kwargs["buy_pcts"] = sorted(tuned_buy)
+            if tuned_sell:
+                td_kwargs["sell_pcts"] = sorted(tuned_sell)
+            if tuned_boll:
+                td_kwargs["bollinger_tols"] = sorted(tuned_boll)
+            if tuned_rsi_p:
+                td_kwargs["rsi_periods"] = sorted(tuned_rsi_p)
+            if tuned_rsi_os:
+                td_kwargs["rsi_oversold_thresholds"] = sorted(tuned_rsi_os)
+            if tuned_rsi_ob:
+                td_kwargs["rsi_overbought_thresholds"] = sorted(tuned_rsi_ob)
+            if tuned_kdj_os:
+                td_kwargs["kdj_oversold_thresholds"] = sorted(tuned_kdj_os)
+            if tuned_kdj_ob:
+                td_kwargs["kdj_overbought_thresholds"] = sorted(tuned_kdj_ob)
+
+            logger.info(
+                f"[{asset_name}] Auto-tuning enabled: narrowed search space for window {window_idx + 1}"
+            )
+
+        driver = trader_driver_class(**td_kwargs)
         driver.feed_data(window_data)
         
         window_process_time = time.perf_counter() - window_start_time
@@ -417,6 +541,12 @@ def run_moving_window_simulation(
         }
         
         window_results.append(window_result)
+
+        # Update last_best_params for next window (learned from this window only; no future leakage).
+        try:
+            last_best_params = _best_params_by_strategy(driver)
+        except Exception:
+            last_best_params = last_best_params or {}
         
         # Aggregate by strategy
         strategy_key = best_trader.high_strategy

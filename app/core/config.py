@@ -50,10 +50,6 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
-    "MA-SELVES",
-    "DOUBLE-MA",
-    "RSI",
-    "KDJ",
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
@@ -64,11 +60,7 @@ STOCK_STRATEGIES = [
     "RSI", # RSI strategy
     "KDJ", # KDJ strategy
     # --------- #
-    "MA-SELVES-MACRO",  # MA-SELVES with macroeconomic overlay
     "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
-    "ADAPTIVE-MA-SELVES-MACRO",  # ADAPTIVE-MA-SELVES with macroeconomic overlay
-    "TRIPLE-SIGNAL",
-    "MULTI-MA-SELVES"
 ]
 
 
@@ -92,6 +84,13 @@ MOVING_WINDOW_BEST_STRATEGY_METRIC = "risk_adjusted_return"
 # Minimum number of windows a strategy must win to be eligible; prevents picking a strategy that
 # happened to win only once due to noise.
 MOVING_WINDOW_BEST_STRATEGY_MIN_WINS = 2
+
+# --- Moving-window parameter auto-tuning (walk-forward) ---
+# If True, for window i we narrow the parameter search space around the best parameters observed in
+# previous window(s). This lets strategies "adapt" over time without leaking future information.
+MOVING_WINDOW_AUTO_TUNE_PARAMS = True
+# How many adjacent values (on each side) to include around the last best parameter in the search space.
+MOVING_WINDOW_TUNE_NEIGHBORHOOD = 1
 
 # RSI Strategy Configuration
 RSI_PERIODS = [7, 14, 21]  # RSI calculation periods
