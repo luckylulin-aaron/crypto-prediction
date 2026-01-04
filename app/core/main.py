@@ -639,7 +639,11 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
             trader_driver.feed_data(data_stream)
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
-            signal = best_t.trade_signal
+            # For crypto (6h candles), avoid missing a recent actionable signal by looking back 24 hours.
+            try:
+                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=24)
+            except Exception:
+                signal = best_t.trade_signal
             if best_summaries is not None:
                 # Signal frequency stats from the best trader's full trade history
                 th = getattr(best_t, "trade_history", []) or []
@@ -1060,7 +1064,11 @@ def main(asset: str = "all"):
             trader_driver.feed_data(data_stream)
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
-            signal = best_t.trade_signal
+            # For crypto (6h candles), avoid missing a recent actionable signal by looking back 24 hours.
+            try:
+                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=24)
+            except Exception:
+                signal = best_t.trade_signal
             th = getattr(best_t, "trade_history", []) or []
             num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
             num_sell = len([x for x in th if str(x.get("action", "")).upper() == "SELL"])

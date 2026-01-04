@@ -896,7 +896,7 @@ class StratTrader:
         """Backwards-compatible: trade signal for the most recent interval (no lag)."""
         return self.get_trade_signal(lag_intervals=0)
 
-    def get_trade_signal(self, lag_intervals: int = 0) -> dict:
+    def get_trade_signal(self, lag_intervals: int = 0, lookback_hours: int = 0) -> dict:
         """
         Get a trade signal from historical events with an optional lag.
 
@@ -905,6 +905,10 @@ class StratTrader:
 
         Args:
             lag_intervals (int): Number of most-recent intervals to lag by. 0 means latest.
+            lookback_hours (int): If > 0, search backwards up to this many hours from "now" and return the
+                most recent BUY/SELL within that window (skipping NO ACTION). This is useful for sub-daily
+                crypto intervals where a single missed interval could hide a recent actionable signal.
+                Defaults to 0 (disabled; use the original freshness check).
 
         Returns:
             dict: {"action": str, "buy_percentage": float, "sell_percentage": float}
@@ -914,6 +918,8 @@ class StratTrader:
         """
         if lag_intervals < 0:
             raise ValueError("lag_intervals must be >= 0")
+        if lookback_hours < 0:
+            raise ValueError("lookback_hours must be >= 0")
 
         res = {
             "action": NO_ACTION_SIGNAL,
@@ -925,30 +931,22 @@ class StratTrader:
         if len(self.trade_history) <= lag_intervals:
             return res
 
-        last_evt = self.trade_history[-1 - lag_intervals]
-        last_date = last_evt.get("date", None)
-        if last_date is None:
-            return res
-
-        # Normalize to datetime
-        if isinstance(last_date, datetime.datetime):
-            last_date_dt_obj = last_date
-        else:
-            last_date_str = str(last_date)
+        def _normalize_dt(x):
+            if x is None:
+                return None
+            if isinstance(x, datetime.datetime):
+                return x
+            last_date_str = str(x)
             fmts = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%m/%d/%Y"]
-            last_date_dt_obj = None
             for fmt in fmts:
                 try:
-                    last_date_dt_obj = datetime.datetime.strptime(last_date_str, fmt)
-                    break
+                    return datetime.datetime.strptime(last_date_str, fmt)
                 except Exception:
                     continue
-            if last_date_dt_obj is None:
-                return res
+            return None
 
-        # find today's date, and time delta
+        # find today's date
         td = datetime.datetime.now()
-        diff = td - last_date_dt_obj
 
         # For sub-daily intervals, check if within the last (lag + 1) interval periods
         # Default to 6 hours if DATA_INTERVAL_HOURS is not available.
@@ -964,6 +962,32 @@ class StratTrader:
             interval_hours = 24 if self.crypto_name in STOCKS else DATA_INTERVAL_HOURS
         except ImportError:
             interval_hours = 6
+
+        # If lookback is enabled, search backwards for the most recent BUY/SELL within the window.
+        if lookback_hours > 0:
+            max_age_seconds = int(lookback_hours) * 3600
+            start_idx = len(self.trade_history) - 1 - lag_intervals
+            for i in range(start_idx, -1, -1):
+                evt = self.trade_history[i]
+                dt_obj = _normalize_dt(evt.get("date"))
+                if dt_obj is None:
+                    continue
+                diff = td - dt_obj
+                if diff.total_seconds() > max_age_seconds:
+                    # older than window; stop scanning
+                    break
+                act = str(evt.get("action", NO_ACTION_SIGNAL)).upper()
+                if act in ("BUY", "SELL"):
+                    res["action"] = act
+                    return res
+            return res
+
+        # Original behavior: only consider the single last (lagged) event, with freshness check.
+        last_evt = self.trade_history[-1 - lag_intervals]
+        last_date_dt_obj = _normalize_dt(last_evt.get("date"))
+        if last_date_dt_obj is None:
+            return res
+        diff = td - last_date_dt_obj
 
         max_age_seconds = (lag_intervals + 1) * interval_hours * 3600
         if diff.total_seconds() <= max_age_seconds:
