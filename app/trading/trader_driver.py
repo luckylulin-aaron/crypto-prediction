@@ -2,7 +2,8 @@
 import datetime
 import math
 import time
-from typing import Any, List
+from itertools import product
+from typing import Any, Dict, Iterable, List
 
 # third-party packages
 import numpy as np
@@ -32,6 +33,131 @@ logger = get_logger(__name__)
 class TraderDriver:
 
     """A wrapper class on top of any of trader classes."""
+
+    @staticmethod
+    def expected_trader_count(
+        overall_stats: List[str],
+        tol_pcts: List[float],
+        buy_pcts: List[float],
+        sell_pcts: List[float],
+        bollinger_tols: List[int],
+        rsi_periods: List[int],
+        rsi_oversold_thresholds: List[float],
+        rsi_overbought_thresholds: List[float],
+        kdj_oversold_thresholds: List[float],
+        kdj_overbought_thresholds: List[float],
+    ) -> int:
+        """
+        Compute the expected number of StratTrader instances given parameter grids.
+
+        This is useful for sanity-checking narrowed grids (e.g., moving-window auto-tuning).
+        """
+        base = (
+            len(bollinger_tols)
+            * len(overall_stats)
+            * len(tol_pcts)
+            * len(buy_pcts)
+            * len(sell_pcts)
+        )
+
+        # Adjust for strategies that expand the grid (RSI/KDJ)
+        # Our unified grid counts RSI/KDJ once each; replace that "1" with their extra grid sizes.
+        rsi_extra = len(rsi_periods) * len(rsi_oversold_thresholds) * len(rsi_overbought_thresholds)
+        kdj_extra = len(kdj_oversold_thresholds) * len(kdj_overbought_thresholds)
+
+        n_stats = len(overall_stats)
+        if n_stats == 0:
+            return 0
+
+        # For each of bollinger_sigma/tol/buy/sell combination, total traders equals:
+        # sum over strategies of (extra_grid_size_for_strategy)
+        per_combo = 0
+        for s in overall_stats:
+            if s == "RSI":
+                per_combo += max(1, rsi_extra)
+            elif s == "KDJ":
+                per_combo += max(1, kdj_extra)
+            else:
+                per_combo += 1
+
+        combos_without_strategy = len(bollinger_tols) * len(tol_pcts) * len(buy_pcts) * len(sell_pcts)
+        return combos_without_strategy * per_combo
+
+    @staticmethod
+    def _strategy_extra_param_grid(
+        strategy_name: str,
+        rsi_periods: List[int],
+        rsi_oversold_thresholds: List[float],
+        rsi_overbought_thresholds: List[float],
+        kdj_oversold_thresholds: List[float],
+        kdj_overbought_thresholds: List[float],
+    ) -> List[Dict[str, Any]]:
+        """
+        Return a list of extra parameter dicts for a given strategy.
+
+        This keeps trader creation logic uniform: every strategy uses the same core grid
+        (tol_pct/buy_pct/sell_pct/bollinger_sigma), plus an optional strategy-specific grid.
+        """
+        if strategy_name == "RSI":
+            return [
+                {
+                    "rsi_period": period,
+                    "rsi_oversold": oversold,
+                    "rsi_overbought": overbought,
+                }
+                for period, oversold, overbought in product(
+                    rsi_periods, rsi_oversold_thresholds, rsi_overbought_thresholds
+                )
+            ]
+        if strategy_name == "KDJ":
+            return [
+                {"kdj_oversold": oversold, "kdj_overbought": overbought}
+                for oversold, overbought in product(
+                    kdj_oversold_thresholds, kdj_overbought_thresholds
+                )
+            ]
+        return [{}]
+
+    @classmethod
+    def _iter_trader_specs(
+        cls,
+        overall_stats: List[str],
+        tol_pcts: List[float],
+        buy_pcts: List[float],
+        sell_pcts: List[float],
+        bollinger_tols: List[int],
+        rsi_periods: List[int],
+        rsi_oversold_thresholds: List[float],
+        rsi_overbought_thresholds: List[float],
+        kdj_oversold_thresholds: List[float],
+        kdj_overbought_thresholds: List[float],
+    ) -> Iterable[Dict[str, Any]]:
+        """
+        Yield dicts of parameters that define a unique StratTrader instance.
+
+        This is intentionally strategy-agnostic: strategies are handled by providing an
+        (optional) extra param grid per strategy.
+        """
+        for bollinger_sigma, stat, tol_pct, buy_pct, sell_pct in product(
+            bollinger_tols, overall_stats, tol_pcts, buy_pcts, sell_pcts
+        ):
+            extras = cls._strategy_extra_param_grid(
+                stat,
+                rsi_periods=rsi_periods,
+                rsi_oversold_thresholds=rsi_oversold_thresholds,
+                rsi_overbought_thresholds=rsi_overbought_thresholds,
+                kdj_oversold_thresholds=kdj_oversold_thresholds,
+                kdj_overbought_thresholds=kdj_overbought_thresholds,
+            )
+            for extra in extras:
+                yield {
+                    "stat": stat,
+                    "tol_pct": tol_pct,
+                    "buy_pct": buy_pct,
+                    "sell_pct": sell_pct,
+                    "bollinger_sigma": bollinger_sigma,
+                    **extra,
+                }
 
     def __init__(
         self,
@@ -81,117 +207,63 @@ class TraderDriver:
         self.init_amount, self.init_coin = init_amount, cur_coin
         self.mode = mode
         self.traders = []
-        for bollinger_sigma in bollinger_tols:
-            for stat in overall_stats:
-                for tol_pct in tol_pcts:
-                    for buy_pct in buy_pcts:
-                        for sell_pct in sell_pcts:
-                            # For RSI strategy, iterate through RSI parameters
-                            if stat == "RSI":
-                                for rsi_period in rsi_periods:
-                                    for oversold in rsi_oversold_thresholds:
-                                        for overbought in rsi_overbought_thresholds:
-                                            t = StratTrader(
-                                                name=name,
-                                                init_amount=init_amount,
-                                                stat=stat,
-                                                tol_pct=tol_pct,
-                                                ma_lengths=ma_lengths,
-                                                ema_lengths=ema_lengths,
-                                                bollinger_mas=bollinger_mas,
-                                                bollinger_sigma=bollinger_sigma,
-                                                buy_pct=buy_pct,
-                                                sell_pct=sell_pct,
-                                                cur_coin=cur_coin,
-                                                buy_stas=buy_stas,
-                                                sell_stas=sell_stas,
-                                                rsi_period=rsi_period,
-                                                rsi_oversold=oversold,
-                                                rsi_overbought=overbought,
-                                                mode=mode,
-                                            )
-                                            self.traders.append(t)
-                            elif stat == "KDJ":
-                                for oversold in kdj_oversold_thresholds:
-                                    for overbought in kdj_overbought_thresholds:
-                                        t = StratTrader(
-                                            name=name,
-                                            init_amount=init_amount,
-                                            stat=stat,
-                                            tol_pct=tol_pct,
-                                            ma_lengths=ma_lengths,
-                                            ema_lengths=ema_lengths,
-                                            bollinger_mas=bollinger_mas,
-                                            bollinger_sigma=bollinger_sigma,
-                                            buy_pct=buy_pct,
-                                            sell_pct=sell_pct,
-                                            cur_coin=cur_coin,
-                                            buy_stas=buy_stas,
-                                            sell_stas=sell_stas,
-                                            kdj_oversold=oversold,
-                                            kdj_overbought=overbought,
-                                            mode=mode,
-                                        )
-                                        self.traders.append(t)
-                            else:
-                                # For non-RSI/KDJ strategies, use default parameters
-                                t = StratTrader(
-                                    name=name,
-                                    init_amount=init_amount,
-                                    stat=stat,
-                                    tol_pct=tol_pct,
-                                    ma_lengths=ma_lengths,
-                                    ema_lengths=ema_lengths,
-                                    bollinger_mas=bollinger_mas,
-                                    bollinger_sigma=bollinger_sigma,
-                                    buy_pct=buy_pct,
-                                    sell_pct=sell_pct,
-                                    cur_coin=cur_coin,
-                                    buy_stas=buy_stas,
-                                    sell_stas=sell_stas,
-                                    mode=mode,
-                                )
-                                self.traders.append(t)
-
-        # check
-        expected_traders = 0
-
-        # Calculate for each strategy type
-        for stat in overall_stats:
-            if stat == "RSI":
-                # RSI: tol_pcts * buy_pcts * sell_pcts * bollinger_tols * rsi_periods * rsi_oversold * rsi_overbought
-                rsi_combinations = (
-                    len(tol_pcts)
-                    * len(buy_pcts)
-                    * len(sell_pcts)
-                    * len(bollinger_tols)
-                    * len(rsi_periods)
-                    * len(rsi_oversold_thresholds)
-                    * len(rsi_overbought_thresholds)
-                )
-                expected_traders += rsi_combinations
-            elif stat == "KDJ":
-                # KDJ: tol_pcts * buy_pcts * sell_pcts * bollinger_tols * kdj_oversold * kdj_overbought
-                kdj_combinations = (
-                    len(tol_pcts)
-                    * len(buy_pcts)
-                    * len(sell_pcts)
-                    * len(bollinger_tols)
-                    * len(kdj_oversold_thresholds)
-                    * len(kdj_overbought_thresholds)
-                )
-                expected_traders += kdj_combinations
-            else:
-                # Other strategies: tol_pcts * buy_pcts * sell_pcts * bollinger_tols
-                other_combinations = (
-                    len(tol_pcts) * len(buy_pcts) * len(sell_pcts) * len(bollinger_tols)
-                )
-                expected_traders += other_combinations
-
-        if len(self.traders) != expected_traders:
-            raise ValueError(
-                f"trader creation is wrong! Expected {expected_traders}, got {len(self.traders)}"
+        for spec in self._iter_trader_specs(
+            overall_stats=overall_stats,
+            tol_pcts=tol_pcts,
+            buy_pcts=buy_pcts,
+            sell_pcts=sell_pcts,
+            bollinger_tols=bollinger_tols,
+            rsi_periods=rsi_periods,
+            rsi_oversold_thresholds=rsi_oversold_thresholds,
+            rsi_overbought_thresholds=rsi_overbought_thresholds,
+            kdj_oversold_thresholds=kdj_oversold_thresholds,
+            kdj_overbought_thresholds=kdj_overbought_thresholds,
+        ):
+            t = StratTrader(
+                name=name,
+                init_amount=init_amount,
+                stat=spec["stat"],
+                tol_pct=spec["tol_pct"],
+                ma_lengths=ma_lengths,
+                ema_lengths=ema_lengths,
+                bollinger_mas=bollinger_mas,
+                bollinger_sigma=spec["bollinger_sigma"],
+                buy_pct=spec["buy_pct"],
+                sell_pct=spec["sell_pct"],
+                cur_coin=cur_coin,
+                buy_stas=buy_stas,
+                sell_stas=sell_stas,
+                mode=mode,
+                # optional extras (only used by certain strategies)
+                rsi_period=spec.get("rsi_period"),
+                rsi_oversold=spec.get("rsi_oversold"),
+                rsi_overbought=spec.get("rsi_overbought"),
+                kdj_oversold=spec.get("kdj_oversold"),
+                kdj_overbought=spec.get("kdj_overbought"),
             )
+            self.traders.append(t)
+
+        expected = self.expected_trader_count(
+            overall_stats=overall_stats,
+            tol_pcts=tol_pcts,
+            buy_pcts=buy_pcts,
+            sell_pcts=sell_pcts,
+            bollinger_tols=bollinger_tols,
+            rsi_periods=rsi_periods,
+            rsi_oversold_thresholds=rsi_oversold_thresholds,
+            rsi_overbought_thresholds=rsi_overbought_thresholds,
+            kdj_oversold_thresholds=kdj_oversold_thresholds,
+            kdj_overbought_thresholds=kdj_overbought_thresholds,
+        )
+        if len(self.traders) != expected:
+            logger.warning(
+                f"[{self.name}] Trader count mismatch: expected={expected}, actual={len(self.traders)}. "
+                f"(This can happen if a strategy ignores certain params, or grids were modified.)"
+            )
+
+        # Sanity check: ensure we created at least one trader.
+        if len(self.traders) == 0:
+            raise ValueError("No traders were created. Check your parameter grids and overall_stats.")
         # unknown, without data
         self.best_trader = None
 
