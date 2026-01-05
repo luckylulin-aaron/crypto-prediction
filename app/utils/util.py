@@ -302,6 +302,17 @@ def run_moving_window_simulation(
             best[s].pop("score", None)
         return best
 
+    def _fmt_list(values: list, max_items: int = 10) -> str:
+        """Format a list for logs with truncation."""
+        try:
+            vals = list(values)
+        except Exception:
+            return str(values)
+        if len(vals) <= max_items:
+            return str(vals)
+        head = vals[:max_items]
+        return f"{head} ... (+{len(vals) - max_items} more)"
+
     # Log interval configuration details
     asset_name = trader_driver_kwargs.get("name", "UNKNOWN")
     logger.info(f"[{asset_name}] Moving window simulation configuration:")
@@ -421,8 +432,34 @@ def run_moving_window_simulation(
                 td_kwargs["kdj_overbought_thresholds"] = sorted(tuned_kdj_ob)
 
             logger.info(
-                f"[{asset_name}] Auto-tuning enabled: narrowed search space for window {window_idx + 1}"
+                f"[{asset_name}] Auto-tuning enabled: narrowed search space for window {window_idx + 1} "
+                f"(neighborhood=±{k})"
             )
+            logger.info(
+                f"[{asset_name}] Tuned grids: "
+                f"tol_pcts={_fmt_list(td_kwargs.get('tol_pcts', []))}, "
+                f"buy_pcts={_fmt_list(td_kwargs.get('buy_pcts', []))}, "
+                f"sell_pcts={_fmt_list(td_kwargs.get('sell_pcts', []))}, "
+                f"bollinger_tols={_fmt_list(td_kwargs.get('bollinger_tols', []))}"
+            )
+            # Only log RSI/KDJ grids if those strategies are enabled in this run
+            try:
+                enabled_stats = td_kwargs.get("overall_stats", []) or []
+            except Exception:
+                enabled_stats = []
+            if "RSI" in enabled_stats:
+                logger.info(
+                    f"[{asset_name}] Tuned RSI grids: "
+                    f"periods={_fmt_list(td_kwargs.get('rsi_periods', []))}, "
+                    f"oversold={_fmt_list(td_kwargs.get('rsi_oversold_thresholds', []))}, "
+                    f"overbought={_fmt_list(td_kwargs.get('rsi_overbought_thresholds', []))}"
+                )
+            if "KDJ" in enabled_stats:
+                logger.info(
+                    f"[{asset_name}] Tuned KDJ grids: "
+                    f"oversold={_fmt_list(td_kwargs.get('kdj_oversold_thresholds', []))}, "
+                    f"overbought={_fmt_list(td_kwargs.get('kdj_overbought_thresholds', []))}"
+                )
 
         driver = trader_driver_class(**td_kwargs)
         driver.feed_data(window_data)
