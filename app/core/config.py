@@ -138,7 +138,7 @@ CURS = [
     "ETC",
     "DOGE",
     "AAVE",
-][:1]  # Tradeable cryptocurrencies with balance
+]  # Tradeable cryptocurrencies with balance
 # Note: ETH2 exists in account but ETH2-USDT is not a valid trading pair
 # LTC and ADA are not in the account
 FIAT = ["USD", "SGD"]  # Fiat currencies (not used for trading)
@@ -149,6 +149,12 @@ STABLECOIN = ["USDC", "USDT"]  # Stablecoins for trading with cryptos
 NO_ACTION_SIGNAL = "NO ACTION"
 BUY_SIGNAL = "BUY"
 SELL_SIGNAL = "SELL"
+
+# --- Options backtest heuristics (signal-based) ---
+# For each BUY signal, we assume "open a call option" and consider it a win if we later see a SELL
+# within this horizon at a higher price than the BUY price. Symmetric for SELL->BUY (put option).
+# This is a simple, execution-free proxy to evaluate whether your signals are directionally useful.
+OPTION_SIGNAL_HOLD_DAYS = 20
 
 # constants
 DEPOSIT_CST = "DEPOSIT"
