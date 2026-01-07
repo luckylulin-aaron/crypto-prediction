@@ -137,19 +137,20 @@ def send_daily_recommendations_email(
         Expected keys:
           asset_type, exchange, asset, best_strategy, buy_pct, sell_pct,
           num_buy, num_sell, num_intervals, signal_rate_pct,
-          signals_per_30d, avg_days_between_signals
+          signals_per_30d, avg_days_between_signals,
+          last_buy_date, last_sell_date
         """
         if not rows:
             return "", ""
 
         header = (
-            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6} | {'BUY':<3} | {'SELL':<4} | {'Sig%':<5} | {'Sig/30d':<7} | {'AvgDays':<6}"
+            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6} | {'BUY':<3} | {'SELL':<4} | {'Sig%':<5} | {'Sig/30d':<7} | {'AvgDays':<6} | {'Last BUY':<16} | {'Last SELL':<16}"
         )
         sep = "-" * len(header)
         lines = []
         for r in rows:
             lines.append(
-                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | {r.get('best_strategy',''):<20} | {_fmt_pct(r.get('buy_pct')):<6} | {_fmt_pct(r.get('sell_pct')):<6} | {_fmt_int(r.get('num_buy')):<3} | {_fmt_int(r.get('num_sell')):<4} | {_fmt_pct(r.get('signal_rate_pct')):<5} | {_fmt_pct(r.get('signals_per_30d')):<7} | {_fmt_pct(r.get('avg_days_between_signals')):<6}"
+                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | {r.get('best_strategy',''):<20} | {_fmt_pct(r.get('buy_pct')):<6} | {_fmt_pct(r.get('sell_pct')):<6} | {_fmt_int(r.get('num_buy')):<3} | {_fmt_int(r.get('num_sell')):<4} | {_fmt_pct(r.get('signal_rate_pct')):<5} | {_fmt_pct(r.get('signals_per_30d')):<7} | {_fmt_pct(r.get('avg_days_between_signals')):<6} | {str(r.get('last_buy_date','')):<16} | {str(r.get('last_sell_date','')):<16}"
             )
         plain = "\n".join([header, sep] + lines) + "\n"
 
@@ -168,6 +169,8 @@ def send_daily_recommendations_email(
             "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig%</th>"
             "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig/30d</th>"
             "<th style=\"padding:10px;text-align:right;font-weight:600;\">AvgDays</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Last BUY</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Last SELL</th>"
             "</tr></thead><tbody>"
         )
         for idx, r in enumerate(rows):
@@ -186,6 +189,8 @@ def send_daily_recommendations_email(
                 f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('signal_rate_pct'))}</td>"
                 f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('signals_per_30d'))}</td>"
                 f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('avg_days_between_signals'))}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('last_buy_date','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('last_sell_date','')}</td>"
                 "</tr>"
             )
         html += "</tbody></table>"
@@ -689,6 +694,39 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                         for i in range(1, len(sig_dates_dt))
                     ]
                     avg_days_between = float(np.mean(deltas)) if deltas else ""
+
+                def _fmt_last_dt(dt_obj) -> str:
+                    if dt_obj is None:
+                        return ""
+                    try:
+                        if dt_obj.time() == datetime.min.time():
+                            return dt_obj.strftime("%Y-%m-%d")
+                        return dt_obj.strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        return str(dt_obj)
+
+                def _latest_action_dt(action: str):
+                    for evt in reversed(th):
+                        if str(evt.get("action", "")).upper() != action:
+                            continue
+                        d0 = evt.get("date")
+                        try:
+                            dt0 = (
+                                d0
+                                if isinstance(d0, datetime)
+                                else datetime.fromisoformat(str(d0).replace("Z", "+00:00"))
+                            )
+                        except Exception:
+                            try:
+                                dt0 = datetime.strptime(str(d0), "%Y-%m-%d %H:%M:%S")
+                            except Exception:
+                                dt0 = None
+                        if dt0 is not None:
+                            return dt0
+                    return None
+
+                last_buy_dt = _latest_action_dt("BUY")
+                last_sell_dt = _latest_action_dt("SELL")
                 best_summaries.append(
                     {
                         "asset_type": "STOCK",
@@ -705,6 +743,8 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                         "avg_days_between_signals": round(avg_days_between, 2)
                         if isinstance(avg_days_between, (int, float))
                         else "",
+                        "last_buy_date": _fmt_last_dt(last_buy_dt),
+                        "last_sell_date": _fmt_last_dt(last_sell_dt),
                     }
                 )
 
@@ -1113,6 +1153,38 @@ def main(asset: str = "all"):
                 ]
                 avg_days_between = float(np.mean(deltas)) if deltas else ""
 
+            def _fmt_last_dt(dt_obj) -> str:
+                if dt_obj is None:
+                    return ""
+                try:
+                    if dt_obj.time() == datetime.min.time():
+                        return dt_obj.strftime("%Y-%m-%d")
+                    return dt_obj.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    return str(dt_obj)
+
+            def _latest_action_dt(action: str):
+                for evt in reversed(th):
+                    if str(evt.get("action", "")).upper() != action:
+                        continue
+                    d0 = evt.get("date")
+                    try:
+                        dt0 = (
+                            d0
+                            if isinstance(d0, datetime)
+                            else datetime.fromisoformat(str(d0).replace("Z", "+00:00"))
+                        )
+                    except Exception:
+                        try:
+                            dt0 = datetime.strptime(str(d0), "%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            dt0 = None
+                    if dt0 is not None:
+                        return dt0
+                return None
+
+            last_buy_dt = _latest_action_dt("BUY")
+            last_sell_dt = _latest_action_dt("SELL")
             best_summaries.append(
                 {
                     "asset_type": "CRYPTO",
@@ -1129,6 +1201,8 @@ def main(asset: str = "all"):
                     "avg_days_between_signals": round(avg_days_between, 2)
                     if isinstance(avg_days_between, (int, float))
                     else "",
+                    "last_buy_date": _fmt_last_dt(last_buy_dt),
+                    "last_sell_date": _fmt_last_dt(last_sell_dt),
                 }
             )
 

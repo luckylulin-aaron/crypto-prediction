@@ -138,7 +138,7 @@ CURS = [
     "ETC",
     "DOGE",
     "AAVE",
-]  # Tradeable cryptocurrencies with balance
+][:1]  # Tradeable cryptocurrencies with balance
 # Note: ETH2 exists in account but ETH2-USDT is not a valid trading pair
 # LTC and ADA are not in the account
 FIAT = ["USD", "SGD"]  # Fiat currencies (not used for trading)
