@@ -20,6 +20,119 @@ except ImportError:
 logger = get_logger(__name__)
 
 
+def compute_option_signal_win_rates(
+    trade_history: List[Dict[str, Any]],
+    hold_days: int,
+) -> Dict[str, Any]:
+    """
+    Compute win rates for "options opened on signals" using historical BUY/SELL events.
+
+    Heuristic definition:
+    - Call (opened on BUY): find the first SELL within `hold_days` after the BUY.
+      It's a win if sell_price > buy_price.
+    - Put (opened on SELL): find the first BUY within `hold_days` after the SELL.
+      It's a win if buy_price < sell_price.
+
+    Notes:
+    - We only count trials where a matching exit signal exists within the horizon.
+      (No exit within horizon => not counted, to avoid arbitrary assumptions.)
+
+    Args:
+        trade_history (List[Dict[str, Any]]): Trader's full trade history (events with at least
+            `action`, `price`, `date`).
+        hold_days (int): Maximum holding horizon in days.
+
+    Returns:
+        Dict[str, Any]: {
+            "call_win_rate_pct": float,
+            "put_win_rate_pct": float,
+            "call_trials": int,
+            "put_trials": int,
+            "call_wins": int,
+            "put_wins": int,
+        }
+
+    Raises:
+        ValueError: If hold_days is negative.
+    """
+    if hold_days < 0:
+        raise ValueError("hold_days must be >= 0")
+
+    horizon_seconds = float(hold_days) * 86400.0
+
+    # Normalize + filter to BUY/SELL only, preserve order
+    events: List[Dict[str, Any]] = []
+    for evt in (trade_history or []):
+        try:
+            act = str(evt.get("action", "")).upper()
+        except Exception:
+            continue
+        if act not in ("BUY", "SELL"):
+            continue
+
+        d0 = evt.get("date")
+        dt0 = None
+        if isinstance(d0, datetime.datetime):
+            dt0 = d0
+        else:
+            # best-effort parsing (supports stored datetime or string)
+            try:
+                dt0 = datetime.datetime.fromisoformat(str(d0).replace("Z", "+00:00"))
+            except Exception:
+                try:
+                    dt0 = datetime.datetime.strptime(str(d0), "%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    dt0 = None
+        if dt0 is None:
+            continue
+
+        try:
+            p0 = float(evt.get("price"))
+        except Exception:
+            continue
+
+        events.append({"action": act, "date": dt0, "price": p0})
+
+    call_trials = call_wins = 0
+    put_trials = put_wins = 0
+
+    for i, e in enumerate(events):
+        if e["action"] == "BUY":
+            # find first SELL within horizon
+            for j in range(i + 1, len(events)):
+                nxt = events[j]
+                if (nxt["date"] - e["date"]).total_seconds() > horizon_seconds:
+                    break
+                if nxt["action"] == "SELL":
+                    call_trials += 1
+                    if nxt["price"] > e["price"]:
+                        call_wins += 1
+                    break
+        elif e["action"] == "SELL":
+            # find first BUY within horizon
+            for j in range(i + 1, len(events)):
+                nxt = events[j]
+                if (nxt["date"] - e["date"]).total_seconds() > horizon_seconds:
+                    break
+                if nxt["action"] == "BUY":
+                    put_trials += 1
+                    if nxt["price"] < e["price"]:
+                        put_wins += 1
+                    break
+
+    call_win_rate_pct = 100.0 * call_wins / call_trials if call_trials > 0 else 0.0
+    put_win_rate_pct = 100.0 * put_wins / put_trials if put_trials > 0 else 0.0
+
+    return {
+        "call_win_rate_pct": round(call_win_rate_pct, 2),
+        "put_win_rate_pct": round(put_win_rate_pct, 2),
+        "call_trials": int(call_trials),
+        "put_trials": int(put_trials),
+        "call_wins": int(call_wins),
+        "put_wins": int(put_wins),
+    }
+
+
 def timer(func: Any) -> Any:
     """
     Decorator to print the runtime of the decorated function.

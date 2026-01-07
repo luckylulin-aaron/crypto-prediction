@@ -150,6 +150,12 @@ NO_ACTION_SIGNAL = "NO ACTION"
 BUY_SIGNAL = "BUY"
 SELL_SIGNAL = "SELL"
 
+# --- Options backtest heuristics (signal-based) ---
+# For each BUY signal, we assume "open a call option" and consider it a win if we later see a SELL
+# within this horizon at a higher price than the BUY price. Symmetric for SELL->BUY (put option).
+# This is a simple, execution-free proxy to evaluate whether your signals are directionally useful.
+OPTION_SIGNAL_HOLD_DAYS = 20
+
 # constants
 DEPOSIT_CST = "DEPOSIT"
 WITHDRAW_CST = "WITHDRAWAL"
