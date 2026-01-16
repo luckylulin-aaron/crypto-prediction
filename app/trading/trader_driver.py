@@ -3,7 +3,7 @@ import datetime
 import math
 import time
 from itertools import product
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 # third-party packages
 import numpy as np
@@ -179,6 +179,9 @@ class TraderDriver:
         rsi_overbought_thresholds: List[float] = [70],
         kdj_oversold_thresholds: List[float] = [20],
         kdj_overbought_thresholds: List[float] = [80],
+        zoom_in: bool = False,
+        zoom_in_min_move_pct: float = 0.003,
+        ma_boll_simplify: bool = True,
         mode: str = "normal",
     ):
         """
@@ -198,6 +201,9 @@ class TraderDriver:
             sell_pcts (List[float]): List of sell percentages.
             buy_stas (List[str], optional): Buy strategies. Defaults to ['by_percentage'].
             sell_stas (List[str], optional): Sell strategies. Defaults to ['by_percentage'].
+            zoom_in (bool, optional): Enable MA-BOLL-BANDS zoom-in refinement. Defaults to False.
+            zoom_in_min_move_pct (float, optional): Min intraday move to treat as trending. Defaults to 0.003.
+            ma_boll_simplify (bool, optional): Enable simplified MA-BOLL-BANDS logic. Defaults to False.
             mode (str, optional): Mode. Defaults to 'normal'.
 
         Returns:
@@ -240,6 +246,9 @@ class TraderDriver:
                 rsi_overbought=spec.get("rsi_overbought"),
                 kdj_oversold=spec.get("kdj_oversold"),
                 kdj_overbought=spec.get("kdj_overbought"),
+                zoom_in=zoom_in,
+                zoom_in_min_move_pct=zoom_in_min_move_pct,
+                ma_boll_simplify=ma_boll_simplify,
             )
             self.traders.append(t)
 
@@ -281,13 +290,21 @@ class TraderDriver:
             trader.fear_greed_data = fear_greed_data
 
     @timer
-    def feed_data(self, data_stream: List[tuple]):
+    def feed_data(
+        self,
+        data_stream: List[tuple],
+        intraday_stream: Optional[List[tuple]] = None,
+        intraday_interval_hours: int = 1,
+    ):
         """
         Feed in historic data, where data_stream consists of tuples of (price, date, open, low, high).
         Date can be either a datetime object or a string that will be parsed.
 
         Args:
             data_stream (List[tuple]): List of tuples with price and date info.
+            intraday_stream (Optional[List[tuple]]): Optional lower-granularity candles (e.g., 1h)
+                to support zoom-in logic. Same tuple format as data_stream.
+            intraday_interval_hours (int): Expected intraday interval in hours. Defaults to 1.
 
         Returns:
             None
@@ -338,14 +355,39 @@ class TraderDriver:
 
         max_final_p = -math.inf
         num_traders = len(self.traders)
+
+        # Pre-parse intraday candles if provided
+        intraday_items = []
+        if intraday_stream:
+            for item in intraday_stream:
+                try:
+                    dt = parse_date(item[1])
+                except Exception:
+                    dt = None
+                if dt is None:
+                    continue
+                intraday_items.append((dt, item))
+            intraday_items.sort(key=lambda x: x[0])
         
         logger.debug(f"[{self.name}] Processing {num_traders} trading strategies across {len(data_stream)} data points")
 
         for index, t in enumerate(self.traders):
             trader_start_time = time.perf_counter()
+
+            intraday_idx = 0
+            prev_dt = None
             
             # compute initial value
             date_obj = parse_date(data_stream[0][1])
+            intraday_slice = []
+            if intraday_items:
+                while intraday_idx < len(intraday_items):
+                    dt, item = intraday_items[intraday_idx]
+                    if dt <= date_obj:
+                        intraday_slice.append(item)
+                        intraday_idx += 1
+                    else:
+                        break
             t.add_new_day(
                 new_p=data_stream[0][0],
                 d=date_obj,
@@ -353,6 +395,8 @@ class TraderDriver:
                     "open": data_stream[0][2],
                     "low": data_stream[0][3],
                     "high": data_stream[0][4],
+                    "intraday_candles": intraday_slice,
+                    "intraday_interval_hours": intraday_interval_hours,
                     **(
                         {"volume": data_stream[0][5]}
                         if isinstance(data_stream[0], (list, tuple)) and len(data_stream[0]) > 5
@@ -360,14 +404,27 @@ class TraderDriver:
                     ),
                 },
             )
+            prev_dt = date_obj
             # run simulation
             for i in range(1, len(data_stream)):
                 p = data_stream[i][0]
                 d = parse_date(data_stream[i][1])  # [cur_price,date,open,low,high]
+                intraday_slice = []
+                if intraday_items:
+                    while intraday_idx < len(intraday_items):
+                        dt, item = intraday_items[intraday_idx]
+                        if dt <= d:
+                            if prev_dt is None or dt > prev_dt:
+                                intraday_slice.append(item)
+                            intraday_idx += 1
+                        else:
+                            break
                 misc_p = {
                     "open": data_stream[i][2],
                     "low": data_stream[i][3],
                     "high": data_stream[i][4],
+                    "intraday_candles": intraday_slice,
+                    "intraday_interval_hours": intraday_interval_hours,
                     **(
                         {"volume": data_stream[i][5]}
                         if isinstance(data_stream[i], (list, tuple)) and len(data_stream[i]) > 5
@@ -375,6 +432,7 @@ class TraderDriver:
                     ),
                 }
                 t.add_new_day(p, d, misc_p)
+                prev_dt = d
             # decide best trader while we loop, by comparing all traders final portfolio value
             # sometimes a trader makes no trade at all
             if len(t.all_history) > 0:

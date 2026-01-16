@@ -214,6 +214,64 @@ def send_daily_recommendations_email(
         html += "</tbody></table>"
         return plain, html
 
+    def _render_option_settlements(rows: list) -> Tuple[str, str]:
+        """
+        Return (plain_text, html) table for option settlements.
+        Expected keys:
+          asset_type, exchange, asset, option_type, leverage_multiple,
+          entry_price, exit_price, pnl, settled_on
+        """
+        if not rows:
+            return "", ""
+
+        header = (
+            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Opt':<5} | {'Lev':<4} | "
+            f"{'Entry':<10} | {'Exit':<10} | {'PnL':<10} | {'Settled':<19}"
+        )
+        sep = "-" * len(header)
+        lines = []
+        for r in rows:
+            lines.append(
+                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | "
+                f"{r.get('option_type',''):<5} | {str(r.get('leverage_multiple','')):<4} | "
+                f"{_fmt_pct(r.get('entry_price')):<10} | {_fmt_pct(r.get('exit_price')):<10} | "
+                f"{_fmt_pct(r.get('pnl')):<10} | {str(r.get('settled_on','')):<19}"
+            )
+        plain = "\n".join([header, sep] + lines) + "\n"
+
+        html = (
+            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
+            "<thead>"
+            "<tr style=\"background:#0f172a;color:#ffffff;\">"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Option</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Lev</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Entry</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Exit</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">PnL</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Settled</th>"
+            "</tr></thead><tbody>"
+        )
+        for idx, r in enumerate(rows):
+            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+            html += (
+                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('asset_type','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('option_type','')}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{r.get('leverage_multiple','')}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('entry_price'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('exit_price'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('pnl'))}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('settled_on','')}</td>"
+                "</tr>"
+            )
+        html += "</tbody></table>"
+        return plain, html
+
     buy_sell_lines = []
     no_action_entries = []
 
@@ -389,6 +447,19 @@ def send_daily_recommendations_email(
                     + "</pre>"
                 )
 
+            option_rows = []
+            for r in summary_rows:
+                for opt in r.get("option_settlements", []) or []:
+                    option_rows.append(opt)
+            if option_rows:
+                body += "Option settlements:\n"
+                plain_tbl, html_tbl = _render_option_settlements(option_rows)
+                body += plain_tbl + "\n"
+                html_body += (
+                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
+                    + html_tbl
+                )
+
             if all_no_action:
                 from collections import defaultdict
 
@@ -448,6 +519,19 @@ def send_daily_recommendations_email(
                     "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
                     + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
                     + "</pre>"
+                )
+
+            option_rows = []
+            for r in summary_rows:
+                for opt in r.get("option_settlements", []) or []:
+                    option_rows.append(opt)
+            if option_rows:
+                body += "Option settlements:\n"
+                plain_tbl, html_tbl = _render_option_settlements(option_rows)
+                body += plain_tbl + "\n"
+                html_body += (
+                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
+                    + html_tbl
                 )
 
             if crypto_no_action:
@@ -578,6 +662,70 @@ def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClien
     
     logger.error(f"Both Binance and Coinbase failed to provide data for {asset}")
     return None, None
+
+
+def fetch_intraday_data_with_fallback(
+    asset: str,
+    binance_client: BinanceClient,
+    coinbase_client: CBProClient,
+    exchange_configs: list,
+    source_exchange: Optional[ExchangeName] = None,
+    interval_hours: int = 1,
+):
+    """
+    Fetch intraday data for an asset, preferring the source exchange when provided.
+
+    Args:
+        asset (str): The asset symbol (e.g., 'BTC', 'ETH')
+        binance_client (BinanceClient): Binance client instance
+        coinbase_client (CBProClient): Coinbase client instance
+        exchange_configs (list): List of exchange configurations
+        source_exchange (Optional[ExchangeName]): Preferred exchange to pull intraday data from.
+        interval_hours (int): Intraday interval in hours. Defaults to 1.
+
+    Returns:
+        Optional[list]: Intraday data stream or None if not available.
+
+    Raises:
+        None
+    """
+    def validate_and_format_data(data_stream):
+        if not data_stream:
+            return None
+        formatted_data = []
+        for item in data_stream:
+            if len(item) >= 5:
+                formatted_item = (item[0], item[1], item[2], item[3], item[4])
+                formatted_data.append(formatted_item)
+        return formatted_data if formatted_data else None
+
+    def _fetch_from_exchange(exchange_name: ExchangeName):
+        if exchange_name == ExchangeName.BINANCE:
+            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.BINANCE), None)
+            if not cfg:
+                return None
+            symbol = cfg["symbol_format"](asset)
+            data = binance_client.get_historic_data(symbol, interval_hours=interval_hours)
+            return validate_and_format_data(data)
+        if exchange_name == ExchangeName.COINBASE:
+            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.COINBASE), None)
+            if not cfg:
+                return None
+            symbol = cfg["symbol_format"](asset)
+            data = coinbase_client.get_historic_data(symbol, interval_hours=interval_hours)
+            return validate_and_format_data(data)
+        return None
+
+    if source_exchange is not None:
+        data = _fetch_from_exchange(source_exchange)
+        if data:
+            return data
+
+    # Fallback: try both exchanges
+    data = _fetch_from_exchange(ExchangeName.BINANCE)
+    if data:
+        return data
+    return _fetch_from_exchange(ExchangeName.COINBASE)
 
 
 def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = None) -> None:
@@ -762,6 +910,29 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                     trade_history=th,
                     hold_days=OPTION_SIGNAL_HOLD_DAYS,
                 )
+                opt_settlements = []
+                for opt in getattr(best_t, "option_history", []) or []:
+                    if not opt.get("settled"):
+                        continue
+                    settled_on = opt.get("settled_on")
+                    if isinstance(settled_on, datetime):
+                        settled_str = settled_on.strftime("%Y-%m-%d %H:%M:%S")
+                    else:
+                        settled_str = str(settled_on) if settled_on else ""
+                    opt_settlements.append(
+                        {
+                            "asset_type": "STOCK",
+                            "exchange": "STOCK",
+                            "asset": stock,
+                            "option_type": opt.get("option_type", ""),
+                            "leverage_multiple": opt.get("leverage_multiple", ""),
+                            "entry_price": opt.get("entry_price", ""),
+                            "exit_price": opt.get("exit_price", ""),
+                            "pnl": opt.get("pnl", ""),
+                            "settled_on": settled_str,
+                        }
+                    )
+                opt_settlements = opt_settlements[-5:]
                 best_summaries.append(
                     {
                         "asset_type": "STOCK",
@@ -786,6 +957,7 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                         "put_trials": opt_stats.get("put_trials", 0),
                         "call_wins": opt_stats.get("call_wins", 0),
                         "put_wins": opt_stats.get("put_wins", 0),
+                        "option_settlements": opt_settlements,
                     }
                 )
 
@@ -1015,6 +1187,25 @@ def main(asset: str = "all"):
             continue
             
         logger.info(f"Using data from {source_exchange.value} for {asset}")
+
+        intraday_stream = None
+        if MA_BOLL_ZOOM_IN:
+            try:
+                intraday_stream = fetch_intraday_data_with_fallback(
+                    asset=asset,
+                    binance_client=binance_client,
+                    coinbase_client=coinbase_client,
+                    exchange_configs=EXCHANGE_CONFIGS,
+                    source_exchange=source_exchange,
+                    interval_hours=MA_BOLL_ZOOM_IN_INTRADAY_HOURS,
+                )
+                if intraday_stream:
+                    logger.info(
+                        f"Fetched {len(intraday_stream)} intraday candles ({MA_BOLL_ZOOM_IN_INTRADAY_HOURS}h) "
+                        f"for {asset} from {source_exchange.value}"
+                    )
+            except Exception as e:
+                logger.warning(f"Intraday fetch failed for {asset}: {e}")
         
         # Use the source exchange for wallet and portfolio data
         source_exchange_config = next((config for config in exchanges if config["name"] == source_exchange), None)
@@ -1140,9 +1331,16 @@ def main(asset: str = "all"):
                 rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
                 kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
                 kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
+                zoom_in=MA_BOLL_ZOOM_IN,
+                zoom_in_min_move_pct=MA_BOLL_ZOOM_IN_MIN_MOVE_PCT,
+                ma_boll_simplify=MA_BOLL_SIMPLIFY,
                 mode="normal",
             )
-            trader_driver.feed_data(data_stream)
+            trader_driver.feed_data(
+                data_stream,
+                intraday_stream=intraday_stream,
+                intraday_interval_hours=MA_BOLL_ZOOM_IN_INTRADAY_HOURS,
+            )
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
             # For crypto (6h candles), avoid missing a recent actionable signal by looking back 24 hours.
@@ -1231,6 +1429,29 @@ def main(asset: str = "all"):
                 trade_history=th,
                 hold_days=OPTION_SIGNAL_HOLD_DAYS,
             )
+            opt_settlements = []
+            for opt in getattr(best_t, "option_history", []) or []:
+                if not opt.get("settled"):
+                    continue
+                settled_on = opt.get("settled_on")
+                if isinstance(settled_on, datetime):
+                    settled_str = settled_on.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    settled_str = str(settled_on) if settled_on else ""
+                opt_settlements.append(
+                    {
+                        "asset_type": "CRYPTO",
+                        "exchange": source_exchange.value,
+                        "asset": asset,
+                        "option_type": opt.get("option_type", ""),
+                        "leverage_multiple": opt.get("leverage_multiple", ""),
+                        "entry_price": opt.get("entry_price", ""),
+                        "exit_price": opt.get("exit_price", ""),
+                        "pnl": opt.get("pnl", ""),
+                        "settled_on": settled_str,
+                    }
+                )
+            opt_settlements = opt_settlements[-5:]
             best_summaries.append(
                 {
                     "asset_type": "CRYPTO",
@@ -1255,6 +1476,7 @@ def main(asset: str = "all"):
                     "put_trials": opt_stats.get("put_trials", 0),
                     "call_wins": opt_stats.get("call_wins", 0),
                     "put_wins": opt_stats.get("put_wins", 0),
+                    "option_settlements": opt_settlements,
                 }
             )
 
