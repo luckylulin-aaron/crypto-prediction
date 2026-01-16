@@ -644,17 +644,19 @@ def create_pnl_curve_chart(
         return go.Figure()
 
     initial_portfolio = df["portfolio"].iloc[0]
-    df["pnl"] = df["portfolio"] - initial_portfolio
+    if initial_portfolio == 0:
+        return go.Figure()
+    df["pnl_pct"] = (df["portfolio"] / initial_portfolio - 1.0) * 100.0
 
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
             x=df["date"],
-            y=df["pnl"],
+            y=df["pnl_pct"],
             mode="lines",
-            name="PnL",
+            name="PnL %",
             line=dict(color="#10b981", width=2),
-            hovertemplate="<b>Date:</b> %{x}<br><b>PnL:</b> $%{y:,.2f}<extra></extra>",
+            hovertemplate="<b>Date:</b> %{x}<br><b>PnL:</b> %{y:.2f}%<extra></extra>",
         )
     )
     fig.add_hline(y=0, line_dash="dash", line_color="gray")
@@ -662,7 +664,7 @@ def create_pnl_curve_chart(
     fig.update_layout(
         title=title,
         xaxis_title="Date",
-        yaxis_title="PnL ($)",
+        yaxis_title="PnL (%)",
         hovermode="x unified",
         showlegend=True,
         template="seaborn",
