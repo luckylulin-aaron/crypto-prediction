@@ -29,6 +29,47 @@ def _is_positive_number(value) -> bool:
     return isinstance(value, (int, float, np.number)) and float(value) > 0
 
 
+def _intraday_momentum(
+    candles: Optional[List[Tuple]], min_move_pct: float = 0.003
+) -> str:
+    """
+    Estimate short-term momentum from intraday candles.
+
+    Args:
+        candles (Optional[List[Tuple]]): Intraday candles as (close, date, open, low, high, volume).
+        min_move_pct (float): Minimum move (as pct) to be considered trending.
+
+    Returns:
+        str: "UP", "DOWN", or "FLAT".
+
+    Raises:
+        None
+    """
+    if not candles or len(candles) < 3:
+        return "FLAT"
+
+    closes = []
+    for c in candles:
+        try:
+            closes.append(float(c[0]))
+        except Exception:
+            continue
+
+    if len(closes) < 3:
+        return "FLAT"
+
+    first, last = closes[0], closes[-1]
+    if first <= 0:
+        return "FLAT"
+
+    move_pct = (last - first) / first
+    if move_pct >= min_move_pct and last > closes[-2]:
+        return "UP"
+    if move_pct <= -min_move_pct and last < closes[-2]:
+        return "DOWN"
+    return "FLAT"
+
+
 def apply_signal_option_leverage(
     trader,
     signal: str,
@@ -697,6 +738,10 @@ def strategy_ma_boll_bands(
     leverage_multiple: int = 3,
     leverage_expiration_days: int = 10,
     leverage_allocation_pct: float = 0.1,
+    zoom_in: bool = False,
+    zoom_in_bandwidth_pct: Optional[float] = None,
+    zoom_in_min_move_pct: float = 0.003,
+    intraday_candles: Optional[List[Tuple]] = None,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -789,6 +834,12 @@ def strategy_ma_boll_bands(
         leverage_expiration_days (int): Option expiration horizon in days (max 10). Defaults to 10.
         leverage_allocation_pct (float): Fraction of available cash to allocate as option premium.
             Defaults to 0.1.
+        zoom_in (bool): If True, use intraday candles to refine decisions when bands are wide.
+            Defaults to False.
+        zoom_in_bandwidth_pct (Optional[float]): Bandwidth threshold to trigger zoom-in. Defaults to
+            high_vol_bandwidth_pct when None.
+        zoom_in_min_move_pct (float): Minimum intraday move to treat as trending. Defaults to 0.003.
+        intraday_candles (Optional[List[Tuple]]): Lower-granularity candles for zoom-in logic.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -868,6 +919,32 @@ def strategy_ma_boll_bands(
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
+
+    zoom_in_buy = False
+    zoom_in_sell = False
+    zoom_in_option = None
+    if zoom_in and intraday_candles:
+        zoom_threshold = (
+            float(zoom_in_bandwidth_pct)
+            if _is_positive_number(zoom_in_bandwidth_pct)
+            else float(high_vol_bandwidth_pct)
+        )
+        if bandwidth_pct >= zoom_threshold:
+            intraday_trend = _intraday_momentum(
+                intraday_candles, min_move_pct=zoom_in_min_move_pct
+            )
+            if trending_up:
+                if intraday_trend == "UP":
+                    zoom_in_buy = True
+                    zoom_in_option = BUY_SIGNAL
+                elif intraday_trend == "DOWN":
+                    zoom_in_sell = True
+            elif trending_down:
+                if intraday_trend == "DOWN":
+                    zoom_in_sell = True
+                    zoom_in_option = SELL_SIGNAL
+                elif intraday_trend == "UP":
+                    zoom_in_sell = True
 
     # Now that we know bandwidth, adjust cooldown and re-check it (only if we haven't traded yet).
     try:
@@ -1149,6 +1226,37 @@ def strategy_ma_boll_bands(
                 )
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+    # Zoom-in refinement: add-on trade or option if intraday confirms momentum.
+    zoom_r_buy = False
+    zoom_r_sell = False
+    if zoom_in_buy and r_sell is False and has_cash:
+        zoom_r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if zoom_r_buy is True:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    if zoom_in_sell and r_buy is False and has_position:
+        zoom_r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if zoom_r_sell is True:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    if zoom_in_option and leverage_enabled and (r_buy is False and r_sell is False):
+        apply_signal_option_leverage(
+            trader=trader,
+            signal=zoom_in_option,
+            price=new_p,
+            today=today,
+            leverage_multiple=leverage_multiple,
+            expiration_days=leverage_expiration_days,
+            allocation_pct=leverage_allocation_pct,
+            enabled=leverage_enabled,
+        )
+
+    if zoom_r_buy is True:
+        r_buy = True
+    if zoom_r_sell is True:
+        r_sell = True
 
     # add history as well if nothing happens (or execution failed)
     if r_buy is False and r_sell is False:

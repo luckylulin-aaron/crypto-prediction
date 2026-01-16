@@ -47,6 +47,8 @@ class StratTrader:
         rsi_overbought: float = 70,
         kdj_oversold: float = 20,
         kdj_overbought: float = 80,
+        zoom_in: bool = False,
+        zoom_in_min_move_pct: float = 0.003,
         mode: str = "normal",
     ):
         """
@@ -71,6 +73,8 @@ class StratTrader:
             rsi_overbought (float): RSI overbought threshold
             kdj_oversold (float): KDJ oversold threshold
             kdj_overbought (float): KDJ overbought threshold
+            zoom_in (bool): Enable MA-BOLL-BANDS zoom-in refinement. Defaults to False.
+            zoom_in_min_move_pct (float): Minimum intraday move to treat as trending. Defaults to 0.003.
             mode (str): Trading mode (normal, verbose)
 
         Returns:
@@ -135,6 +139,9 @@ class StratTrader:
         # KDJ parameters
         self.kdj_oversold = kdj_oversold
         self.kdj_overbought = kdj_overbought
+        # Zoom-in refinement for MA-BOLL-BANDS
+        self.zoom_in = zoom_in
+        self.zoom_in_min_move_pct = zoom_in_min_move_pct
         # strategy signal lists
         self.strat_dct = collections.defaultdict(list)
 
@@ -309,6 +316,9 @@ class StratTrader:
                     open_p=misc_p.get("open"),
                     low_p=misc_p.get("low"),
                     high_p=misc_p.get("high"),
+                    intraday_candles=misc_p.get("intraday_candles"),
+                    zoom_in=getattr(self, "zoom_in", False),
+                    zoom_in_min_move_pct=getattr(self, "zoom_in_min_move_pct", 0.003),
                 )
 
             elif self.high_strategy == "RSI":

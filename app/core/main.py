@@ -580,6 +580,70 @@ def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClien
     return None, None
 
 
+def fetch_intraday_data_with_fallback(
+    asset: str,
+    binance_client: BinanceClient,
+    coinbase_client: CBProClient,
+    exchange_configs: list,
+    source_exchange: Optional[ExchangeName] = None,
+    interval_hours: int = 1,
+):
+    """
+    Fetch intraday data for an asset, preferring the source exchange when provided.
+
+    Args:
+        asset (str): The asset symbol (e.g., 'BTC', 'ETH')
+        binance_client (BinanceClient): Binance client instance
+        coinbase_client (CBProClient): Coinbase client instance
+        exchange_configs (list): List of exchange configurations
+        source_exchange (Optional[ExchangeName]): Preferred exchange to pull intraday data from.
+        interval_hours (int): Intraday interval in hours. Defaults to 1.
+
+    Returns:
+        Optional[list]: Intraday data stream or None if not available.
+
+    Raises:
+        None
+    """
+    def validate_and_format_data(data_stream):
+        if not data_stream:
+            return None
+        formatted_data = []
+        for item in data_stream:
+            if len(item) >= 5:
+                formatted_item = (item[0], item[1], item[2], item[3], item[4])
+                formatted_data.append(formatted_item)
+        return formatted_data if formatted_data else None
+
+    def _fetch_from_exchange(exchange_name: ExchangeName):
+        if exchange_name == ExchangeName.BINANCE:
+            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.BINANCE), None)
+            if not cfg:
+                return None
+            symbol = cfg["symbol_format"](asset)
+            data = binance_client.get_historic_data(symbol, interval_hours=interval_hours)
+            return validate_and_format_data(data)
+        if exchange_name == ExchangeName.COINBASE:
+            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.COINBASE), None)
+            if not cfg:
+                return None
+            symbol = cfg["symbol_format"](asset)
+            data = coinbase_client.get_historic_data(symbol, interval_hours=interval_hours)
+            return validate_and_format_data(data)
+        return None
+
+    if source_exchange is not None:
+        data = _fetch_from_exchange(source_exchange)
+        if data:
+            return data
+
+    # Fallback: try both exchanges
+    data = _fetch_from_exchange(ExchangeName.BINANCE)
+    if data:
+        return data
+    return _fetch_from_exchange(ExchangeName.COINBASE)
+
+
 def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = None) -> None:
     """
     Run stock simulation only (daily candles).
@@ -1015,6 +1079,25 @@ def main(asset: str = "all"):
             continue
             
         logger.info(f"Using data from {source_exchange.value} for {asset}")
+
+        intraday_stream = None
+        if MA_BOLL_ZOOM_IN:
+            try:
+                intraday_stream = fetch_intraday_data_with_fallback(
+                    asset=asset,
+                    binance_client=binance_client,
+                    coinbase_client=coinbase_client,
+                    exchange_configs=EXCHANGE_CONFIGS,
+                    source_exchange=source_exchange,
+                    interval_hours=MA_BOLL_ZOOM_IN_INTRADAY_HOURS,
+                )
+                if intraday_stream:
+                    logger.info(
+                        f"Fetched {len(intraday_stream)} intraday candles ({MA_BOLL_ZOOM_IN_INTRADAY_HOURS}h) "
+                        f"for {asset} from {source_exchange.value}"
+                    )
+            except Exception as e:
+                logger.warning(f"Intraday fetch failed for {asset}: {e}")
         
         # Use the source exchange for wallet and portfolio data
         source_exchange_config = next((config for config in exchanges if config["name"] == source_exchange), None)
@@ -1140,9 +1223,15 @@ def main(asset: str = "all"):
                 rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
                 kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
                 kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
+                zoom_in=MA_BOLL_ZOOM_IN,
+                zoom_in_min_move_pct=MA_BOLL_ZOOM_IN_MIN_MOVE_PCT,
                 mode="normal",
             )
-            trader_driver.feed_data(data_stream)
+            trader_driver.feed_data(
+                data_stream,
+                intraday_stream=intraday_stream,
+                intraday_interval_hours=MA_BOLL_ZOOM_IN_INTRADAY_HOURS,
+            )
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
             # For crypto (6h candles), avoid missing a recent actionable signal by looking back 24 hours.

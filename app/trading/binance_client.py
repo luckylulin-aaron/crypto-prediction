@@ -36,13 +36,16 @@ class BinanceClient:
             raise ConnectionError(f"Cannot get current rate for {symbol}: {e}")
 
     @timer
-    def get_historic_data(self, symbol: str, use_cache: bool = True) -> list:
+    def get_historic_data(
+        self, symbol: str, use_cache: bool = True, interval_hours: Optional[float] = None
+    ) -> list:
         """
         Get historical klines for a symbol with configurable interval, with database caching.
 
         Args:
             symbol (str): The trading pair symbol (e.g., 'BTCUSDT').
             use_cache (bool): Whether to use cached data if available and fresh.
+            interval_hours (Optional[float]): Interval in hours. Defaults to DATA_INTERVAL_HOURS.
         Returns:
             list: Each element is [closing_price, datetime_str, open_price, low, high, volume].
         Raises:
@@ -52,7 +55,8 @@ class BinanceClient:
         # The current DB schema uses (symbol, date) as the uniqueness key. If we store multiple
         # granularities (e.g., 12h vs 30m) under the same symbol, rows will collide/overwrite.
         # To avoid corrupting cached data, we only use DB cache for the original hour-based intervals.
-        interval_minutes = int(round(float(DATA_INTERVAL_HOURS) * 60))
+        interval_base = DATA_INTERVAL_HOURS if interval_hours is None else interval_hours
+        interval_minutes = int(round(float(interval_base) * 60))
 
         def _binance_interval_str(minutes: int) -> str:
             # Binance spot kline interval strings (common subset)

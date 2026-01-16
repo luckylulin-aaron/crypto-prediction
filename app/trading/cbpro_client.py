@@ -35,12 +35,15 @@ class CBProClient:
         return float(res)
 
     @timer
-    def get_historic_data(self, name: str, use_cache: bool = True):
+    def get_historic_data(
+        self, name: str, use_cache: bool = True, interval_hours: Optional[int] = None
+    ):
         """Get historic rates using Advanced Trade API with database caching.
 
         Args:
             name (str): The product_id or currency pair (e.g., 'BTC-USD').
             use_cache (bool): Whether to use cached data if available and fresh.
+            interval_hours (Optional[int]): Interval in hours. Defaults to DATA_INTERVAL_HOURS.
 
         Returns:
             list: Each element is [closing_price (float), datetime (str, 'YYYY-MM-DD HH:MM:SS'), open_price (float), low (float), high (float), volume (float)].
@@ -52,7 +55,8 @@ class CBProClient:
         # IMPORTANT: DB uniqueness is (symbol, date). If DATA_INTERVAL_HOURS changes (e.g. 12h -> 6h),
         # cached rows can silently mismatch the requested granularity. Use a granularity-specific cache key.
         granularity_map = {1: "ONE_HOUR", 6: "SIX_HOURS", 12: "TWELVE_HOURS", 24: "ONE_DAY"}
-        granularity = granularity_map.get(DATA_INTERVAL_HOURS, "SIX_HOURS")
+        interval_base = DATA_INTERVAL_HOURS if interval_hours is None else int(interval_hours)
+        granularity = granularity_map.get(interval_base, "SIX_HOURS")
         cache_key = f"{name}__{granularity}"
         if use_cache:
             cached_data = db_manager.get_historical_data(cache_key, TIMESPAN)
@@ -112,7 +116,7 @@ class CBProClient:
             parsed = sorted(parsed, key=lambda x: x[1])
             # Filter out data from the current interval (last 6 hours if using 6h interval)
             now = datetime.now(timezone.utc)
-            cutoff_time = now - timedelta(hours=DATA_INTERVAL_HOURS)
+            cutoff_time = now - timedelta(hours=interval_base)
             cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
             parsed = [x for x in parsed if x[1] < cutoff_str]
 

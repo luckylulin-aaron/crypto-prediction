@@ -77,6 +77,12 @@ EMA_LENGTHS = [6, 12, 26, 30]
 BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4, 5]
 
+# --- MA-BOLL-BANDS zoom-in configuration ---
+# When enabled, use intraday candles to refine actions during high-volatility regimes.
+MA_BOLL_ZOOM_IN = True
+MA_BOLL_ZOOM_IN_MIN_MOVE_PCT = 0.003
+MA_BOLL_ZOOM_IN_INTRADAY_HOURS = 1
+
 # --- Moving-window best strategy selection (aggregated across windows) ---
 # Recommended: "risk_adjusted_return" (mean - std) for stability.
 # Other options: "mean_rate_of_return" (more aggressive).
