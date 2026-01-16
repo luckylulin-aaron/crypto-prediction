@@ -70,6 +70,62 @@ def _intraday_momentum(
     return "FLAT"
 
 
+def _compute_atr(
+    candles: Optional[List[Tuple]], window: int = 14
+) -> Optional[float]:
+    """
+    Compute a simple ATR from candle tuples.
+
+    Args:
+        candles (Optional[List[Tuple]]): Candles as (close, date, open, low, high, volume).
+        window (int): Lookback window length. Defaults to 14.
+
+    Returns:
+        Optional[float]: ATR value if enough data, else None.
+
+    Raises:
+        None
+    """
+    if not candles or window <= 1:
+        return None
+    if len(candles) < window + 1:
+        return None
+
+    trs = []
+    for i in range(-window, 0):
+        try:
+            close = float(candles[i][0])
+            low = float(candles[i][3])
+            high = float(candles[i][4])
+            prev_close = float(candles[i - 1][0])
+        except Exception:
+            continue
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        trs.append(tr)
+
+    if not trs:
+        return None
+    return float(np.mean(trs))
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    """
+    Clamp a value between lo and hi.
+
+    Args:
+        value (float): Value to clamp.
+        lo (float): Lower bound.
+        hi (float): Upper bound.
+
+    Returns:
+        float: Clamped value.
+
+    Raises:
+        None
+    """
+    return max(lo, min(hi, value))
+
+
 def apply_signal_option_leverage(
     trader,
     signal: str,
@@ -742,6 +798,15 @@ def strategy_ma_boll_bands(
     zoom_in_bandwidth_pct: Optional[float] = None,
     zoom_in_min_move_pct: float = 0.003,
     intraday_candles: Optional[List[Tuple]] = None,
+    max_drawdown_pct: float = 0.25,
+    drawdown_cooldown_days: int = 5,
+    volatility_window: int = 20,
+    target_vol_pct: float = 0.02,
+    min_buy_scale: float = 0.3,
+    max_buy_scale: float = 1.0,
+    atr_window: int = 14,
+    atr_stop_mult: float = 2.0,
+    atr_take_profit_mult: float = 3.0,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -840,6 +905,15 @@ def strategy_ma_boll_bands(
             high_vol_bandwidth_pct when None.
         zoom_in_min_move_pct (float): Minimum intraday move to treat as trending. Defaults to 0.003.
         intraday_candles (Optional[List[Tuple]]): Lower-granularity candles for zoom-in logic.
+        max_drawdown_pct (float): Max allowed drawdown before pausing buys. Defaults to 0.25.
+        drawdown_cooldown_days (int): Days to pause new buys after drawdown breach. Defaults to 5.
+        volatility_window (int): Window for volatility scaling. Defaults to 20.
+        target_vol_pct (float): Target volatility for position sizing. Defaults to 0.02.
+        min_buy_scale (float): Min buy scaling multiplier. Defaults to 0.3.
+        max_buy_scale (float): Max buy scaling multiplier. Defaults to 1.0.
+        atr_window (int): ATR lookback window. Defaults to 14.
+        atr_stop_mult (float): ATR multiplier for stop-loss. Defaults to 2.0.
+        atr_take_profit_mult (float): ATR multiplier for take-profit. Defaults to 3.0.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -920,6 +994,89 @@ def strategy_ma_boll_bands(
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
 
+    # Drawdown guard: pause new buys if drawdown exceeds threshold.
+    dd_state_key = f"_ma_boll_dd_state:{queue_name}:{bollinger_sigma}"
+    dd_state = getattr(trader, "__dict__", {}).get(dd_state_key, None)
+    if not isinstance(dd_state, dict):
+        dd_state = {"peak": None, "cooldown_until": None}
+        try:
+            setattr(trader, dd_state_key, dd_state)
+        except Exception:
+            pass
+
+    peak_val = dd_state.get("peak")
+    cur_val = trader.portfolio_value
+    if peak_val is None or cur_val > peak_val:
+        dd_state["peak"] = cur_val
+        peak_val = cur_val
+
+    block_buys = False
+    if _is_positive_number(peak_val):
+        drawdown_pct = (peak_val - cur_val) / peak_val
+        if drawdown_pct >= float(max_drawdown_pct):
+            try:
+                cooldown_until = today + datetime.timedelta(days=int(drawdown_cooldown_days))
+            except Exception:
+                cooldown_until = None
+            dd_state["cooldown_until"] = cooldown_until
+
+    cooldown_until = dd_state.get("cooldown_until")
+    if cooldown_until is not None:
+        try:
+            if today < cooldown_until:
+                block_buys = True
+        except Exception:
+            block_buys = False
+
+    # Volatility-scaled position sizing for buys.
+    base_buy_pct = buy_pct if _is_positive_number(buy_pct) else float(getattr(trader, "buy_pct", 0))
+    effective_buy_pct = base_buy_pct
+    try:
+        prices = getattr(trader, "price_history", None)
+        if prices and len(prices) >= int(volatility_window):
+            window = prices[-int(volatility_window) :]
+            m = float(np.mean(window))
+            s = float(np.std(window))
+            vol_pct = s / m if m > 0 else 0.0
+            if _is_positive_number(vol_pct) and _is_positive_number(target_vol_pct):
+                scale = float(target_vol_pct) / float(vol_pct)
+                scale = _clamp(scale, float(min_buy_scale), float(max_buy_scale))
+                effective_buy_pct = base_buy_pct * scale
+    except Exception:
+        effective_buy_pct = base_buy_pct
+
+    def _execute_buy_with_pct(pct: float) -> bool:
+        old = getattr(trader, "buy_pct", pct)
+        try:
+            trader.buy_pct = pct
+            return bool(trader._execute_one_buy("by_percentage", new_p))
+        finally:
+            trader.buy_pct = old
+
+    # Position and cash check (needed for ATR exits before later logic).
+    cash_val = getattr(trader, "cash", 0)
+    coin_val = getattr(trader, "cur_coin", 0)
+    has_position = _is_positive_number(coin_val)
+    has_cash = _is_positive_number(cash_val)
+    if not has_cash and hasattr(trader, "wallet"):
+        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
+            trader.wallet.get("USDT", 0)
+        )
+    if not has_position and hasattr(trader, "wallet"):
+        has_position = _is_positive_number(trader.wallet.get("crypto", 0))
+
+    # ATR-based risk exits (stop-loss / take-profit).
+    atr = _compute_atr(getattr(trader, "crypto_prices", []), window=int(atr_window))
+    atr_stop = False
+    atr_take_profit = False
+    if has_position and atr and _is_positive_number(atr):
+        if getattr(trader, "last_buy_price", None):
+            last_buy = float(trader.last_buy_price)
+            if _is_positive_number(atr_stop_mult) and new_p <= last_buy - float(atr_stop_mult) * atr:
+                atr_stop = True
+            if _is_positive_number(atr_take_profit_mult) and new_p >= last_buy + float(atr_take_profit_mult) * atr:
+                atr_take_profit = True
+
     zoom_in_buy = False
     zoom_in_sell = False
     zoom_in_option = None
@@ -935,7 +1092,7 @@ def strategy_ma_boll_bands(
             )
             if trending_up:
                 if intraday_trend == "UP":
-                    zoom_in_buy = True
+                    zoom_in_buy = True and (not block_buys)
                     zoom_in_option = BUY_SIGNAL
                 elif intraday_trend == "DOWN":
                     zoom_in_sell = True
@@ -1177,7 +1334,7 @@ def strategy_ma_boll_bands(
             )
 
     # Prefer exits before entries (risk management) and be position-aware.
-    if has_position and (sell_condition or scalp_sell or bull_blowoff_sell):
+    if has_position and (sell_condition or scalp_sell or bull_blowoff_sell or atr_stop or atr_take_profit):
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             apply_signal_option_leverage(
@@ -1210,9 +1367,10 @@ def strategy_ma_boll_bands(
             has_cash
             and (buy_condition or scalp_buy or capitulation_buy or bull_pullback_buy)
             and ((not has_position) or allow_add_buy)
+            and (not block_buys)
         )
         if can_buy:
-            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            r_buy = _execute_buy_with_pct(effective_buy_pct)
             if r_buy is True:
                 apply_signal_option_leverage(
                     trader=trader,
@@ -1231,7 +1389,7 @@ def strategy_ma_boll_bands(
     zoom_r_buy = False
     zoom_r_sell = False
     if zoom_in_buy and r_sell is False and has_cash:
-        zoom_r_buy = trader._execute_one_buy("by_percentage", new_p)
+        zoom_r_buy = _execute_buy_with_pct(effective_buy_pct)
         if zoom_r_buy is True:
             trader._record_history(new_p, today, BUY_SIGNAL)
             trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
@@ -1241,7 +1399,7 @@ def strategy_ma_boll_bands(
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
 
-    if zoom_in_option and leverage_enabled and (r_buy is False and r_sell is False):
+    if zoom_in_option and leverage_enabled and (r_buy is False and r_sell is False) and (not block_buys or zoom_in_option == SELL_SIGNAL):
         apply_signal_option_leverage(
             trader=trader,
             signal=zoom_in_option,
