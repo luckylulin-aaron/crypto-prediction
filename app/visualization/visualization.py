@@ -621,6 +621,58 @@ def create_returns_distribution_chart(
     return fig
 
 
+def create_pnl_curve_chart(
+    trade_history: List[Dict], title: str = "PnL Curve Over Time"
+) -> go.Figure:
+    """
+    Create a PnL curve chart showing cumulative profit/loss over time.
+
+    Args:
+        trade_history: List of trade history dictionaries
+        title: Chart title
+
+    Returns:
+        plotly.graph_objects.Figure: Interactive chart
+    """
+    if not trade_history:
+        return go.Figure()
+
+    df = pd.DataFrame(trade_history)
+    df["date"] = pd.to_datetime(df["date"], format="mixed", dayfirst=False)
+
+    if df.empty or "portfolio" not in df.columns:
+        return go.Figure()
+
+    initial_portfolio = df["portfolio"].iloc[0]
+    if initial_portfolio == 0:
+        return go.Figure()
+    df["pnl_pct"] = (df["portfolio"] / initial_portfolio - 1.0) * 100.0
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"],
+            y=df["pnl_pct"],
+            mode="lines",
+            name="PnL %",
+            line=dict(color="#10b981", width=2),
+            hovertemplate="<b>Date:</b> %{x}<br><b>PnL:</b> %{y:.2f}%<extra></extra>",
+        )
+    )
+    fig.add_hline(y=0, line_dash="dash", line_color="gray")
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="PnL (%)",
+        hovermode="x unified",
+        showlegend=True,
+        template="seaborn",
+    )
+
+    return fig
+
+
 def create_comprehensive_dashboard(
     trader_instance,
     save_html: bool = True,
@@ -664,7 +716,7 @@ def create_comprehensive_dashboard(
     execution_subtitle = f"Buy: {buy_strat_display} | Sell: {sell_strat_display}"
 
     fig = make_subplots(
-        rows=5,
+        rows=6,
         cols=2,
         subplot_titles=(
             f"Portfolio Value Over Time - {strategy_name}",
@@ -676,9 +728,12 @@ def create_comprehensive_dashboard(
             f"RSI - {strategy_name}",
             f"Returns Distribution - {strategy_name}",
             f"KDJ - {strategy_name}",
+            f"PnL Curve - {strategy_name}",
+            "",
             f"Strategy vs Buy & Hold - {strategy_name}",
         ),
         specs=[
+            [{"secondary_y": False}, {"secondary_y": False}],
             [{"secondary_y": False}, {"secondary_y": False}],
             [{"secondary_y": False}, {"secondary_y": False}],
             [{"secondary_y": False}, {"secondary_y": False}],
@@ -856,7 +911,17 @@ def create_comprehensive_dashboard(
     fig.add_hline(y=80, line_dash="dash", line_color="#ef4444", row=5, col=1)
     fig.add_hline(y=20, line_dash="dash", line_color="#22c55e", row=5, col=1)
 
-    # 10. Strategy vs Buy & Hold (row 5 col 2)
+    # 10. PnL Curve (row 5 col 2)
+    pnl_fig = create_pnl_curve_chart(
+        trade_history, title=f"PnL Curve - {strategy_name}"
+    )
+    for trace in pnl_fig.data:
+        fig.add_trace(trace, row=5, col=2)
+    if pnl_fig.layout.shapes:
+        for shape in pnl_fig.layout.shapes:
+            fig.add_shape(shape, row=5, col=2)
+
+    # 11. Strategy vs Buy & Hold (row 6 col 2)
     baseline_prices = [(p[0], p[1]) for p in crypto_prices] if crypto_prices else []
     perf_comp_fig = create_performance_comparison_chart(
         trade_history,
@@ -864,13 +929,13 @@ def create_comprehensive_dashboard(
         title=f"Strategy vs Buy & Hold - {strategy_name}",
     )
     for trace in perf_comp_fig.data:
-        fig.add_trace(trace, row=5, col=2)
+        fig.add_trace(trace, row=6, col=2)
 
     # Update layout with strategy name and execution strategies
     strategy_name = getattr(trader_instance, "high_strategy", "Unknown Strategy")
     fig.update_layout(
         title=f"Trading Strategy Dashboard - {trader_instance.crypto_name} ({strategy_name})<br><sub>{execution_subtitle}</sub>",
-        height=1700,
+        height=2000,
         showlegend=True,
         template="seaborn",
     )

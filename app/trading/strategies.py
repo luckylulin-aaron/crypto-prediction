@@ -29,6 +29,89 @@ def _is_positive_number(value) -> bool:
     return isinstance(value, (int, float, np.number)) and float(value) > 0
 
 
+def apply_signal_option_leverage(
+    trader,
+    signal: str,
+    price: float,
+    today: datetime.datetime,
+    leverage_multiple: int = 3,
+    expiration_days: int = 10,
+    allocation_pct: float = 0.1,
+    enabled: bool = True,
+) -> Optional[Dict]:
+    """
+    Record a synthetic option trade tied to a BUY/SELL signal.
+
+    This helper is strategy-agnostic and can be plugged into any strategy that
+    wants to model leveraged CALL/PUT exposure on signals.
+
+    Args:
+        trader: The trader instance with a mutable `option_history` list.
+        signal (str): Signal that triggered the option (BUY or SELL).
+        price (float): Entry price at the time of the signal.
+        today (datetime.datetime): Timestamp for the signal.
+        leverage_multiple (int): Allowed leverage multiple, must be 3 or 5.
+        expiration_days (int): Option expiration horizon in days (max 10).
+        allocation_pct (float): Fraction of available cash to allocate as option premium.
+            Defaults to 0.1 (10%).
+        enabled (bool): Whether to record option leverage on this signal.
+
+    Returns:
+        Optional[Dict]: The recorded option trade dict, or None if skipped.
+    """
+    if not enabled:
+        return None
+
+    if signal not in (BUY_SIGNAL, SELL_SIGNAL):
+        return None
+
+    if leverage_multiple not in (3, 5):
+        return None
+
+    if not _is_positive_number(expiration_days) or int(expiration_days) > 10:
+        return None
+
+    if not _is_positive_number(allocation_pct):
+        return None
+
+    cash_val = float(getattr(trader, "cash", 0) or 0)
+    if cash_val <= 0:
+        return None
+
+    premium = cash_val * float(allocation_pct)
+    if premium <= 0:
+        return None
+
+    option_type = "CALL" if signal == BUY_SIGNAL else "PUT"
+    exp_days = int(expiration_days)
+    try:
+        expires_on = today + datetime.timedelta(days=exp_days)
+    except Exception:
+        expires_on = None
+
+    # Deduct premium immediately (options are paid upfront).
+    trader.cash -= premium
+
+    record = {
+        "date": today,
+        "signal": signal,
+        "option_type": option_type,
+        "leverage_multiple": leverage_multiple,
+        "expiration_days": exp_days,
+        "expires_on": expires_on,
+        "entry_price": price,
+        "premium": premium,
+        "allocation_pct": float(allocation_pct),
+        "settled": False,
+        "strategy": getattr(trader, "high_strategy", None),
+    }
+
+    if not hasattr(trader, "option_history") or trader.option_history is None:
+        setattr(trader, "option_history", [])
+    trader.option_history.append(record)
+    return record
+
+
 def strategy_moving_average_w_tolerance(
     trader,
     queue_name: str,
@@ -610,6 +693,10 @@ def strategy_ma_boll_bands(
     bull_pullback_z: float = 0.0,
     bull_pullback_volume_ratio_threshold: float = 1.0,
     bull_disable_take_profit_on_first_touch: bool = True,
+    leverage_enabled: bool = True,
+    leverage_multiple: int = 3,
+    leverage_expiration_days: int = 10,
+    leverage_allocation_pct: float = 0.1,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -696,6 +783,12 @@ def strategy_ma_boll_bands(
         bull_disable_take_profit_on_first_touch (bool): If True, in strong uptrends disable immediate
             take-profit selling on first upper-band touch; rely on blow-off trailing exit instead.
             Defaults to True.
+        leverage_enabled (bool): If True, record leveraged option exposure on BUY/SELL signals.
+            Defaults to True.
+        leverage_multiple (int): Option leverage multiple. Allowed values: 3 or 5. Defaults to 3.
+        leverage_expiration_days (int): Option expiration horizon in days (max 10). Defaults to 10.
+        leverage_allocation_pct (float): Fraction of available cash to allocate as option premium.
+            Defaults to 0.1.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -1010,6 +1103,16 @@ def strategy_ma_boll_bands(
     if has_position and (sell_condition or scalp_sell or bull_blowoff_sell):
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
+            apply_signal_option_leverage(
+                trader=trader,
+                signal=SELL_SIGNAL,
+                price=new_p,
+                today=today,
+                leverage_multiple=leverage_multiple,
+                expiration_days=leverage_expiration_days,
+                allocation_pct=leverage_allocation_pct,
+                enabled=leverage_enabled,
+            )
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
     else:
@@ -1034,6 +1137,16 @@ def strategy_ma_boll_bands(
         if can_buy:
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
+                apply_signal_option_leverage(
+                    trader=trader,
+                    signal=BUY_SIGNAL,
+                    price=new_p,
+                    today=today,
+                    leverage_multiple=leverage_multiple,
+                    expiration_days=leverage_expiration_days,
+                    allocation_pct=leverage_allocation_pct,
+                    enabled=leverage_enabled,
+                )
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
 

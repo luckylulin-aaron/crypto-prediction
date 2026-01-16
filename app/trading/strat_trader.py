@@ -94,6 +94,7 @@ class StratTrader:
 
         # 2. Transactions
         self.trade_history = []
+        self.option_history = []
         self.crypto_prices = []
         self.volume_history = []  # Track volume for volume-based strategies
         self.price_history = []  # Track price history for volatility calculations
@@ -169,6 +170,9 @@ class StratTrader:
 
         # compute KDJ related arrays
         self.compute_kdj_related(d=d, low=low, high=high, open=open, close=new_p)
+
+        # Settle any expired options before executing new strategy logic.
+        self._settle_expired_options(new_p=new_p, d=d)
 
         # Execute trading strategy using the strategy registry
         if self.high_strategy in STRATEGY_REGISTRY:
@@ -706,6 +710,76 @@ class StratTrader:
 
         if self.mode == "verbose":
             print(item)
+
+    def _settle_expired_options(self, new_p: float, d: datetime.datetime) -> None:
+        """
+        Settle any expired synthetic options and update cash accordingly.
+
+        Args:
+            new_p (float): Current price used for settlement.
+            d (datetime.datetime): Current date.
+
+        Returns:
+            None
+        """
+        if not getattr(self, "option_history", None):
+            return
+
+        for opt in self.option_history:
+            if not isinstance(opt, dict):
+                continue
+            if opt.get("settled"):
+                continue
+
+            expires_on = opt.get("expires_on")
+            if expires_on is None:
+                try:
+                    exp_days = int(opt.get("expiration_days", 0))
+                    opt_date = opt.get("date")
+                    if isinstance(opt_date, datetime.datetime) and exp_days > 0:
+                        expires_on = opt_date + datetime.timedelta(days=exp_days)
+                        opt["expires_on"] = expires_on
+                except Exception:
+                    expires_on = None
+
+            if expires_on is None:
+                continue
+
+            try:
+                if d < expires_on:
+                    continue
+            except Exception:
+                continue
+
+            try:
+                entry_price = float(opt.get("entry_price", 0))
+                premium = float(opt.get("premium", 0))
+                leverage_multiple = float(opt.get("leverage_multiple", 1))
+            except Exception:
+                entry_price = 0.0
+                premium = 0.0
+                leverage_multiple = 1.0
+
+            option_type = str(opt.get("option_type", "")).upper()
+            if entry_price <= 0 or premium <= 0 or option_type not in ("CALL", "PUT"):
+                payout = 0.0
+                pnl = -premium
+            else:
+                if option_type == "CALL":
+                    underlying_return = (new_p - entry_price) / entry_price
+                else:
+                    underlying_return = (entry_price - new_p) / entry_price
+
+                leveraged_return = leverage_multiple * underlying_return
+                payout = premium * max(1.0 + leveraged_return, 0.0)
+                pnl = payout - premium
+
+            self.cash += payout
+            opt["settled"] = True
+            opt["settled_on"] = d
+            opt["exit_price"] = new_p
+            opt["payout"] = payout
+            opt["pnl"] = pnl
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
         """
