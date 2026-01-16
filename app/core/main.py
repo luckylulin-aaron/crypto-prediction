@@ -133,6 +133,17 @@ def send_daily_recommendations_email(
         except Exception:
             return str(v)
 
+    def _leverage_suggestion(action: str) -> Tuple[str, str, str]:
+        try:
+            act = str(action).upper()
+        except Exception:
+            act = ""
+        if act == "BUY":
+            return "CALL", "x3/x5", "10d"
+        if act == "SELL":
+            return "PUT", "x3/x5", "10d"
+        return "", "", ""
+
     def _render_best_table(rows: list) -> Tuple[str, str]:
         """
         Return (plain_text, html) table with best strategy + signal frequency per asset.
@@ -353,16 +364,22 @@ def send_daily_recommendations_email(
                 )
 
             if all_lines:
-                header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
+                header = (
+                    f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | "
+                    f"{'Buy %':<6} | {'Sell %':<6} | {'Option':<6} | {'Lev':<5} | {'Exp':<4}"
+                )
                 sep = "-" * len(header)
-                formatted_lines = [
-                    f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6}"
-                    for t, e, a, ac, b, s in all_lines
-                ]
+                formatted_lines = []
+                for t, e, a, ac, b, s in all_lines:
+                    opt, lev, exp = _leverage_suggestion(ac)
+                    formatted_lines.append(
+                        f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6} | {opt:<6} | {lev:<5} | {exp:<4}"
+                    )
                 body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
                 body += (
                     "\nBuy %: Recommended proportion of available funds to use for buying this asset.\n"
-                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n"
+                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n"
+                    "Option/Lev/Exp: Suggested option type, leverage, and max expiration horizon.\n\n"
                 )
                 html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
                 html_body += (
@@ -408,16 +425,22 @@ def send_daily_recommendations_email(
                 )
 
             if crypto_lines:
-                header = f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | {'Buy %':<6} | {'Sell %':<6}"
+                header = (
+                    f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | "
+                    f"{'Buy %':<6} | {'Sell %':<6} | {'Option':<6} | {'Lev':<5} | {'Exp':<4}"
+                )
                 sep = "-" * len(header)
-                formatted_lines = [
-                    f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6}"
-                    for t, e, a, ac, b, s in crypto_lines
-                ]
+                formatted_lines = []
+                for t, e, a, ac, b, s in crypto_lines:
+                    opt, lev, exp = _leverage_suggestion(ac)
+                    formatted_lines.append(
+                        f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6} | {opt:<6} | {lev:<5} | {exp:<4}"
+                    )
                 body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
                 body += (
                     "\nBuy %: Recommended proportion of available stablecoin to use for buying this asset.\n"
-                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n\n"
+                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n"
+                    "Option/Lev/Exp: Suggested option type, leverage, and max expiration horizon.\n\n"
                 )
                 html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
                 html_body += (
