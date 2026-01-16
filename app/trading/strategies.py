@@ -798,15 +798,18 @@ def strategy_ma_boll_bands(
     zoom_in_bandwidth_pct: Optional[float] = None,
     zoom_in_min_move_pct: float = 0.003,
     intraday_candles: Optional[List[Tuple]] = None,
+    simplify_mode: bool = False,
     max_drawdown_pct: float = 0.25,
-    drawdown_cooldown_days: int = 5,
+    drawdown_cooldown_days: int = 1,
     volatility_window: int = 20,
-    target_vol_pct: float = 0.02,
-    min_buy_scale: float = 0.3,
-    max_buy_scale: float = 1.0,
+    target_vol_pct: float = 0.04,
+    min_buy_scale: float = 0.5,
+    max_buy_scale: float = 2.5,
     atr_window: int = 14,
-    atr_stop_mult: float = 2.0,
-    atr_take_profit_mult: float = 3.0,
+    atr_stop_mult: float = 1.5,
+    atr_take_profit_mult: float = 2.5,
+    simplify_buy_tol_mult: float = 2.0,
+    simplify_neutral_buy_buffer_mult: float = 3.0,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -905,15 +908,20 @@ def strategy_ma_boll_bands(
             high_vol_bandwidth_pct when None.
         zoom_in_min_move_pct (float): Minimum intraday move to treat as trending. Defaults to 0.003.
         intraday_candles (Optional[List[Tuple]]): Lower-granularity candles for zoom-in logic.
+        simplify_mode (bool): If True, use simplified MA-BOLL-BANDS rules. Defaults to False.
         max_drawdown_pct (float): Max allowed drawdown before pausing buys. Defaults to 0.25.
-        drawdown_cooldown_days (int): Days to pause new buys after drawdown breach. Defaults to 5.
+        drawdown_cooldown_days (int): Days to pause new buys after drawdown breach. Defaults to 1.
         volatility_window (int): Window for volatility scaling. Defaults to 20.
-        target_vol_pct (float): Target volatility for position sizing. Defaults to 0.02.
-        min_buy_scale (float): Min buy scaling multiplier. Defaults to 0.3.
-        max_buy_scale (float): Max buy scaling multiplier. Defaults to 1.0.
+        target_vol_pct (float): Target volatility for position sizing. Defaults to 0.04.
+        min_buy_scale (float): Min buy scaling multiplier. Defaults to 0.5.
+        max_buy_scale (float): Max buy scaling multiplier. Defaults to 2.5.
         atr_window (int): ATR lookback window. Defaults to 14.
-        atr_stop_mult (float): ATR multiplier for stop-loss. Defaults to 2.0.
-        atr_take_profit_mult (float): ATR multiplier for take-profit. Defaults to 3.0.
+        atr_stop_mult (float): ATR multiplier for stop-loss. Defaults to 1.5.
+        atr_take_profit_mult (float): ATR multiplier for take-profit. Defaults to 2.5.
+        simplify_buy_tol_mult (float): Multiplier to relax midline pullback buys in simplify mode.
+            Defaults to 2.0.
+        simplify_neutral_buy_buffer_mult (float): Multiplier to relax lower-band buys in neutral regime.
+            Defaults to 3.0.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -1076,6 +1084,63 @@ def strategy_ma_boll_bands(
                 atr_stop = True
             if _is_positive_number(atr_take_profit_mult) and new_p >= last_buy + float(atr_take_profit_mult) * atr:
                 atr_take_profit = True
+
+    if simplify_mode:
+        r_sell = False
+        r_buy = False
+
+        buy_condition_simple = False
+        sell_condition_simple = False
+
+        if trending_up:
+            buy_condition_simple = has_cash and (
+                new_p <= mid * (1 + tol_pct * float(simplify_buy_tol_mult))
+            )
+            sell_condition_simple = has_position and (
+                new_p >= boll_upper * (1 + band_breakout_pct)
+                or new_p < mid * (1 - tol_pct)
+                or atr_stop
+                or atr_take_profit
+            )
+        elif trending_down:
+            sell_condition_simple = has_position and (
+                new_p <= mid * (1 - tol_pct)
+                or new_p <= boll_lower * (1 - band_breakout_pct)
+                or atr_stop
+                or atr_take_profit
+            )
+        else:
+            buy_condition_simple = has_cash and (
+                new_p
+                <= boll_lower
+                * (1 + band_breakout_pct * float(simplify_neutral_buy_buffer_mult))
+            )
+            sell_condition_simple = has_position and (
+                new_p >= boll_upper * (1 - band_breakout_pct)
+                or atr_stop
+                or atr_take_profit
+            )
+
+        if block_buys:
+            buy_condition_simple = False
+
+        if sell_condition_simple:
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell is True:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+        if r_sell is False and buy_condition_simple:
+            r_buy = _execute_buy_with_pct(effective_buy_pct)
+            if r_buy is True:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+        if r_buy is False and r_sell is False:
+            trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+            trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+        return r_buy, r_sell
 
     zoom_in_buy = False
     zoom_in_sell = False

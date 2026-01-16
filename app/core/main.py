@@ -214,6 +214,64 @@ def send_daily_recommendations_email(
         html += "</tbody></table>"
         return plain, html
 
+    def _render_option_settlements(rows: list) -> Tuple[str, str]:
+        """
+        Return (plain_text, html) table for option settlements.
+        Expected keys:
+          asset_type, exchange, asset, option_type, leverage_multiple,
+          entry_price, exit_price, pnl, settled_on
+        """
+        if not rows:
+            return "", ""
+
+        header = (
+            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Opt':<5} | {'Lev':<4} | "
+            f"{'Entry':<10} | {'Exit':<10} | {'PnL':<10} | {'Settled':<19}"
+        )
+        sep = "-" * len(header)
+        lines = []
+        for r in rows:
+            lines.append(
+                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | "
+                f"{r.get('option_type',''):<5} | {str(r.get('leverage_multiple','')):<4} | "
+                f"{_fmt_pct(r.get('entry_price')):<10} | {_fmt_pct(r.get('exit_price')):<10} | "
+                f"{_fmt_pct(r.get('pnl')):<10} | {str(r.get('settled_on','')):<19}"
+            )
+        plain = "\n".join([header, sep] + lines) + "\n"
+
+        html = (
+            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
+            "<thead>"
+            "<tr style=\"background:#0f172a;color:#ffffff;\">"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Option</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Lev</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Entry</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Exit</th>"
+            "<th style=\"padding:10px;text-align:right;font-weight:600;\">PnL</th>"
+            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Settled</th>"
+            "</tr></thead><tbody>"
+        )
+        for idx, r in enumerate(rows):
+            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+            html += (
+                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('asset_type','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('option_type','')}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{r.get('leverage_multiple','')}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('entry_price'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('exit_price'))}</td>"
+                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('pnl'))}</td>"
+                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('settled_on','')}</td>"
+                "</tr>"
+            )
+        html += "</tbody></table>"
+        return plain, html
+
     buy_sell_lines = []
     no_action_entries = []
 
@@ -389,6 +447,19 @@ def send_daily_recommendations_email(
                     + "</pre>"
                 )
 
+            option_rows = []
+            for r in summary_rows:
+                for opt in r.get("option_settlements", []) or []:
+                    option_rows.append(opt)
+            if option_rows:
+                body += "Option settlements:\n"
+                plain_tbl, html_tbl = _render_option_settlements(option_rows)
+                body += plain_tbl + "\n"
+                html_body += (
+                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
+                    + html_tbl
+                )
+
             if all_no_action:
                 from collections import defaultdict
 
@@ -448,6 +519,19 @@ def send_daily_recommendations_email(
                     "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
                     + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
                     + "</pre>"
+                )
+
+            option_rows = []
+            for r in summary_rows:
+                for opt in r.get("option_settlements", []) or []:
+                    option_rows.append(opt)
+            if option_rows:
+                body += "Option settlements:\n"
+                plain_tbl, html_tbl = _render_option_settlements(option_rows)
+                body += plain_tbl + "\n"
+                html_body += (
+                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
+                    + html_tbl
                 )
 
             if crypto_no_action:
@@ -826,6 +910,29 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                     trade_history=th,
                     hold_days=OPTION_SIGNAL_HOLD_DAYS,
                 )
+                opt_settlements = []
+                for opt in getattr(best_t, "option_history", []) or []:
+                    if not opt.get("settled"):
+                        continue
+                    settled_on = opt.get("settled_on")
+                    if isinstance(settled_on, datetime):
+                        settled_str = settled_on.strftime("%Y-%m-%d %H:%M:%S")
+                    else:
+                        settled_str = str(settled_on) if settled_on else ""
+                    opt_settlements.append(
+                        {
+                            "asset_type": "STOCK",
+                            "exchange": "STOCK",
+                            "asset": stock,
+                            "option_type": opt.get("option_type", ""),
+                            "leverage_multiple": opt.get("leverage_multiple", ""),
+                            "entry_price": opt.get("entry_price", ""),
+                            "exit_price": opt.get("exit_price", ""),
+                            "pnl": opt.get("pnl", ""),
+                            "settled_on": settled_str,
+                        }
+                    )
+                opt_settlements = opt_settlements[-5:]
                 best_summaries.append(
                     {
                         "asset_type": "STOCK",
@@ -850,6 +957,7 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                         "put_trials": opt_stats.get("put_trials", 0),
                         "call_wins": opt_stats.get("call_wins", 0),
                         "put_wins": opt_stats.get("put_wins", 0),
+                        "option_settlements": opt_settlements,
                     }
                 )
 
@@ -1225,6 +1333,7 @@ def main(asset: str = "all"):
                 kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
                 zoom_in=MA_BOLL_ZOOM_IN,
                 zoom_in_min_move_pct=MA_BOLL_ZOOM_IN_MIN_MOVE_PCT,
+                ma_boll_simplify=MA_BOLL_SIMPLIFY,
                 mode="normal",
             )
             trader_driver.feed_data(
@@ -1320,6 +1429,29 @@ def main(asset: str = "all"):
                 trade_history=th,
                 hold_days=OPTION_SIGNAL_HOLD_DAYS,
             )
+            opt_settlements = []
+            for opt in getattr(best_t, "option_history", []) or []:
+                if not opt.get("settled"):
+                    continue
+                settled_on = opt.get("settled_on")
+                if isinstance(settled_on, datetime):
+                    settled_str = settled_on.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    settled_str = str(settled_on) if settled_on else ""
+                opt_settlements.append(
+                    {
+                        "asset_type": "CRYPTO",
+                        "exchange": source_exchange.value,
+                        "asset": asset,
+                        "option_type": opt.get("option_type", ""),
+                        "leverage_multiple": opt.get("leverage_multiple", ""),
+                        "entry_price": opt.get("entry_price", ""),
+                        "exit_price": opt.get("exit_price", ""),
+                        "pnl": opt.get("pnl", ""),
+                        "settled_on": settled_str,
+                    }
+                )
+            opt_settlements = opt_settlements[-5:]
             best_summaries.append(
                 {
                     "asset_type": "CRYPTO",
@@ -1344,6 +1476,7 @@ def main(asset: str = "all"):
                     "put_trials": opt_stats.get("put_trials", 0),
                     "call_wins": opt_stats.get("call_wins", 0),
                     "put_wins": opt_stats.get("put_wins", 0),
+                    "option_settlements": opt_settlements,
                 }
             )
 

@@ -14,6 +14,7 @@ from app.core.config import (
     DEA_NUM_OF_DAYS,
     DEPOSIT_CST,
     NO_ACTION_SIGNAL,
+    OPTION_SETTLE,
     ROUND_PRECISION,
     SELL_SIGNAL,
     SUPPORTED_STRATEGIES,
@@ -49,6 +50,7 @@ class StratTrader:
         kdj_overbought: float = 80,
         zoom_in: bool = False,
         zoom_in_min_move_pct: float = 0.003,
+        ma_boll_simplify: bool = False,
         mode: str = "normal",
     ):
         """
@@ -75,6 +77,7 @@ class StratTrader:
             kdj_overbought (float): KDJ overbought threshold
             zoom_in (bool): Enable MA-BOLL-BANDS zoom-in refinement. Defaults to False.
             zoom_in_min_move_pct (float): Minimum intraday move to treat as trending. Defaults to 0.003.
+            ma_boll_simplify (bool): Enable simplified MA-BOLL-BANDS logic. Defaults to False.
             mode (str): Trading mode (normal, verbose)
 
         Returns:
@@ -142,6 +145,7 @@ class StratTrader:
         # Zoom-in refinement for MA-BOLL-BANDS
         self.zoom_in = zoom_in
         self.zoom_in_min_move_pct = zoom_in_min_move_pct
+        self.ma_boll_simplify = ma_boll_simplify
         # strategy signal lists
         self.strat_dct = collections.defaultdict(list)
 
@@ -319,6 +323,7 @@ class StratTrader:
                     intraday_candles=misc_p.get("intraday_candles"),
                     zoom_in=getattr(self, "zoom_in", False),
                     zoom_in_min_move_pct=getattr(self, "zoom_in_min_move_pct", 0.003),
+                    simplify_mode=getattr(self, "ma_boll_simplify", False),
                 )
 
             elif self.high_strategy == "RSI":
@@ -790,6 +795,7 @@ class StratTrader:
             opt["exit_price"] = new_p
             opt["payout"] = payout
             opt["pnl"] = pnl
+            self._record_history(new_p, d, OPTION_SETTLE)
 
     def deposit(self, c: float, new_p: float, d: datetime.datetime):
         """

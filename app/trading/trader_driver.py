@@ -181,6 +181,7 @@ class TraderDriver:
         kdj_overbought_thresholds: List[float] = [80],
         zoom_in: bool = False,
         zoom_in_min_move_pct: float = 0.003,
+        ma_boll_simplify: bool = True,
         mode: str = "normal",
     ):
         """
@@ -202,6 +203,7 @@ class TraderDriver:
             sell_stas (List[str], optional): Sell strategies. Defaults to ['by_percentage'].
             zoom_in (bool, optional): Enable MA-BOLL-BANDS zoom-in refinement. Defaults to False.
             zoom_in_min_move_pct (float, optional): Min intraday move to treat as trending. Defaults to 0.003.
+            ma_boll_simplify (bool, optional): Enable simplified MA-BOLL-BANDS logic. Defaults to False.
             mode (str, optional): Mode. Defaults to 'normal'.
 
         Returns:
@@ -246,6 +248,7 @@ class TraderDriver:
                 kdj_overbought=spec.get("kdj_overbought"),
                 zoom_in=zoom_in,
                 zoom_in_min_move_pct=zoom_in_min_move_pct,
+                ma_boll_simplify=ma_boll_simplify,
             )
             self.traders.append(t)
 
