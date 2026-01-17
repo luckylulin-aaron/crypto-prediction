@@ -551,20 +551,31 @@ class StratTrader:
             self, "kdj_dct"
         ), "Incorrect initialization, KDJ related attributes missing!"
 
-        def_KnD = 50
-        # if only have at most 8 days' data, then append 0 to nine_days_rsv,
-        # and use 50 for K and D
-        if len(self.crypto_prices) <= 8:
-            self.nine_day_rsv.append(0)
-            self.kdj_dct["K"].append(def_KnD)
-            self.kdj_dct["D"].append(def_KnD)
+        def_kd = 50.0
+        if len(self.crypto_prices) < 9:
+            self.nine_day_rsv.append(0.0)
+            self.kdj_dct["K"].append(def_kd)
+            self.kdj_dct["D"].append(def_kd)
+            self.kdj_dct["J"].append(3 * def_kd - 2 * def_kd)
+            return
+
+        highest_within_9 = max(x[4] for x in self.crypto_prices[-9:])
+        lowest_within_9 = min(x[3] for x in self.crypto_prices[-9:])
+        denom = highest_within_9 - lowest_within_9
+        if denom == 0:
+            new_rsv = 0.0
         else:
-            highest_within_9 = max(x[4] for x in self.crypto_prices[-9:])
-            lowest_within_9 = min(x[3] for x in self.crypto_prices[-9:])
-            new_rsv = (
-                100 * (close - lowest_within_9) / (highest_within_9 - lowest_within_9)
-            )
-            self.nine_day_rsv.append(new_rsv)
+            new_rsv = 100.0 * (close - lowest_within_9) / denom
+        self.nine_day_rsv.append(new_rsv)
+
+        prev_k = self.kdj_dct["K"][-1] if self.kdj_dct["K"] else def_kd
+        prev_d = self.kdj_dct["D"][-1] if self.kdj_dct["D"] else def_kd
+        k = (2.0 / 3.0) * prev_k + (1.0 / 3.0) * new_rsv
+        d = (2.0 / 3.0) * prev_d + (1.0 / 3.0) * k
+        j = 3.0 * k - 2.0 * d
+        self.kdj_dct["K"].append(k)
+        self.kdj_dct["D"].append(d)
+        self.kdj_dct["J"].append(j)
 
     def compute_rsi(self, period: int = 14):
         """
