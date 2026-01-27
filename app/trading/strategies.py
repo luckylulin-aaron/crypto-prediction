@@ -126,6 +126,39 @@ def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
 
+def _select_put_expiration_days(
+    bandwidth_pct: float,
+    slope_pct: float,
+    min_days: int = 3,
+    max_days: int = 10,
+) -> int:
+    """
+    Select a PUT expiration horizon based on volatility and trend strength.
+
+    Args:
+        bandwidth_pct (float): Bollinger bandwidth as a fraction of midline.
+        slope_pct (float): MA slope percentage (signed).
+        min_days (int): Minimum expiration days. Defaults to 3.
+        max_days (int): Maximum expiration days. Defaults to 10.
+
+    Returns:
+        int: Chosen expiration days within [min_days, max_days].
+
+    Raises:
+        None
+    """
+    if max_days < min_days:
+        min_days, max_days = max_days, min_days
+
+    vol_norm = _clamp(bandwidth_pct / 0.10, 0.0, 1.0)
+    slope_norm = _clamp(abs(slope_pct) / 0.01, 0.0, 1.0)
+    span = float(max_days - min_days)
+
+    # Higher volatility -> shorter expiry; stronger trend -> longer expiry.
+    days = max_days - (vol_norm * span) + (slope_norm * span * 0.3)
+    return int(_clamp(round(days), float(min_days), float(max_days)))
+
+
 def apply_signal_option_leverage(
     trader,
     signal: str,
@@ -816,10 +849,19 @@ def strategy_ma_boll_bands(
     kdj_j_knob_enabled: bool = True,
     kdj_j_buy_threshold: float = 0.0,
     kdj_j_sell_threshold: float = 100.0,
+    simplify_sell_put_enabled: bool = True,
+    simplify_put_expiration_days: int = 7,
+    simplify_put_dynamic_days: bool = True,
+    simplify_put_min_days: int = 3,
+    simplify_put_max_days: int = 10,
     trend_strong_slope_pct: float = 0.004,
     volume_buy_ratio_threshold: float = 1.3,
     midline_deadzone_pct: float = 0.004,
     trend_trailing_stop_pct: float = 0.07,
+    regime_use_adx: bool = True,
+    adx_window: int = 14,
+    adx_threshold: float = 25.0,
+    range_max_hold_bars: int = 12,
 ) -> Tuple[bool, bool]:
     """
     MA + Bollinger Bands strategy using the shortest MA trend to define regime.
@@ -939,11 +981,21 @@ def strategy_ma_boll_bands(
         kdj_j_knob_enabled (bool): If True, use KDJ J extremes for buy/sell. Defaults to True.
         kdj_j_buy_threshold (float): Buy when J is below this value. Defaults to 0.0.
         kdj_j_sell_threshold (float): Sell when J is above this value. Defaults to 100.0.
+        simplify_sell_put_enabled (bool): If True, add a PUT option on simplify-mode sells.
+            Defaults to True.
+        simplify_put_expiration_days (int): PUT expiration in days (5-10 recommended). Defaults to 7.
+        simplify_put_dynamic_days (bool): If True, vary PUT expiration within bounds. Defaults to True.
+        simplify_put_min_days (int): Minimum PUT expiration days. Defaults to 3.
+        simplify_put_max_days (int): Maximum PUT expiration days. Defaults to 10.
         trend_strong_slope_pct (float): Minimum MA slope magnitude to qualify as strong trend.
             Defaults to 0.004.
         volume_buy_ratio_threshold (float): Require volume ratio >= threshold for buys. Defaults to 1.3.
         midline_deadzone_pct (float): No-trade zone around midline (as % of mid). Defaults to 0.004.
         trend_trailing_stop_pct (float): Trailing stop in strong uptrends. Defaults to 0.07.
+        regime_use_adx (bool): If True, use ADX to detect trend regimes. Defaults to True.
+        adx_window (int): ADX lookback window. Defaults to 14.
+        adx_threshold (float): ADX threshold for trend regime. Defaults to 25.0.
+        range_max_hold_bars (int): Max bars to hold in range regime before exit. Defaults to 12.
 
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
@@ -1108,7 +1160,7 @@ def strategy_ma_boll_bands(
                 atr_take_profit = True
 
     # KDJ J-knob: very simple extreme reversion trigger.
-    if kdj_j_knob_enabled and hasattr(trader, "kdj_dct"):
+    if kdj_j_knob_enabled and (not simplify_mode) and hasattr(trader, "kdj_dct"):
         j_vals = trader.kdj_dct.get("J", [])
         if j_vals:
             try:
@@ -1173,103 +1225,49 @@ def strategy_ma_boll_bands(
         r_sell = False
         r_buy = False
 
+        strong_uptrend = trending_up and abs(slope_pct) >= float(trend_min_abs_slope_pct)
+        strong_downtrend = trending_down and abs(slope_pct) >= float(trend_min_abs_slope_pct)
+
         buy_condition_simple = False
         sell_condition_simple = False
-        rebound_buy = False
-        strong_uptrend = trending_up and abs(slope_pct) >= float(trend_strong_slope_pct)
-        strong_downtrend = trending_down and abs(slope_pct) >= float(trend_strong_slope_pct)
-
-        # No-trade zone around midline to reduce churn.
-        mid_deviation_pct = abs(new_p - mid) / mid if mid > 0 else 0.0
-        in_mid_deadzone = mid_deviation_pct < float(midline_deadzone_pct)
-
-        # Rebound logic: arm when price flushes below lower band, buy on reclaim.
-        if rebound_buy_enabled and _is_positive_number(rebound_reclaim_pct):
-            rebound_key = f"_ma_boll_rebound:{queue_name}:{bollinger_sigma}"
-            state = getattr(trader, "__dict__", {}).get(rebound_key, None)
-            if not isinstance(state, dict):
-                state = {"armed": False}
-                try:
-                    setattr(trader, rebound_key, state)
-                except Exception:
-                    pass
-            if new_p <= boll_lower * (1 - band_breakout_pct):
-                state["armed"] = True
-            if state.get("armed"):
-                reclaim_level = boll_lower * (1 + float(rebound_reclaim_pct))
-                intraday_ok = True
-                if rebound_requires_intraday_up:
-                    intraday_ok = _intraday_momentum(
-                        intraday_candles, min_move_pct=zoom_in_min_move_pct
-                    ) == "UP"
-                if new_p >= reclaim_level and intraday_ok:
-                    rebound_buy = True
-                    state["armed"] = False
 
         if strong_uptrend:
-            buy_condition_simple = has_cash and (
-                new_p <= mid * (1 + tol_pct * float(simplify_buy_tol_mult))
-            )
-            # In strong uptrends, avoid mean-reversion sells; use trailing stop + ATR stop.
-            sell_condition_simple = False
-            trail_key = f"_ma_boll_trail:{queue_name}:{bollinger_sigma}"
-            state = getattr(trader, "__dict__", {}).get(trail_key, None)
-            if not isinstance(state, dict):
-                state = {"peak": None}
-                try:
-                    setattr(trader, trail_key, state)
-                except Exception:
-                    pass
-            if has_position:
-                peak = state.get("peak") or new_p
-                peak = max(float(peak), float(new_p))
-                state["peak"] = peak
-                if _is_positive_number(trend_trailing_stop_pct) and new_p <= peak * (
-                    1.0 - float(trend_trailing_stop_pct)
-                ):
-                    sell_condition_simple = True
-            if atr_stop:
-                sell_condition_simple = True
+            buy_condition_simple = has_cash and new_p <= mid * (1 + tol_pct)
+            sell_condition_simple = has_position and new_p >= boll_upper * (1 + band_breakout_pct)
         elif strong_downtrend:
-            sell_condition_simple = has_position and (
-                new_p <= mid * (1 - tol_pct)
-                or new_p <= boll_lower * (1 - band_breakout_pct)
-                or atr_stop
-                or atr_take_profit
-            )
+            buy_condition_simple = False
+            sell_condition_simple = has_position and new_p <= mid * (1 - tol_pct)
         else:
-            buy_condition_simple = has_cash and (
-                new_p
-                <= boll_lower
-                * (1 + band_breakout_pct * float(simplify_neutral_buy_buffer_mult))
-            )
-            sell_condition_simple = has_position and (
-                new_p >= boll_upper * (1 - band_breakout_pct)
-                or atr_stop
-                or atr_take_profit
-            )
-
-        if in_mid_deadzone:
-            buy_condition_simple = False
-            if not strong_uptrend:
-                sell_condition_simple = False
-
-        if vol_ratio is not None and _is_positive_number(volume_buy_ratio_threshold):
-            if vol_ratio < float(volume_buy_ratio_threshold):
-                buy_condition_simple = False
-                rebound_buy = False
-
-        if block_buys:
-            buy_condition_simple = False
+            buy_condition_simple = has_cash and new_p <= boll_lower * (1 - band_breakout_pct)
+            sell_condition_simple = has_position and new_p >= boll_upper * (1 + band_breakout_pct)
 
         if sell_condition_simple:
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
+                if simplify_sell_put_enabled:
+                    put_days = simplify_put_expiration_days
+                    if simplify_put_dynamic_days:
+                        put_days = _select_put_expiration_days(
+                            bandwidth_pct=bandwidth_pct,
+                            slope_pct=slope_pct,
+                            min_days=int(simplify_put_min_days),
+                            max_days=int(simplify_put_max_days),
+                        )
+                    apply_signal_option_leverage(
+                        trader=trader,
+                        signal=SELL_SIGNAL,
+                        price=new_p,
+                        today=today,
+                        leverage_multiple=leverage_multiple,
+                        expiration_days=int(put_days),
+                        allocation_pct=leverage_allocation_pct,
+                        enabled=leverage_enabled,
+                    )
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
 
-        if r_sell is False and (buy_condition_simple or (rebound_buy and has_cash)):
-            r_buy = _execute_buy_with_pct(effective_buy_pct)
+        if r_sell is False and buy_condition_simple:
+            r_buy = _execute_buy_with_pct(base_buy_pct)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
