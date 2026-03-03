@@ -1230,9 +1230,32 @@ def strategy_ma_boll_bands(
 
         buy_condition_simple = False
         sell_condition_simple = False
+        ma_align_ok = False
+        try:
+            ma_vals = {}
+            for k, v in getattr(trader, "moving_averages", {}).items():
+                if not v:
+                    continue
+                last_val = v[-1]
+                if last_val is None:
+                    continue
+                ma_vals[int(k)] = float(last_val)
+            if len(ma_vals) >= 3:
+                keys = sorted(ma_vals.keys())
+                short_k, mid_k, long_k = keys[0], keys[len(keys) // 2], keys[-1]
+                ma_align_ok = (
+                    ma_vals[short_k] > ma_vals[mid_k] > ma_vals[long_k]
+                )
+        except Exception:
+            ma_align_ok = False
 
         if strong_uptrend:
-            buy_condition_simple = has_cash and new_p <= mid * (1 + tol_pct)
+            buy_condition_simple = (
+                has_cash
+                and ma_align_ok
+                and new_p >= mid
+                and new_p <= mid * (1 + tol_pct)
+            )
             sell_condition_simple = has_position and new_p >= boll_upper * (1 + band_breakout_pct)
         elif strong_downtrend:
             buy_condition_simple = False
