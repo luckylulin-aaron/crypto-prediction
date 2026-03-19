@@ -15,6 +15,7 @@ StandardError=journal
 
 # Environment variables
 Environment=PYTHONPATH=/path/to/crypto-prediction/app
+Environment="DATABASE_URL=postgresql://DBUSER:DBPASS@localhost:5432/DBNAME"
 
 # Security settings
 NoNewPrivileges=true

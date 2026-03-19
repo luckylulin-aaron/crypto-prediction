@@ -6,6 +6,8 @@ BASE_DIR="/home/ec2-user/tradingbot/crypto-prediction"
 
 # Ensure cron has a usable PATH (adjust if your poetry/python live elsewhere)
 export PATH="/home/ec2-user/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PYTHONPATH="$BASE_DIR/app"
+export DATABASE_URL="postgresql://USER:PASS@HOST:5432/DBNAME"
 
 # Poetry binary (absolute path is safest under cron)
 POETRY_BIN="/home/ec2-user/.local/bin/poetry"
