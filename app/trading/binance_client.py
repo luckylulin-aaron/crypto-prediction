@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 import numpy as np
@@ -37,7 +37,11 @@ class BinanceClient:
 
     @timer
     def get_historic_data(
-        self, symbol: str, use_cache: bool = True, interval_hours: Optional[float] = None
+        self,
+        symbol: str,
+        use_cache: bool = True,
+        interval_hours: Optional[float] = None,
+        lookback_days: Optional[int] = None,
     ) -> list:
         """
         Get historical klines for a symbol with configurable interval, with database caching.
@@ -46,6 +50,7 @@ class BinanceClient:
             symbol (str): The trading pair symbol (e.g., 'BTCUSDT').
             use_cache (bool): Whether to use cached data if available and fresh.
             interval_hours (Optional[float]): Interval in hours. Defaults to DATA_INTERVAL_HOURS.
+            lookback_days (Optional[int]): Number of UTC calendar days to fetch. Defaults to TIMESPAN.
         Returns:
             list: Each element is [closing_price, datetime_str, open_price, low, high, volume].
         Raises:
@@ -55,7 +60,13 @@ class BinanceClient:
         # The current DB schema uses (symbol, date) as the uniqueness key. If we store multiple
         # granularities (e.g., 12h vs 30m) under the same symbol, rows will collide/overwrite.
         # To avoid corrupting cached data, we only use DB cache for the original hour-based intervals.
-        interval_base = DATA_INTERVAL_HOURS if interval_hours is None else interval_hours
+        requested_days = TIMESPAN if lookback_days is None else int(lookback_days)
+        if requested_days <= 0:
+            raise ValueError(f"lookback_days must be positive, got {requested_days}")
+
+        interval_base = (
+            DATA_INTERVAL_HOURS if interval_hours is None else interval_hours
+        )
         interval_minutes = int(round(float(interval_base) * 60))
 
         def _binance_interval_str(minutes: int) -> str:
@@ -91,13 +102,15 @@ class BinanceClient:
         fetch_interval_minutes = 5 if wants_resample_10m else interval_minutes
         interval_str = _binance_interval_str(fetch_interval_minutes)
 
-        cache_allowed = fetch_interval_minutes in (60, 360, 720, 1440) and not wants_resample_10m
+        cache_allowed = (
+            fetch_interval_minutes in (60, 360, 720, 1440) and not wants_resample_10m
+        )
         # IMPORTANT: DB uniqueness is (symbol, date). If DATA_INTERVAL_HOURS changes (e.g. 12h -> 6h),
         # cached rows can silently mismatch the requested granularity. Use an interval-specific cache key.
         cache_key = f"{symbol}__{interval_str}"
 
         if use_cache and cache_allowed:
-            cached_data = db_manager.get_historical_data(cache_key, TIMESPAN)
+            cached_data = db_manager.get_historical_data(cache_key, requested_days)
             if cached_data and db_manager.is_data_fresh(cache_key, max_age_hours=72):
                 self.logger.info(
                     f"Using cached data for {symbol} ({len(cached_data)} records, interval={interval_str})"
@@ -119,10 +132,13 @@ class BinanceClient:
 
         try:
             end = int(time.time() * 1000)
-            start = int(
-                (datetime.utcnow() - timedelta(days=TIMESPAN)).timestamp() * 1000
+            start_dt = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
             )
-            self.logger.info(f"Fetching klines for {symbol} from {datetime.utcfromtimestamp(start/1000).strftime('%Y-%m-%d %H:%M:%S')} to {datetime.utcfromtimestamp(end/1000).strftime('%Y-%m-%d %H:%M:%S')}")
+            start = int((start_dt - timedelta(days=requested_days)).timestamp() * 1000)
+            self.logger.info(
+                f"Fetching klines for {symbol} from {datetime.utcfromtimestamp(start/1000).strftime('%Y-%m-%d %H:%M:%S')} to {datetime.utcfromtimestamp(end/1000).strftime('%Y-%m-%d %H:%M:%S')}"
+            )
 
             # Binance returns limited klines per request; paginate to cover long timespans.
             def _fetch_klines_paginated(
@@ -154,11 +170,13 @@ class BinanceClient:
                     time.sleep(0.05)
                 return out
 
-            klines = _fetch_klines_paginated(symbol, interval_str, start, end, limit=1000)
+            klines = _fetch_klines_paginated(
+                symbol, interval_str, start, end, limit=1000
+            )
             self.logger.info(
                 f"Received {len(klines)} klines from API for {symbol} (interval: {interval_str})"
             )
-            
+
             if not klines:
                 self.logger.warning(f"No klines returned from API for {symbol}")
                 return []
@@ -186,7 +204,9 @@ class BinanceClient:
                     dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
                     # floor to 10-minute boundary
                     floored_minute = (dt_obj.minute // 10) * 10
-                    bucket = dt_obj.replace(minute=floored_minute, second=0, microsecond=0)
+                    bucket = dt_obj.replace(
+                        minute=floored_minute, second=0, microsecond=0
+                    )
                     key = bucket.strftime("%Y-%m-%d %H:%M:%S")
                     if key not in grouped:
                         grouped[key] = {
@@ -219,9 +239,11 @@ class BinanceClient:
             cutoff_time = now - timedelta(minutes=interval_minutes)
             cutoff_str = cutoff_time.strftime("%Y-%m-%d %H:%M:%S")
             parsed = [x for x in parsed if x[1] < cutoff_str]
-            
-            self.logger.info(f"Processed {len(parsed)} data points for {symbol} after filtering")
-            
+
+            self.logger.info(
+                f"Processed {len(parsed)} data points for {symbol} after filtering"
+            )
+
             if use_cache and cache_allowed and parsed:
                 db_manager.store_historical_data(cache_key, parsed)
             return parsed

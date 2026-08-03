@@ -1,0 +1,66 @@
+[
+  {
+    "symbol": "BTC",
+    "data_start": "2023-08-04 00:00:00",
+    "data_end": "2026-08-02 00:00:00",
+    "data_rows": 1095,
+    "folds": [
+      {
+        "fold": 1,
+        "train": {
+          "start": "2023-08-04 00:00:00",
+          "end": "2024-08-02 00:00:00",
+          "strategy_return": 85.677,
+          "buy_hold_return": 111.23291585935146,
+          "excess_return": -25.555915859351458,
+          "max_drawdown": 24.88,
+          "transactions": 107
+        },
+        "validation": {
+          "start": "2024-08-03 00:00:00",
+          "end": "2024-10-31 00:00:00",
+          "strategy_return": 7.119,
+          "buy_hold_return": 15.806157666835418,
+          "excess_return": -8.687157666835418,
+          "max_drawdown": 8.4,
+          "transactions": 12
+        },
+        "purge": {
+          "start": "2024-11-01 00:00:00",
+          "end": "2024-11-07 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2024-11-08 00:00:00",
+          "end": "2024-12-07 00:00:00",
+          "strategy_return": 19.716,
+          "buy_hold_return": 30.48265202174154,
+          "excess_return": -10.766652021741539,
+          "max_drawdown": 7.580000000000001,
+          "transactions": 15
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      }
+    ],
+    "summary": {
+      "fold_count": 1,
+      "compounded_strategy_return": 19.716,
+      "compounded_buy_hold_return": 30.48265202174154,
+      "compounded_excess_return": -10.766652021741539,
+      "mean_excess_return": -10.766652021741539,
+      "excess_win_rate": 0.0
+    }
+  }
+]

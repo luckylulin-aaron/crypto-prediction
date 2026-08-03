@@ -19,11 +19,13 @@ from app.core.config import (
 )
 from app.trading.strat_trader import StratTrader
 from app.utils.util import timer
+
 try:
     from app.core.logger import get_logger
 except ImportError:
     import os
     import sys
+
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from core.logger import get_logger
 
@@ -31,7 +33,6 @@ logger = get_logger(__name__)
 
 
 class TraderDriver:
-
     """A wrapper class on top of any of trader classes."""
 
     @staticmethod
@@ -62,7 +63,11 @@ class TraderDriver:
 
         # Adjust for strategies that expand the grid (RSI/KDJ)
         # Our unified grid counts RSI/KDJ once each; replace that "1" with their extra grid sizes.
-        rsi_extra = len(rsi_periods) * len(rsi_oversold_thresholds) * len(rsi_overbought_thresholds)
+        rsi_extra = (
+            len(rsi_periods)
+            * len(rsi_oversold_thresholds)
+            * len(rsi_overbought_thresholds)
+        )
         kdj_extra = len(kdj_oversold_thresholds) * len(kdj_overbought_thresholds)
 
         n_stats = len(overall_stats)
@@ -80,7 +85,9 @@ class TraderDriver:
             else:
                 per_combo += 1
 
-        combos_without_strategy = len(bollinger_tols) * len(tol_pcts) * len(buy_pcts) * len(sell_pcts)
+        combos_without_strategy = (
+            len(bollinger_tols) * len(tol_pcts) * len(buy_pcts) * len(sell_pcts)
+        )
         return combos_without_strategy * per_combo
 
     @staticmethod
@@ -182,6 +189,9 @@ class TraderDriver:
         zoom_in: bool = False,
         zoom_in_min_move_pct: float = 0.003,
         ma_boll_simplify: bool = True,
+        execute_on_next_open: bool = False,
+        slippage_bps: float = 0.0,
+        enable_options: bool = True,
         mode: str = "normal",
     ):
         """
@@ -249,6 +259,9 @@ class TraderDriver:
                 zoom_in=zoom_in,
                 zoom_in_min_move_pct=zoom_in_min_move_pct,
                 ma_boll_simplify=ma_boll_simplify,
+                execute_on_next_open=execute_on_next_open,
+                slippage_bps=slippage_bps,
+                enable_options=enable_options,
             )
             self.traders.append(t)
 
@@ -272,7 +285,9 @@ class TraderDriver:
 
         # Sanity check: ensure we created at least one trader.
         if len(self.traders) == 0:
-            raise ValueError("No traders were created. Check your parameter grids and overall_stats.")
+            raise ValueError(
+                "No traders were created. Check your parameter grids and overall_stats."
+            )
         # unknown, without data
         self.best_trader = None
 
@@ -295,6 +310,7 @@ class TraderDriver:
         data_stream: List[tuple],
         intraday_stream: Optional[List[tuple]] = None,
         intraday_interval_hours: int = 1,
+        warmup_points: int = 0,
     ):
         """
         Feed in historic data, where data_stream consists of tuples of (price, date, open, low, high).
@@ -305,6 +321,7 @@ class TraderDriver:
             intraday_stream (Optional[List[tuple]]): Optional lower-granularity candles (e.g., 1h)
                 to support zoom-in logic. Same tuple format as data_stream.
             intraday_interval_hours (int): Expected intraday interval in hours. Defaults to 1.
+            warmup_points (int): Leading rows used only for indicators; trading is disabled.
 
         Returns:
             None
@@ -317,13 +334,21 @@ class TraderDriver:
 
         # Validate data stream
         if not data_stream:
-            raise ValueError("Data stream is empty - no historical data available for simulation")
-        
+            raise ValueError(
+                "Data stream is empty - no historical data available for simulation"
+            )
+
         if len(data_stream) < 2:
-            raise ValueError(f"Data stream has insufficient data points ({len(data_stream)}). Need at least 2 data points for simulation.")
+            raise ValueError(
+                f"Data stream has insufficient data points ({len(data_stream)}). Need at least 2 data points for simulation."
+            )
+        if warmup_points < 0 or warmup_points >= len(data_stream):
+            raise ValueError("warmup_points must be >= 0 and smaller than data_stream")
 
         # Log data feed details
-        logger.info(f"[{self.name}] Feeding {len(data_stream)} data points to {len(self.traders)} traders")
+        logger.info(
+            f"[{self.name}] Feeding {len(data_stream)} data points to {len(self.traders)} traders"
+        )
         if len(data_stream) > 0:
             try:
                 start_date = data_stream[0][1]
@@ -334,7 +359,9 @@ class TraderDriver:
                 if prices:
                     min_price = min(prices)
                     max_price = max(prices)
-                    logger.info(f"[{self.name}] Price range: ${min_price:.2f} - ${max_price:.2f}")
+                    logger.info(
+                        f"[{self.name}] Price range: ${min_price:.2f} - ${max_price:.2f}"
+                    )
             except Exception as e:
                 logger.debug(f"[{self.name}] Could not extract data range info: {e}")
 
@@ -368,15 +395,17 @@ class TraderDriver:
                     continue
                 intraday_items.append((dt, item))
             intraday_items.sort(key=lambda x: x[0])
-        
-        logger.debug(f"[{self.name}] Processing {num_traders} trading strategies across {len(data_stream)} data points")
+
+        logger.debug(
+            f"[{self.name}] Processing {num_traders} trading strategies across {len(data_stream)} data points"
+        )
 
         for index, t in enumerate(self.traders):
             trader_start_time = time.perf_counter()
 
             intraday_idx = 0
             prev_dt = None
-            
+
             # compute initial value
             date_obj = parse_date(data_stream[0][1])
             intraday_slice = []
@@ -399,10 +428,12 @@ class TraderDriver:
                     "intraday_interval_hours": intraday_interval_hours,
                     **(
                         {"volume": data_stream[0][5]}
-                        if isinstance(data_stream[0], (list, tuple)) and len(data_stream[0]) > 5
+                        if isinstance(data_stream[0], (list, tuple))
+                        and len(data_stream[0]) > 5
                         else {}
                     ),
                 },
+                execute_strategy=warmup_points == 0,
             )
             prev_dt = date_obj
             # run simulation
@@ -427,11 +458,17 @@ class TraderDriver:
                     "intraday_interval_hours": intraday_interval_hours,
                     **(
                         {"volume": data_stream[i][5]}
-                        if isinstance(data_stream[i], (list, tuple)) and len(data_stream[i]) > 5
+                        if isinstance(data_stream[i], (list, tuple))
+                        and len(data_stream[i]) > 5
                         else {}
                     ),
                 }
-                t.add_new_day(p, d, misc_p)
+                t.add_new_day(
+                    p,
+                    d,
+                    misc_p,
+                    execute_strategy=i >= warmup_points,
+                )
                 prev_dt = d
             # decide best trader while we loop, by comparing all traders final portfolio value
             # sometimes a trader makes no trade at all
@@ -447,19 +484,23 @@ class TraderDriver:
                 print('Found error!', t.high_strategy)
             """
             trader_process_time = time.perf_counter() - trader_start_time
-            
+
             # Log trader performance summary (every 10 traders to avoid too much output)
             if (index + 1) % 10 == 0 or index == num_traders - 1:
-                logger.debug(f"[{self.name}] Processed {index + 1}/{num_traders} traders "
-                           f"(strategy: {t.high_strategy}, final_value: ${tmp_final_p:.2f}, "
-                           f"time: {trader_process_time:.3f}s)")
-            
+                logger.debug(
+                    f"[{self.name}] Processed {index + 1}/{num_traders} traders "
+                    f"(strategy: {t.high_strategy}, final_value: ${tmp_final_p:.2f}, "
+                    f"time: {trader_process_time:.3f}s)"
+                )
+
             if tmp_final_p >= max_final_p:
                 max_final_p = tmp_final_p
                 self.best_trader = t
-        
-        logger.info(f"[{self.name}] Completed feed_data: Best trader strategy={self.best_trader.high_strategy}, "
-                    f"final_value=${max_final_p:.2f}")
+
+        logger.info(
+            f"[{self.name}] Completed feed_data: Best trader strategy={self.best_trader.high_strategy}, "
+            f"final_value=${max_final_p:.2f}"
+        )
 
     @property
     def best_trader_info(self):

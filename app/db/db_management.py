@@ -1,6 +1,7 @@
 """
 Database management utilities for the cryptocurrency trading bot.
 """
+
 import argparse
 import os
 import sys
@@ -82,6 +83,56 @@ def clear_old_data(days: int = 365):
         return False
 
 
+def backfill_daily_data(symbols=None, days: int = 1095):
+    """Fetch completed daily candles and store them idempotently in the database."""
+    logger = get_logger(__name__)
+
+    try:
+        from core.config import CURS
+        from trading.binance_client import BinanceClient
+
+        client = BinanceClient()
+        requested_symbols = symbols or CURS
+        failures = []
+
+        for asset in requested_symbols:
+            pair = asset.upper()
+            if not pair.endswith("USDT"):
+                pair = f"{pair}USDT"
+
+            cache_key = f"{pair}__1d"
+            try:
+                data = client.get_historic_data(
+                    pair,
+                    use_cache=False,
+                    interval_hours=24,
+                    lookback_days=days,
+                )
+                if not data:
+                    raise RuntimeError("Binance returned no completed daily candles")
+
+                if not db_manager.store_historical_data(cache_key, data):
+                    raise RuntimeError("database store operation failed")
+
+                print(
+                    f"{cache_key}: stored {len(data)} rows "
+                    f"({data[0][1]} through {data[-1][1]})"
+                )
+            except Exception as exc:
+                failures.append(pair)
+                logger.error(f"Failed to backfill {pair}: {exc}")
+
+        if failures:
+            print(f"Backfill failed for: {', '.join(failures)}")
+            return False
+
+        print(f"Backfill completed for {len(requested_symbols)} symbols.")
+        return True
+    except Exception as exc:
+        logger.error(f"Failed to backfill daily data: {exc}")
+        return False
+
+
 def test_connection():
     """Test database connection."""
     logger = get_logger(__name__)
@@ -106,14 +157,20 @@ def main():
     )
     parser.add_argument(
         "command",
-        choices=["init", "drop", "stats", "clear", "test"],
+        choices=["init", "drop", "stats", "clear", "test", "backfill"],
         help="Command to execute",
     )
     parser.add_argument(
         "--days",
         type=int,
-        default=365,
-        help="Number of days to keep when clearing old data (default: 365)",
+        default=None,
+        help="Number of days (clear default: 365; backfill default: 1095)",
+    )
+
+    parser.add_argument(
+        "--symbols",
+        nargs="+",
+        help="Assets or USDT pairs to backfill (default: configured CURS)",
     )
 
     args = parser.parse_args()
@@ -136,11 +193,15 @@ def main():
         sys.exit(0)
 
     elif args.command == "clear":
-        success = clear_old_data(args.days)
+        success = clear_old_data(args.days or 365)
         sys.exit(0 if success else 1)
 
     elif args.command == "test":
         success = test_connection()
+        sys.exit(0 if success else 1)
+
+    elif args.command == "backfill":
+        success = backfill_daily_data(args.symbols, args.days or 1095)
         sys.exit(0 if success else 1)
 
 
