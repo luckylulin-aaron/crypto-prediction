@@ -6,6 +6,8 @@ import os
 import sys
 from datetime import datetime, timedelta
 
+from sqlalchemy import text
+
 try:
     from database import Base, db_manager, engine
 
@@ -86,7 +88,7 @@ def test_connection():
     try:
         # Try to execute a simple query
         with engine.connect() as conn:
-            result = conn.execute("SELECT 1")
+            result = conn.execute(text("SELECT 1"))
             result.fetchone()
 
         print("Database connection successful!")

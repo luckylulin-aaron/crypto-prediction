@@ -11,6 +11,9 @@ def send_email(subject, body, to_emails, from_email, app_password, html_body=Non
     if not to_emails or not from_email or not app_password:
         logger.warning("Gmail credentials not set, skipping email notification.")
         return
+    # Google displays 16-character app passwords in four groups for readability.
+    # SMTP authentication expects the password without spaces or line breaks.
+    app_password = "".join(app_password.split())
     # Use multipart/alternative so email clients render either HTML (preferred) OR plain text (fallback),
     # instead of showing both versions back-to-back.
     msg = MIMEMultipart("alternative")
