@@ -79,6 +79,10 @@ EMA_LENGTHS = [6, 12, 26, 30]
 BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4, 5]
 
+SMA200_VARIANTS = [
+    {"entry_band_pct": 0.05, "exit_band_pct": 0.05, "min_hold_days": 0},
+]
+
 # --- MA-BOLL-BANDS zoom-in configuration ---
 # When enabled, use intraday candles to refine actions during high-volatility regimes.
 MA_BOLL_ZOOM_IN = True

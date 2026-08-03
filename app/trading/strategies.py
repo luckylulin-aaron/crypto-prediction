@@ -358,8 +358,11 @@ def strategy_sma200(
     trader,
     new_p: float,
     today: datetime.datetime,
+    entry_band_pct: float = 0.0,
+    exit_band_pct: float = 0.0,
+    min_hold_days: int = 0,
 ) -> Tuple[bool, bool]:
-    """Follow the long-term trend by holding above SMA200 and cash below it."""
+    """Hold above SMA200 with optional hysteresis bands and a minimum holding period."""
     strat_name = "SMA200"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
@@ -370,13 +373,32 @@ def strategy_sma200(
     if last_sma is not None:
         has_cash = _is_positive_number(getattr(trader, "cash", 0))
         has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+        entry_threshold = last_sma * (1.0 + float(entry_band_pct))
+        exit_threshold = last_sma * (1.0 - float(exit_band_pct))
+        holding_period_satisfied = True
 
-        if new_p > last_sma and has_cash:
+        if has_position and int(min_hold_days) > 0:
+            for item in reversed(getattr(trader, "trade_history", [])):
+                if item.get("action") != BUY_SIGNAL:
+                    continue
+                buy_date = item.get("date")
+                try:
+                    held_days = (today.date() - buy_date.date()).days
+                except AttributeError:
+                    held_days = (today - buy_date).days
+                holding_period_satisfied = held_days >= int(min_hold_days)
+                break
+
+        if new_p > entry_threshold and has_cash:
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        elif new_p < last_sma and has_position:
+        elif (
+            new_p < exit_threshold
+            and has_position
+            and holding_period_satisfied
+        ):
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell:
                 trader._record_history(new_p, today, SELL_SIGNAL)

@@ -53,6 +53,9 @@ class StratTrader:
         execute_on_next_open: bool = False,
         slippage_bps: float = 0.0,
         enable_options: bool = True,
+        sma200_entry_band_pct: float = 0.0,
+        sma200_exit_band_pct: float = 0.0,
+        sma200_min_hold_days: int = 0,
         mode: str = "normal",
     ):
         """
@@ -154,6 +157,15 @@ class StratTrader:
         self.zoom_in = zoom_in
         self.zoom_in_min_move_pct = zoom_in_min_move_pct
         self.ma_boll_simplify = ma_boll_simplify
+        self.sma200_entry_band_pct = float(sma200_entry_band_pct)
+        self.sma200_exit_band_pct = float(sma200_exit_band_pct)
+        self.sma200_min_hold_days = int(sma200_min_hold_days)
+        if min(
+            self.sma200_entry_band_pct,
+            self.sma200_exit_band_pct,
+            self.sma200_min_hold_days,
+        ) < 0:
+            raise ValueError("SMA200 bands and minimum holding period cannot be negative")
         self.execute_on_next_open = execute_on_next_open
         self.slippage_bps = float(slippage_bps)
         if self.slippage_bps < 0:
@@ -225,6 +237,9 @@ class StratTrader:
                     trader=self,
                     new_p=new_p,
                     today=d,
+                    entry_band_pct=self.sma200_entry_band_pct,
+                    exit_band_pct=self.sma200_exit_band_pct,
+                    min_hold_days=self.sma200_min_hold_days,
                 )
 
             elif self.high_strategy == "MA-SELVES":
@@ -1211,4 +1226,12 @@ class StratTrader:
             "tol_pct": self.tol_pct,
             "bollinger_sigma": self.bollinger_sigma,
         }
+        if self.high_strategy == "SMA200":
+            basic.update(
+                {
+                    "sma200_entry_band_pct": self.sma200_entry_band_pct,
+                    "sma200_exit_band_pct": self.sma200_exit_band_pct,
+                    "sma200_min_hold_days": self.sma200_min_hold_days,
+                }
+            )
         return {**basic, **self.strategies}

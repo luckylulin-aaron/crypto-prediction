@@ -16,6 +16,7 @@ from app.core.config import (
     RSI_OVERBOUGHT_THRESHOLDS,
     RSI_OVERSOLD_THRESHOLDS,
     RSI_PERIODS,
+    SMA200_VARIANTS,
 )
 from app.trading.strat_trader import StratTrader
 from app.utils.util import timer
@@ -47,19 +48,13 @@ class TraderDriver:
         rsi_overbought_thresholds: List[float],
         kdj_oversold_thresholds: List[float],
         kdj_overbought_thresholds: List[float],
+        sma200_variants: Optional[List[Dict[str, Any]]] = None,
     ) -> int:
         """
         Compute the expected number of StratTrader instances given parameter grids.
 
         This is useful for sanity-checking narrowed grids (e.g., moving-window auto-tuning).
         """
-        base = (
-            len(bollinger_tols)
-            * len(overall_stats)
-            * len(tol_pcts)
-            * len(buy_pcts)
-            * len(sell_pcts)
-        )
 
         # Adjust for strategies that expand the grid (RSI/KDJ)
         # Our unified grid counts RSI/KDJ once each; replace that "1" with their extra grid sizes.
@@ -77,8 +72,12 @@ class TraderDriver:
         # For each of bollinger_sigma/tol/buy/sell combination, total traders equals:
         # sum over strategies of (extra_grid_size_for_strategy)
         per_combo = 0
+        fixed_strategy_count = 0
+        configured_sma200_variants = sma200_variants or SMA200_VARIANTS
         for s in overall_stats:
-            if s == "RSI":
+            if s == "SMA200":
+                fixed_strategy_count += len(configured_sma200_variants)
+            elif s == "RSI":
                 per_combo += max(1, rsi_extra)
             elif s == "KDJ":
                 per_combo += max(1, kdj_extra)
@@ -88,7 +87,7 @@ class TraderDriver:
         combos_without_strategy = (
             len(bollinger_tols) * len(tol_pcts) * len(buy_pcts) * len(sell_pcts)
         )
-        return combos_without_strategy * per_combo
+        return fixed_strategy_count + combos_without_strategy * per_combo
 
     @staticmethod
     def _strategy_extra_param_grid(
@@ -138,6 +137,7 @@ class TraderDriver:
         rsi_overbought_thresholds: List[float],
         kdj_oversold_thresholds: List[float],
         kdj_overbought_thresholds: List[float],
+        sma200_variants: Optional[List[Dict[str, Any]]] = None,
     ) -> Iterable[Dict[str, Any]]:
         """
         Yield dicts of parameters that define a unique StratTrader instance.
@@ -145,26 +145,42 @@ class TraderDriver:
         This is intentionally strategy-agnostic: strategies are handled by providing an
         (optional) extra param grid per strategy.
         """
-        for bollinger_sigma, stat, tol_pct, buy_pct, sell_pct in product(
-            bollinger_tols, overall_stats, tol_pcts, buy_pcts, sell_pcts
-        ):
-            extras = cls._strategy_extra_param_grid(
-                stat,
-                rsi_periods=rsi_periods,
-                rsi_oversold_thresholds=rsi_oversold_thresholds,
-                rsi_overbought_thresholds=rsi_overbought_thresholds,
-                kdj_oversold_thresholds=kdj_oversold_thresholds,
-                kdj_overbought_thresholds=kdj_overbought_thresholds,
-            )
-            for extra in extras:
-                yield {
-                    "stat": stat,
-                    "tol_pct": tol_pct,
-                    "buy_pct": buy_pct,
-                    "sell_pct": sell_pct,
-                    "bollinger_sigma": bollinger_sigma,
-                    **extra,
-                }
+        configured_sma200_variants = sma200_variants or SMA200_VARIANTS
+        for stat in overall_stats:
+            if stat == "SMA200":
+                for variant in configured_sma200_variants:
+                    yield {
+                        "stat": stat,
+                        "tol_pct": 0.0,
+                        "buy_pct": 1.0,
+                        "sell_pct": 1.0,
+                        "bollinger_sigma": bollinger_tols[0] if bollinger_tols else 2,
+                        "sma200_entry_band_pct": float(variant["entry_band_pct"]),
+                        "sma200_exit_band_pct": float(variant["exit_band_pct"]),
+                        "sma200_min_hold_days": int(variant["min_hold_days"]),
+                    }
+                continue
+
+            for bollinger_sigma, tol_pct, buy_pct, sell_pct in product(
+                bollinger_tols, tol_pcts, buy_pcts, sell_pcts
+            ):
+                extras = cls._strategy_extra_param_grid(
+                    stat,
+                    rsi_periods=rsi_periods,
+                    rsi_oversold_thresholds=rsi_oversold_thresholds,
+                    rsi_overbought_thresholds=rsi_overbought_thresholds,
+                    kdj_oversold_thresholds=kdj_oversold_thresholds,
+                    kdj_overbought_thresholds=kdj_overbought_thresholds,
+                )
+                for extra in extras:
+                    yield {
+                        "stat": stat,
+                        "tol_pct": tol_pct,
+                        "buy_pct": buy_pct,
+                        "sell_pct": sell_pct,
+                        "bollinger_sigma": bollinger_sigma,
+                        **extra,
+                    }
 
     def __init__(
         self,
@@ -192,6 +208,7 @@ class TraderDriver:
         execute_on_next_open: bool = False,
         slippage_bps: float = 0.0,
         enable_options: bool = True,
+        sma200_variants: Optional[List[Dict[str, Any]]] = None,
         mode: str = "normal",
     ):
         """
@@ -234,6 +251,7 @@ class TraderDriver:
             rsi_overbought_thresholds=rsi_overbought_thresholds,
             kdj_oversold_thresholds=kdj_oversold_thresholds,
             kdj_overbought_thresholds=kdj_overbought_thresholds,
+            sma200_variants=sma200_variants,
         ):
             t = StratTrader(
                 name=name,
@@ -262,6 +280,9 @@ class TraderDriver:
                 execute_on_next_open=execute_on_next_open,
                 slippage_bps=slippage_bps,
                 enable_options=enable_options,
+                sma200_entry_band_pct=spec.get("sma200_entry_band_pct", 0.0),
+                sma200_exit_band_pct=spec.get("sma200_exit_band_pct", 0.0),
+                sma200_min_hold_days=spec.get("sma200_min_hold_days", 0),
             )
             self.traders.append(t)
 
@@ -276,6 +297,7 @@ class TraderDriver:
             rsi_overbought_thresholds=rsi_overbought_thresholds,
             kdj_oversold_thresholds=kdj_oversold_thresholds,
             kdj_overbought_thresholds=kdj_overbought_thresholds,
+            sma200_variants=sma200_variants,
         )
         if len(self.traders) != expected:
             logger.warning(
