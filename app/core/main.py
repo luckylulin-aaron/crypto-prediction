@@ -86,7 +86,11 @@ RECIPIENT_LIST = [
 
 
 def send_daily_recommendations_email(
-    log_file, recipient_list, from_email, app_password, best_summaries: Optional[list] = None
+    log_file,
+    recipient_list,
+    from_email,
+    app_password,
+    best_summaries: Optional[list] = None,
 ):
     """
     Send daily recommendations email from log.txt for today's actions.
@@ -157,9 +161,7 @@ def send_daily_recommendations_email(
         if not rows:
             return "", ""
 
-        header = (
-            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6} | {'BUY':<3} | {'SELL':<4} | {'Sig%':<5} | {'Sig/30d':<7} | {'AvgDays':<6} | {'Last BUY':<16} | {'Last SELL':<16} | {'CallWin%':<8} | {'PutWin%':<8}"
-        )
+        header = f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6} | {'BUY':<3} | {'SELL':<4} | {'Sig%':<5} | {'Sig/30d':<7} | {'AvgDays':<6} | {'Last BUY':<16} | {'Last SELL':<16} | {'CallWin%':<8} | {'PutWin%':<8}"
         sep = "-" * len(header)
         lines = []
         for r in rows:
@@ -169,31 +171,31 @@ def send_daily_recommendations_email(
         plain = "\n".join([header, sep] + lines) + "\n"
 
         html = (
-            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
+            '<table style="border-collapse:collapse;width:100%;margin-top:10px;">'
             "<thead>"
-            "<tr style=\"background:#0f172a;color:#ffffff;\">"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Best strategy</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Buy %</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sell %</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">BUY</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">SELL</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig%</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig/30d</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">AvgDays</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Last BUY</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Last SELL</th>"
-            f"<th style=\"padding:10px;text-align:right;font-weight:600;\" title=\"Call option win rate: BUY→SELL within {OPTION_SIGNAL_HOLD_DAYS}d, sell_price > buy_price\">CallWin%</th>"
-            f"<th style=\"padding:10px;text-align:right;font-weight:600;\" title=\"Put option win rate: SELL→BUY within {OPTION_SIGNAL_HOLD_DAYS}d, buy_price < sell_price\">PutWin%</th>"
+            '<tr style="background:#0f172a;color:#ffffff;">'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Type</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Exchange</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Asset</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Best strategy</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">Buy %</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">Sell %</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">BUY</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">SELL</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">Sig%</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">Sig/30d</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">AvgDays</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Last BUY</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Last SELL</th>'
+            f'<th style="padding:10px;text-align:right;font-weight:600;" title="Call option win rate: BUY→SELL within {OPTION_SIGNAL_HOLD_DAYS}d, sell_price > buy_price">CallWin%</th>'
+            f'<th style="padding:10px;text-align:right;font-weight:600;" title="Put option win rate: SELL→BUY within {OPTION_SIGNAL_HOLD_DAYS}d, buy_price < sell_price">PutWin%</th>'
             "</tr></thead><tbody>"
         )
         for idx, r in enumerate(rows):
             bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
             icon = "🪙" if r.get("asset_type") == "CRYPTO" else "📈"
             html += (
-                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
+                f'<tr style="background:{bg};border-bottom:1px solid #e2e8f0;">'
                 f"<td style=\"padding:10px;color:#0f172a;\">{icon} {r.get('asset_type','')}</td>"
                 f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
                 f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
@@ -240,24 +242,24 @@ def send_daily_recommendations_email(
         plain = "\n".join([header, sep] + lines) + "\n"
 
         html = (
-            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
+            '<table style="border-collapse:collapse;width:100%;margin-top:10px;">'
             "<thead>"
-            "<tr style=\"background:#0f172a;color:#ffffff;\">"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Option</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Lev</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Entry</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Exit</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">PnL</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Settled</th>"
+            '<tr style="background:#0f172a;color:#ffffff;">'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Type</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Exchange</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Asset</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Option</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">Lev</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">Entry</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">Exit</th>'
+            '<th style="padding:10px;text-align:right;font-weight:600;">PnL</th>'
+            '<th style="padding:10px;text-align:left;font-weight:600;">Settled</th>'
             "</tr></thead><tbody>"
         )
         for idx, r in enumerate(rows):
             bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
             html += (
-                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
+                f'<tr style="background:{bg};border-bottom:1px solid #e2e8f0;">'
                 f"<td style=\"padding:10px;color:#0f172a;\">{r.get('asset_type','')}</td>"
                 f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
                 f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
@@ -347,8 +349,8 @@ def send_daily_recommendations_email(
         body = f"Latest simulation time: {sim_ts}\n\nNo BUY/SELL recommendations today.\n\n"
         html_body = (
             "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial, sans-serif;\">"
-            f"<div style=\"font-size:14px;color:#334155;\">⏱️ Latest simulation time: <b>{sim_ts}</b></div>"
-            "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📭 No BUY/SELL recommendations today</h2>"
+            f'<div style="font-size:14px;color:#334155;">⏱️ Latest simulation time: <b>{sim_ts}</b></div>'
+            '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">📭 No BUY/SELL recommendations today</h2>'
         )
 
         if no_action_entries:
@@ -361,8 +363,10 @@ def send_daily_recommendations_email(
             for exch, assets in exch_assets.items():
                 asset_list = ", ".join(sorted(set(assets)))
                 body += f"- {exch}: {asset_list}\n"
-            html_body += "<div style=\"margin-top:10px;font-size:13px;color:#334155;\"><b>No action</b> for:</div>"
-            html_body += "<ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
+            html_body += '<div style="margin-top:10px;font-size:13px;color:#334155;"><b>No action</b> for:</div>'
+            html_body += (
+                '<ul style="margin:6px 0 0 18px;color:#334155;font-size:13px;">'
+            )
             for exch, assets in exch_assets.items():
                 asset_list = ", ".join(sorted(set(assets)))
                 html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
@@ -376,7 +380,7 @@ def send_daily_recommendations_email(
             body += "\nBest strategy + signal frequency (per asset):\n"
             plain_tbl, html_tbl = _render_best_table(summary_rows)
             body += plain_tbl + "\n"
-            html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📊 Strategy + signal frequency</h2>"
+            html_body += '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">📊 Strategy + signal frequency</h2>'
             html_body += html_tbl
         html_body += "</div>"
 
@@ -400,7 +404,7 @@ def send_daily_recommendations_email(
         body = f"Latest simulation time: {sim_ts}\n\n"
         html_body = (
             "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Arial,sans-serif;\">"
-            f"<div style=\"font-size:14px;color:#334155;\">⏱️ Latest simulation time: <b>{sim_ts}</b></div>"
+            f'<div style="font-size:14px;color:#334155;">⏱️ Latest simulation time: <b>{sim_ts}</b></div>'
         )
 
         if i == 0:
@@ -417,7 +421,7 @@ def send_daily_recommendations_email(
                 plain_tbl, html_tbl = _render_best_table(summary_rows)
                 body += plain_tbl + "\n"
                 html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📊 Best strategy summary (per asset)</h2>"
+                    '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">📊 Best strategy summary (per asset)</h2>'
                     + html_tbl
                 )
 
@@ -439,11 +443,12 @@ def send_daily_recommendations_email(
                     "Sell %: Recommended proportion of current holdings of this asset to sell.\n"
                     "Option/Lev/Exp: Suggested option type, leverage, and max expiration horizon.\n\n"
                 )
-                html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
+                html_body += '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">🧭 Today\'s recommendations</h2>'
                 html_body += (
                     "<pre style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;"
-                    "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
-                    + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
+                    'font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;">'
+                    + f"{header}\n{sep}\n"
+                    + "\n".join(formatted_lines)
                     + "</pre>"
                 )
 
@@ -456,7 +461,7 @@ def send_daily_recommendations_email(
                 plain_tbl, html_tbl = _render_option_settlements(option_rows)
                 body += plain_tbl + "\n"
                 html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
+                    '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">🧾 Option settlements</h2>'
                     + html_tbl
                 )
 
@@ -471,7 +476,7 @@ def send_daily_recommendations_email(
                     asset_list = ", ".join(sorted(set(assets)))
                     body += f"- {exch}: {asset_list}\n"
 
-                html_body += "<div style=\"margin-top:12px;font-size:13px;color:#334155;\"><b>⚪ No action</b> for:</div><ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
+                html_body += '<div style="margin-top:12px;font-size:13px;color:#334155;"><b>⚪ No action</b> for:</div><ul style="margin:6px 0 0 18px;color:#334155;font-size:13px;">'
                 for exch, assets in exch_assets.items():
                     asset_list = ", ".join(sorted(set(assets)))
                     html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
@@ -491,7 +496,7 @@ def send_daily_recommendations_email(
                 plain_tbl, html_tbl = _render_best_table(summary_rows)
                 body += plain_tbl + "\n"
                 html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🪙 Best strategy summary (crypto)</h2>"
+                    '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">🪙 Best strategy summary (crypto)</h2>'
                     + html_tbl
                 )
 
@@ -513,11 +518,12 @@ def send_daily_recommendations_email(
                     "Sell %: Recommended proportion of current holdings of this asset to sell.\n"
                     "Option/Lev/Exp: Suggested option type, leverage, and max expiration horizon.\n\n"
                 )
-                html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
+                html_body += '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">🧭 Today\'s recommendations</h2>'
                 html_body += (
                     "<pre style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;"
-                    "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
-                    + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
+                    'font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;">'
+                    + f"{header}\n{sep}\n"
+                    + "\n".join(formatted_lines)
                     + "</pre>"
                 )
 
@@ -530,7 +536,7 @@ def send_daily_recommendations_email(
                 plain_tbl, html_tbl = _render_option_settlements(option_rows)
                 body += plain_tbl + "\n"
                 html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
+                    '<h2 style="margin:14px 0 6px 0;font-size:18px;color:#0f172a;">🧾 Option settlements</h2>'
                     + html_tbl
                 )
 
@@ -545,7 +551,7 @@ def send_daily_recommendations_email(
                     asset_list = ", ".join(sorted(set(assets)))
                     body += f"- {exch}: {asset_list}\n"
 
-                html_body += "<div style=\"margin-top:12px;font-size:13px;color:#334155;\"><b>⚪ No action</b> for:</div><ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
+                html_body += '<div style="margin-top:12px;font-size:13px;color:#334155;"><b>⚪ No action</b> for:</div><ul style="margin:6px 0 0 18px;color:#334155;font-size:13px;">'
                 for exch, assets in exch_assets.items():
                     asset_list = ", ".join(sorted(set(assets)))
                     html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
@@ -589,7 +595,9 @@ def main_defi():
         logger.info(f"Sending DEFI event client email to {to_emails}")
         DefiEventClient().run_and_email(to_emails, from_email, app_password, top_n=3)
     else:
-        logger.warning("DEFI event client email not sent: missing credentials in secret.ini")
+        logger.warning(
+            "DEFI event client email not sent: missing credentials in secret.ini"
+        )
 
 
 def fetch_historical_data_with_fallback(
@@ -612,6 +620,7 @@ def fetch_historical_data_with_fallback(
     Returns:
         tuple: (data_stream, source_exchange_name) or (None, None) if both fail
     """
+
     def validate_and_format_data(data_stream):
         """
         Validate and format data to ensure it matches the expected format for trader_driver.
@@ -627,16 +636,27 @@ def fetch_historical_data_with_fallback(
                 formatted_item = (item[0], item[1], item[2], item[3], item[4])
                 formatted_data.append(formatted_item)
             else:
-                logger.warning(f"Skipping data point with insufficient elements: {item}")
+                logger.warning(
+                    f"Skipping data point with insufficient elements: {item}"
+                )
                 
         return formatted_data if formatted_data else None
     
     # Try Binance first
-    binance_config = next((config for config in exchange_configs if config["name"] == ExchangeName.BINANCE), None)
+    binance_config = next(
+        (
+            config
+            for config in exchange_configs
+            if config["name"] == ExchangeName.BINANCE
+        ),
+        None,
+    )
     if binance_config:
         try:
             binance_symbol = binance_config["symbol_format"](asset)
-            logger.info(f"Attempting to fetch {asset} data from Binance using symbol: {binance_symbol}")
+            logger.info(
+                f"Attempting to fetch {asset} data from Binance using symbol: {binance_symbol}"
+            )
             data_stream = binance_client.get_historic_data(
                 binance_symbol,
                 interval_hours=interval_hours,
@@ -646,19 +666,32 @@ def fetch_historical_data_with_fallback(
             # Validate and format the data
             formatted_data = validate_and_format_data(data_stream)
             if formatted_data and len(formatted_data) >= 2:
-                logger.info(f"Successfully fetched {len(formatted_data)} data points from Binance for {asset}")
+                logger.info(
+                    f"Successfully fetched {len(formatted_data)} data points from Binance for {asset}"
+                )
                 return formatted_data, ExchangeName.BINANCE
             else:
-                logger.warning(f"Binance returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points")
+                logger.warning(
+                    f"Binance returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points"
+                )
         except Exception as e:
             logger.warning(f"Failed to fetch {asset} data from Binance: {e}")
     
     # Fall back to Coinbase
-    coinbase_config = next((config for config in exchange_configs if config["name"] == ExchangeName.COINBASE), None)
+    coinbase_config = next(
+        (
+            config
+            for config in exchange_configs
+            if config["name"] == ExchangeName.COINBASE
+        ),
+        None,
+    )
     if coinbase_config:
         try:
             coinbase_symbol = coinbase_config["symbol_format"](asset)
-            logger.info(f"Attempting to fetch {asset} data from Coinbase using symbol: {coinbase_symbol}")
+            logger.info(
+                f"Attempting to fetch {asset} data from Coinbase using symbol: {coinbase_symbol}"
+            )
             data_stream = coinbase_client.get_historic_data(
                 coinbase_symbol,
                 interval_hours=interval_hours,
@@ -668,10 +701,14 @@ def fetch_historical_data_with_fallback(
             # Validate and format the data
             formatted_data = validate_and_format_data(data_stream)
             if formatted_data and len(formatted_data) >= 2:
-                logger.info(f"Successfully fetched {len(formatted_data)} data points from Coinbase for {asset}")
+                logger.info(
+                    f"Successfully fetched {len(formatted_data)} data points from Coinbase for {asset}"
+                )
                 return formatted_data, ExchangeName.COINBASE
             else:
-                logger.warning(f"Coinbase returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points")
+                logger.warning(
+                    f"Coinbase returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points"
+                )
         except Exception as e:
             logger.warning(f"Failed to fetch {asset} data from Coinbase: {e}")
     
@@ -704,6 +741,7 @@ def fetch_intraday_data_with_fallback(
     Raises:
         None
     """
+
     def validate_and_format_data(data_stream):
         if not data_stream:
             return None
@@ -716,18 +754,27 @@ def fetch_intraday_data_with_fallback(
 
     def _fetch_from_exchange(exchange_name: ExchangeName):
         if exchange_name == ExchangeName.BINANCE:
-            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.BINANCE), None)
+            cfg = next(
+                (c for c in exchange_configs if c["name"] == ExchangeName.BINANCE), None
+            )
             if not cfg:
                 return None
             symbol = cfg["symbol_format"](asset)
-            data = binance_client.get_historic_data(symbol, interval_hours=interval_hours)
+            data = binance_client.get_historic_data(
+                symbol, interval_hours=interval_hours
+            )
             return validate_and_format_data(data)
         if exchange_name == ExchangeName.COINBASE:
-            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.COINBASE), None)
+            cfg = next(
+                (c for c in exchange_configs if c["name"] == ExchangeName.COINBASE),
+                None,
+            )
             if not cfg:
                 return None
             symbol = cfg["symbol_format"](asset)
-            data = coinbase_client.get_historic_data(symbol, interval_hours=interval_hours)
+            data = coinbase_client.get_historic_data(
+                symbol, interval_hours=interval_hours
+            )
             return validate_and_format_data(data)
         return None
 
@@ -743,7 +790,9 @@ def fetch_intraday_data_with_fallback(
     return _fetch_from_exchange(ExchangeName.COINBASE)
 
 
-def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = None) -> None:
+def _run_stock_simulation(
+    all_actions: list, best_summaries: Optional[list] = None
+) -> None:
     """
     Run stock simulation only (daily candles).
 
@@ -819,12 +868,36 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                 SIM_BUY_PCTS = BUY_PCTS
                 SIM_SELL_PCTS = SELL_PCTS
 
+            stock_strategies = stock_strategies_for_asset(stock)
+            if not stock_strategies:
+                logger.info(f"No enabled stock strategies are allowed for {stock}")
+                continue
+
+            btc_data_stream = None
+            if COIN_BTC_SMA200_DEFENSIVE_STRATEGY in stock_strategies:
+                context_symbol = COIN_BTC_SMA200_DEFENSIVE_PARAMETERS["context_symbol"]
+                btc_data_stream = stock_client.get_historic_data(
+                    context_symbol, start=start_date, end=end_date
+                )
+                if not btc_data_stream:
+                    logger.error(
+                        f"{COIN_BTC_SMA200_DEFENSIVE_STRATEGY} requires "
+                        f"{context_symbol} daily context data"
+                    )
+                    continue
+                logger.info(
+                    f"Retrieved {len(btc_data_stream)} {context_symbol} daily "
+                    f"context points for {stock}"
+                )
+
             trader_driver = TraderDriver(
                 name=stock,
                 init_amount=initial_stock_amount,
                 cur_coin=current_stock_amount,
                 # only test 1 strategy for debugging purposes
-                overall_stats=STOCK_STRATEGIES if DEBUG is not True else STOCK_STRATEGIES[:5],
+                overall_stats=(
+                    stock_strategies if DEBUG is not True else stock_strategies[:5]
+                ),
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -839,6 +912,7 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                 rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
                 kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
                 kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
+                btc_data_stream=btc_data_stream,
                 mode="normal",
             )
             trader_driver.feed_data(data_stream)
@@ -852,11 +926,17 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
             if best_summaries is not None:
                 # Signal frequency stats from the best trader's full trade history
                 th = getattr(best_t, "trade_history", []) or []
-                num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
-                num_sell = len([x for x in th if str(x.get("action", "")).upper() == "SELL"])
+                num_buy = len(
+                    [x for x in th if str(x.get("action", "")).upper() == "BUY"]
+                )
+                num_sell = len(
+                    [x for x in th if str(x.get("action", "")).upper() == "SELL"]
+                )
                 num_intervals = len(th)
                 signal_rate_pct = (
-                    100.0 * (num_buy + num_sell) / num_intervals if num_intervals > 0 else 0.0
+                    100.0 * (num_buy + num_sell) / num_intervals
+                    if num_intervals > 0
+                    else 0.0
                 )
                 # Time-based stats (more interpretable)
                 sig_dates = [
@@ -867,7 +947,11 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                 sig_dates_dt = []
                 for d0 in sig_dates:
                     try:
-                        dt0 = d0 if isinstance(d0, datetime) else datetime.fromisoformat(str(d0))
+                        dt0 = (
+                            d0
+                            if isinstance(d0, datetime)
+                            else datetime.fromisoformat(str(d0))
+                        )
                     except Exception:
                         dt0 = None
                     if dt0 is not None:
@@ -879,18 +963,31 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                     try:
                         d_start = th[0].get("date")
                         d_end = th[-1].get("date")
-                        dt_start = d_start if isinstance(d_start, datetime) else datetime.fromisoformat(str(d_start))
-                        dt_end = d_end if isinstance(d_end, datetime) else datetime.fromisoformat(str(d_end))
-                        span_days = max(0.0, (dt_end - dt_start).total_seconds() / 86400.0)
+                        dt_start = (
+                            d_start
+                            if isinstance(d_start, datetime)
+                            else datetime.fromisoformat(str(d_start))
+                        )
+                        dt_end = (
+                            d_end
+                            if isinstance(d_end, datetime)
+                            else datetime.fromisoformat(str(d_end))
+                        )
+                        span_days = max(
+                            0.0, (dt_end - dt_start).total_seconds() / 86400.0
+                        )
                     except Exception:
                         span_days = float(num_intervals)
 
                 num_signals = num_buy + num_sell
-                signals_per_30d = (num_signals / span_days * 30.0) if span_days > 0 else 0.0
+                signals_per_30d = (
+                    (num_signals / span_days * 30.0) if span_days > 0 else 0.0
+                )
                 avg_days_between = ""
                 if len(sig_dates_dt) >= 2:
                     deltas = [
-                        (sig_dates_dt[i] - sig_dates_dt[i - 1]).total_seconds() / 86400.0
+                        (sig_dates_dt[i] - sig_dates_dt[i - 1]).total_seconds()
+                        / 86400.0
                         for i in range(1, len(sig_dates_dt))
                     ]
                     avg_days_between = float(np.mean(deltas)) if deltas else ""
@@ -914,7 +1011,9 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                             dt0 = (
                                 d0
                                 if isinstance(d0, datetime)
-                                else datetime.fromisoformat(str(d0).replace("Z", "+00:00"))
+                                else datetime.fromisoformat(
+                                    str(d0).replace("Z", "+00:00")
+                                )
                             )
                         except Exception:
                             try:
@@ -968,9 +1067,11 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
                         "num_intervals": num_intervals,
                         "signal_rate_pct": round(signal_rate_pct, 2),
                         "signals_per_30d": round(signals_per_30d, 2),
-                        "avg_days_between_signals": round(avg_days_between, 2)
+                        "avg_days_between_signals": (
+                            round(avg_days_between, 2)
                         if isinstance(avg_days_between, (int, float))
-                        else "",
+                            else ""
+                        ),
                         "last_buy_date": _fmt_last_dt(last_buy_dt),
                         "last_sell_date": _fmt_last_dt(last_sell_dt),
                         "call_win_rate_pct": opt_stats.get("call_win_rate_pct", ""),
@@ -1013,9 +1114,7 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
 
             # Save visualizations for stock
             strategy_performance = trader_driver.get_all_strategy_performance()
-            dashboard_filename = (
-                f"app/visualization/plots/trading_dashboard_{stock}_STOCK_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-            )
+            dashboard_filename = f"app/visualization/plots/trading_dashboard_{stock}_STOCK_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
             create_comprehensive_dashboard(
                 trader_instance=best_t,
                 save_html=True,
@@ -1024,9 +1123,7 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
             )
 
             # Gather recommended action for email/log
-            action_line = (
-                f"{datetime.now()} | STOCK | {stock} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
-            )
+            action_line = f"{datetime.now()} | STOCK | {stock} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
             all_actions.append(action_line)
 
             # Log recommended action to log.txt
@@ -1102,7 +1199,9 @@ def main(asset: str = "all"):
         
         if isinstance(portfolio_result, tuple) and len(portfolio_result) == 2:
             coinbase_crypto_value, coinbase_stablecoin_value = portfolio_result
-            logger.info(f"Coinbase portfolio: crypto=${coinbase_crypto_value}, stable=${coinbase_stablecoin_value}")
+            logger.info(
+                f"Coinbase portfolio: crypto=${coinbase_crypto_value}, stable=${coinbase_stablecoin_value}"
+            )
         else:
             logger.error(f"Unexpected portfolio result format")
             coinbase_crypto_value, coinbase_stablecoin_value = 0.0, 0.0
@@ -1118,9 +1217,14 @@ def main(asset: str = "all"):
     try:
         logger.info("Getting portfolio value (Binance)...")
         binance_portfolio_result = binance_client.portfolio_value
-        if isinstance(binance_portfolio_result, tuple) and len(binance_portfolio_result) == 2:
+        if (
+            isinstance(binance_portfolio_result, tuple)
+            and len(binance_portfolio_result) == 2
+        ):
             binance_crypto_value, binance_stablecoin_value = binance_portfolio_result
-            logger.info(f"Binance portfolio: crypto=${binance_crypto_value}, stable=${binance_stablecoin_value}")
+            logger.info(
+                f"Binance portfolio: crypto=${binance_crypto_value}, stable=${binance_stablecoin_value}"
+            )
         else:
             logger.error(f"Unexpected Binance portfolio result format")
             binance_crypto_value, binance_stablecoin_value = 0.0, 0.0
@@ -1201,9 +1305,7 @@ def main(asset: str = "all"):
             continue
         simulated_assets.add(asset)
 
-        logger.info(
-            f"\n\n# --- Simulating for asset: {asset} --- #"
-        )
+        logger.info(f"\n\n# --- Simulating for asset: {asset} --- #")
         
         # Use fallback approach: try Binance first, then Coinbase
         data_stream, source_exchange = fetch_historical_data_with_fallback(
@@ -1216,7 +1318,9 @@ def main(asset: str = "all"):
         )
         
         if data_stream is None:
-            logger.error(f"Failed to fetch historical data for {asset} from both exchanges")
+            logger.error(
+                f"Failed to fetch historical data for {asset} from both exchanges"
+            )
             continue
             
         logger.info(f"Using data from {source_exchange.value} for {asset}")
@@ -1258,7 +1362,9 @@ def main(asset: str = "all"):
                 logger.warning(f"Intraday fetch failed for {asset}: {e}")
         
         # Use the source exchange for wallet and portfolio data
-        source_exchange_config = next((config for config in exchanges if config["name"] == source_exchange), None)
+        source_exchange_config = next(
+            (config for config in exchanges if config["name"] == source_exchange), None
+        )
         if not source_exchange_config:
             logger.error(f"Could not find configuration for {source_exchange.value}")
             continue
@@ -1272,7 +1378,9 @@ def main(asset: str = "all"):
                 if asset_name == asset:
                     if source_exchange_config["coin_value_key"]:
                         coin_amount = float(
-                            item[source_exchange_config["coin_key"]][source_exchange_config["coin_value_key"]]
+                            item[source_exchange_config["coin_key"]][
+                                source_exchange_config["coin_value_key"]
+                            ]
                         )
                     else:
                         coin_amount = float(item[source_exchange_config["coin_key"]])
@@ -1281,14 +1389,18 @@ def main(asset: str = "all"):
                 if asset_name == asset:
                     balance = getattr(item, source_exchange_config["coin_key"])
                     if source_exchange_config["coin_value_key"]:
-                        coin_amount = float(balance[source_exchange_config["coin_value_key"]])
+                        coin_amount = float(
+                            balance[source_exchange_config["coin_value_key"]]
+                        )
                     else:
                         coin_amount = float(balance)
         if coin_amount == 0.0:
             logger.warning(f"No {asset} found in {source_exchange.value} wallet.")
             # Set a default initial amount for simulation purposes
             sim_coin_amount = DEFAULT_SIMULATION_COIN_AMOUNT
-            logger.info(f"Using simulation amount of {sim_coin_amount} {asset} for testing")
+            logger.info(
+                f"Using simulation amount of {sim_coin_amount} {asset} for testing"
+            )
         else:
             sim_coin_amount = coin_amount
 
@@ -1307,7 +1419,9 @@ def main(asset: str = "all"):
                 continue
             
             if len(data_stream) < 200:
-                logger.error(f"Insufficient daily history for {asset}: {len(data_stream)} rows; SMA200 needs at least 200")
+                logger.error(
+                    f"Insufficient daily history for {asset}: {len(data_stream)} rows; SMA200 needs at least 200"
+                )
                 continue
             
             # The strategy was validated on daily candles. Use all fetched rows as one
@@ -1408,10 +1522,14 @@ def main(asset: str = "all"):
                 signal = best_t.trade_signal
             th = getattr(best_t, "trade_history", []) or []
             num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
-            num_sell = len([x for x in th if str(x.get("action", "")).upper() == "SELL"])
+            num_sell = len(
+                [x for x in th if str(x.get("action", "")).upper() == "SELL"]
+            )
             num_intervals = len(th)
             signal_rate_pct = (
-                100.0 * (num_buy + num_sell) / num_intervals if num_intervals > 0 else 0.0
+                100.0 * (num_buy + num_sell) / num_intervals
+                if num_intervals > 0
+                else 0.0
             )
 
             sig_dates = [
@@ -1422,7 +1540,11 @@ def main(asset: str = "all"):
             sig_dates_dt = []
             for d0 in sig_dates:
                 try:
-                    dt0 = d0 if isinstance(d0, datetime) else datetime.fromisoformat(str(d0))
+                    dt0 = (
+                        d0
+                        if isinstance(d0, datetime)
+                        else datetime.fromisoformat(str(d0))
+                    )
                 except Exception:
                     dt0 = None
                 if dt0 is not None:
@@ -1434,8 +1556,16 @@ def main(asset: str = "all"):
                 try:
                     d_start = th[0].get("date")
                     d_end = th[-1].get("date")
-                    dt_start = d_start if isinstance(d_start, datetime) else datetime.fromisoformat(str(d_start))
-                    dt_end = d_end if isinstance(d_end, datetime) else datetime.fromisoformat(str(d_end))
+                    dt_start = (
+                        d_start
+                        if isinstance(d_start, datetime)
+                        else datetime.fromisoformat(str(d_start))
+                    )
+                    dt_end = (
+                        d_end
+                        if isinstance(d_end, datetime)
+                        else datetime.fromisoformat(str(d_end))
+                    )
                     span_days = max(0.0, (dt_end - dt_start).total_seconds() / 86400.0)
                 except Exception:
                     span_days = float(num_intervals)
@@ -1523,9 +1653,11 @@ def main(asset: str = "all"):
                     "num_intervals": num_intervals,
                     "signal_rate_pct": round(signal_rate_pct, 2),
                     "signals_per_30d": round(signals_per_30d, 2),
-                    "avg_days_between_signals": round(avg_days_between, 2)
+                    "avg_days_between_signals": (
+                        round(avg_days_between, 2)
                     if isinstance(avg_days_between, (int, float))
-                    else "",
+                        else ""
+                    ),
                     "last_buy_date": _fmt_last_dt(last_buy_dt),
                     "last_sell_date": _fmt_last_dt(last_sell_dt),
                     "call_win_rate_pct": opt_stats.get("call_win_rate_pct", ""),
@@ -1583,12 +1715,16 @@ def main(asset: str = "all"):
                 )
                 create_moving_window_signals_report(
                     asset_name=asset,
-                    window_chart_data=moving_window_results.get("window_chart_data", []),
+                    window_chart_data=moving_window_results.get(
+                        "window_chart_data", []
+                    ),
                     filename=window_report_filename,
                     title=f"Moving Window Buy/Sell Signal Report - {asset} ({source_exchange.value})",
                 )
             except Exception as e:
-                logger.error(f"Failed to create moving window signals report for {asset}: {e}")
+                logger.error(
+                    f"Failed to create moving window signals report for {asset}: {e}"
+                )
 
             # Gather recommended action for email/log
             action_line = f"{datetime.now()} | {source_exchange.value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
@@ -1610,10 +1746,17 @@ def main(asset: str = "all"):
     # after
     try:
         portfolio_result_after = coinbase_client.portfolio_value
-        if isinstance(portfolio_result_after, tuple) and len(portfolio_result_after) == 2:
-            coinbase_crypto_value_after, coinbase_stablecoin_value_after = portfolio_result_after
+        if (
+            isinstance(portfolio_result_after, tuple)
+            and len(portfolio_result_after) == 2
+        ):
+            coinbase_crypto_value_after, coinbase_stablecoin_value_after = (
+                portfolio_result_after
+            )
         else:
-            logger.error(f"Unexpected portfolio result format after: {portfolio_result_after}")
+            logger.error(
+                f"Unexpected portfolio result format after: {portfolio_result_after}"
+            )
             coinbase_crypto_value_after, coinbase_stablecoin_value_after = 0.0, 0.0
     except Exception as e:
         logger.error(f"Error getting portfolio value after: {e}")
@@ -1627,10 +1770,17 @@ def main(asset: str = "all"):
 
     try:
         binance_portfolio_result_after = binance_client.portfolio_value
-        if isinstance(binance_portfolio_result_after, tuple) and len(binance_portfolio_result_after) == 2:
-            binance_crypto_value_after, binance_stablecoin_value_after = binance_portfolio_result_after
+        if (
+            isinstance(binance_portfolio_result_after, tuple)
+            and len(binance_portfolio_result_after) == 2
+        ):
+            binance_crypto_value_after, binance_stablecoin_value_after = (
+                binance_portfolio_result_after
+            )
         else:
-            logger.error(f"Unexpected Binance portfolio result format after: {binance_portfolio_result_after}")
+            logger.error(
+                f"Unexpected Binance portfolio result format after: {binance_portfolio_result_after}"
+            )
             binance_crypto_value_after, binance_stablecoin_value_after = 0.0, 0.0
     except Exception as e:
         logger.error(f"Error getting Binance portfolio value after: {e}")
@@ -1657,13 +1807,25 @@ def main(asset: str = "all"):
     # Send DEFI report email based on configuration
     if DEFI_MONITORING_ENABLED:
         current_day = datetime.now().weekday()  # Monday=0, Sunday=6
-        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        day_names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         
         if current_day in DEFI_MONITORING_DAYS:
-            logger.info(f"DEFI monitoring day detected ({day_names[current_day]}) - running DEFI monitoring")
+            logger.info(
+                f"DEFI monitoring day detected ({day_names[current_day]}) - running DEFI monitoring"
+            )
             main_defi()
         else:
-            logger.info(f"DEFI monitoring skipped - today is {day_names[current_day]} (runs on: {[day_names[d] for d in DEFI_MONITORING_DAYS]})")
+            logger.info(
+                f"DEFI monitoring skipped - today is {day_names[current_day]} (runs on: {[day_names[d] for d in DEFI_MONITORING_DAYS]})"
+            )
     else:
         logger.info("DEFI monitoring disabled in configuration")
 

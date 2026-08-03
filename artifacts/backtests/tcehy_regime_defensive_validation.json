@@ -1,0 +1,140 @@
+{
+  "configuration": {
+    "strategy": "TCEHY-REGIME-DEFENSIVE",
+    "asset": "TCEHY",
+    "parameters": {
+      "trend_ma_days": 200,
+      "trend_slope_days": 20,
+      "range_ma_days": 20,
+      "range_sigma": 2.0
+    },
+    "data_start": "2023-08-04",
+    "data_end": "2026-07-31",
+    "data_rows": 750,
+    "full_start": "2023-08-07",
+    "regime_start": "2024-06-20",
+    "train_end": "2025-01-16",
+    "validation_end": "2025-05-28",
+    "purge_days": 7,
+    "test_start": "2025-06-09",
+    "execution_friction_rate": 0.02,
+    "slippage_bps": 10.0,
+    "execution": "prior daily close signal, next daily open fill"
+  },
+  "train": {
+    "start": "2024-06-20",
+    "end": "2025-01-16",
+    "strategy": {
+      "return": -3.541708827373624,
+      "max_drawdown": 24.87569731857635,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0
+    },
+    "buy_and_hold": {
+      "return": -3.541708827373624,
+      "max_drawdown": 24.87569731857635,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0
+    },
+    "excess_return": 0.0
+  },
+  "validation": {
+    "start": "2025-01-17",
+    "end": "2025-05-28",
+    "strategy": {
+      "return": 29.491621729467067,
+      "max_drawdown": 22.639341683346615,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0
+    },
+    "buy_and_hold": {
+      "return": 29.491621729467067,
+      "max_drawdown": 22.639341683346615,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0
+    },
+    "excess_return": 0.0
+  },
+  "test": {
+    "start": "2025-06-09",
+    "end": "2026-07-31",
+    "strategy": {
+      "return": 3.388199697360328,
+      "max_drawdown": 26.588800369084574,
+      "transactions": 2,
+      "turnover": 2.0,
+      "mean_exposure": 0.65625
+    },
+    "buy_and_hold": {
+      "return": -7.420739190191705,
+      "max_drawdown": 38.231726071370495,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0
+    },
+    "excess_return": 10.808938887552033
+  },
+  "full": {
+    "start": "2023-08-07",
+    "end": "2026-07-31",
+    "strategy": {
+      "return": 58.69441281884542,
+      "max_drawdown": 26.588800369084574,
+      "transactions": 2,
+      "turnover": 2.0,
+      "mean_exposure": 0.8678237650200267
+    },
+    "buy_and_hold": {
+      "return": 42.10336843490252,
+      "max_drawdown": 38.231726071370495,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0
+    },
+    "excess_return": 16.5910443839429
+  },
+  "registered_runtime": {
+    "return": 58.694,
+    "max_drawdown": 26.590000000000003,
+    "transactions": 2,
+    "final_value": 15869.441281884541,
+    "parameters": {
+      "buy_pct": 1.0,
+      "sell_pct": 1.0,
+      "tol_pct": 0.0,
+      "bollinger_sigma": 2.0,
+      "regime_trend_ma_days": 200,
+      "regime_trend_slope_days": 20,
+      "regime_range_ma_days": 20,
+      "regime_range_sigma": 2.0,
+      "buy": [
+        "by_percentage",
+        "fixed_amount",
+        "market_order"
+      ],
+      "sell": [
+        "by_percentage",
+        "stop_loss",
+        "take_profit"
+      ]
+    },
+    "trades": [
+      {
+        "date": "2023-08-07 00:00:00",
+        "action": "BUY",
+        "price": 42.36451321465366
+      },
+      {
+        "date": "2026-03-11 00:00:00",
+        "action": "SELL",
+        "price": 70.00220271715618
+      }
+    ],
+    "excess_return": 16.590631565097482
+  },
+  "passes_profit_gate": true
+}

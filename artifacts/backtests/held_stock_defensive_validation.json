@@ -1,0 +1,313 @@
+{
+  "COIN": {
+    "configuration": {
+      "asset": "COIN",
+      "strategy": "COIN-BTC-SMA200-DEFENSIVE",
+      "data_start": "2023-08-04",
+      "data_end": "2026-07-31",
+      "data_rows": 750,
+      "execution_friction_rate": 0.02,
+      "slippage_bps": 10.0,
+      "execution": "prior close signal, next stock-session open fill"
+    },
+    "selection": {
+      "start": "2023-08-07",
+      "end": "2025-05-28",
+      "strategy": {
+        "return": 143.1711458471512,
+        "max_drawdown": 47.84063841616237,
+        "transactions": 5,
+        "turnover": 5.0,
+        "mean_exposure": 0.8215859030837004
+      },
+      "buy_and_hold": {
+        "return": 185.49913634744283,
+        "max_drawdown": 55.91932851024979,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": -42.327990500291634
+    },
+    "validation": {
+      "start": "2025-01-17",
+      "end": "2025-05-28",
+      "strategy": {
+        "return": -17.444663830958305,
+        "max_drawdown": 40.514436445748295,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.6666666666666666
+      },
+      "buy_and_hold": {
+        "return": -14.741356786908232,
+        "max_drawdown": 49.72784355876503,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": -2.7033070440500726
+    },
+    "test": {
+      "start": "2025-06-09",
+      "end": "2026-07-31",
+      "strategy": {
+        "return": 18.657306493199478,
+        "max_drawdown": 29.01281835701612,
+        "transactions": 2,
+        "turnover": 2.0,
+        "mean_exposure": 0.3645833333333333
+      },
+      "buy_and_hold": {
+        "return": -43.99139444473553,
+        "max_drawdown": 66.38953815137107,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": 62.64870093793501
+    },
+    "full": {
+      "start": "2023-08-07",
+      "end": "2026-07-31",
+      "strategy": {
+        "return": 196.31118763025452,
+        "max_drawdown": 47.84063841616237,
+        "transactions": 6,
+        "turnover": 6.0,
+        "mean_exposure": 0.6475300400534045
+      },
+      "buy_and_hold": {
+        "return": 64.21055966169054,
+        "max_drawdown": 66.38953815137106,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": 132.10062796856397
+    },
+    "registered_runtime": {
+      "return": 196.31118763025452,
+      "max_drawdown": 47.839999999999996,
+      "transactions": 6,
+      "final_value": 29631.118763025454,
+      "parameters": {
+        "buy_pct": 1.0,
+        "sell_pct": 1.0,
+        "tol_pct": 0.0,
+        "bollinger_sigma": 2,
+        "sma200_entry_band_pct": 0.05,
+        "sma200_exit_band_pct": 0.05,
+        "sma200_min_hold_days": 0,
+        "buy": [
+          "by_percentage",
+          "fixed_amount",
+          "market_order"
+        ],
+        "sell": [
+          "by_percentage",
+          "stop_loss",
+          "take_profit"
+        ]
+      },
+      "trades": [
+        {
+          "date": "2023-08-07 00:00:00",
+          "action": "BUY",
+          "price": 87.28719694519042
+        },
+        {
+          "date": "2024-08-06 00:00:00",
+          "action": "SELL",
+          "price": 191.7980154876709
+        },
+        {
+          "date": "2024-10-17 00:00:00",
+          "action": "BUY",
+          "price": 209.40919694519042
+        },
+        {
+          "date": "2025-03-12 00:00:00",
+          "action": "SELL",
+          "price": 195.2045939025879
+        },
+        {
+          "date": "2025-04-24 00:00:00",
+          "action": "BUY",
+          "price": 193.61341816711425
+        },
+        {
+          "date": "2025-11-06 00:00:00",
+          "action": "SELL",
+          "price": 316.1835
+        }
+      ],
+      "excess_return": 132.10062796856397
+    },
+    "runtime_matches_offline": true,
+    "passes_profit_gate": true
+  },
+  "MSFT": {
+    "configuration": {
+      "asset": "MSFT",
+      "strategy": "MSFT-20D-BREAKOUT-DEFENSIVE",
+      "data_start": "2023-08-04",
+      "data_end": "2026-07-31",
+      "data_rows": 750,
+      "execution_friction_rate": 0.02,
+      "slippage_bps": 10.0,
+      "execution": "prior close signal, next stock-session open fill"
+    },
+    "selection": {
+      "start": "2023-08-07",
+      "end": "2025-05-28",
+      "strategy": {
+        "return": 29.559497848643,
+        "max_drawdown": 21.273864246534412,
+        "transactions": 5,
+        "turnover": 5.0,
+        "mean_exposure": 0.8193832599118943
+      },
+      "buy_and_hold": {
+        "return": 38.48027352192875,
+        "max_drawdown": 23.72663816352071,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": -8.92077567328575
+    },
+    "validation": {
+      "start": "2025-01-17",
+      "end": "2025-05-28",
+      "strategy": {
+        "return": 3.1024524479609017,
+        "max_drawdown": 12.732076076643423,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.4666666666666667
+      },
+      "buy_and_hold": {
+        "return": 3.546858056122071,
+        "max_drawdown": 20.556591051916616,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": -0.44440560816116914
+    },
+    "test": {
+      "start": "2025-06-09",
+      "end": "2026-07-31",
+      "strategy": {
+        "return": 8.79122077831127,
+        "max_drawdown": 21.068944306416793,
+        "transactions": 5,
+        "turnover": 5.0,
+        "mean_exposure": 0.5659722222222222
+      },
+      "buy_and_hold": {
+        "return": -2.362207074108824,
+        "max_drawdown": 34.49839904946891,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": 11.153427852420094
+    },
+    "full": {
+      "start": "2023-08-07",
+      "end": "2026-07-31",
+      "strategy": {
+        "return": 47.85414038864195,
+        "max_drawdown": 21.273864246534412,
+        "transactions": 9,
+        "turnover": 9.0,
+        "mean_exposure": 0.7236315086782377
+      },
+      "buy_and_hold": {
+        "return": 41.83266095773703,
+        "max_drawdown": 34.4983990494689,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": 6.021479430904918
+    },
+    "registered_runtime": {
+      "return": 47.85414038864195,
+      "max_drawdown": 21.27,
+      "transactions": 9,
+      "final_value": 14785.414038864195,
+      "parameters": {
+        "buy_pct": 1.0,
+        "sell_pct": 1.0,
+        "tol_pct": 0.0,
+        "bollinger_sigma": 2,
+        "breakout_lookback_days": 20,
+        "breakout_trailing_stop_pct": 0.1,
+        "breakout_require_btc_regime": false,
+        "buy": [
+          "by_percentage",
+          "fixed_amount",
+          "market_order"
+        ],
+        "sell": [
+          "by_percentage",
+          "stop_loss",
+          "take_profit"
+        ]
+      },
+      "trades": [
+        {
+          "date": "2023-08-07 00:00:00",
+          "action": "BUY",
+          "price": 321.1006534891112
+        },
+        {
+          "date": "2024-07-26 00:00:00",
+          "action": "SELL",
+          "price": 411.3175964390361
+        },
+        {
+          "date": "2024-09-13 00:00:00",
+          "action": "BUY",
+          "price": 420.41690187691165
+        },
+        {
+          "date": "2025-02-18 00:00:00",
+          "action": "SELL",
+          "price": 402.81348967793093
+        },
+        {
+          "date": "2025-04-28 00:00:00",
+          "action": "BUY",
+          "price": 388.5295787501784
+        },
+        {
+          "date": "2025-11-20 00:00:00",
+          "action": "SELL",
+          "price": 490.03499971311265
+        },
+        {
+          "date": "2026-04-16 00:00:00",
+          "action": "BUY",
+          "price": 419.3715383082048
+        },
+        {
+          "date": "2026-06-09 00:00:00",
+          "action": "SELL",
+          "price": 408.62096878051756
+        },
+        {
+          "date": "2026-07-17 00:00:00",
+          "action": "BUY",
+          "price": 395.254845336914
+        }
+      ],
+      "excess_return": 6.021479430904918
+    },
+    "runtime_matches_offline": true,
+    "passes_profit_gate": true
+  }
+}
