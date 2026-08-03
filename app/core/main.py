@@ -1214,6 +1214,23 @@ def main(asset: str = "all"):
             
         logger.info(f"Using data from {source_exchange.value} for {asset}")
 
+        btc_data_stream = None
+        if SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY in asset_strategies:
+            btc_data_stream, btc_source_exchange = fetch_historical_data_with_fallback(
+                "BTC",
+                binance_client,
+                coinbase_client,
+                EXCHANGE_CONFIGS,
+                interval_hours=CRYPTO_SIGNAL_INTERVAL_HOURS,
+                lookback_days=CRYPTO_SIGNAL_LOOKBACK_DAYS,
+            )
+            if not btc_data_stream:
+                logger.error("SOL defensive strategy requires aligned BTC daily data")
+                continue
+            logger.info(
+                f"Using BTC regime data from {btc_source_exchange.value} for SOL"
+            )
+
         intraday_stream = None
         if "MA-BOLL-BANDS" in asset_strategies and MA_BOLL_ZOOM_IN:
             try:
@@ -1331,6 +1348,7 @@ def main(asset: str = "all"):
                 execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
                 slippage_bps=CRYPTO_SLIPPAGE_BPS,
                 enable_options=False,
+                btc_data_stream=btc_data_stream,
             )
             
             # Get aggregated metrics for best strategy
@@ -1367,6 +1385,7 @@ def main(asset: str = "all"):
                 execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
                 slippage_bps=CRYPTO_SLIPPAGE_BPS,
                 enable_options=False,
+                btc_data_stream=btc_data_stream,
             )
             trader_driver.feed_data(
                 data_stream,
