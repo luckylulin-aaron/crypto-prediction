@@ -7,7 +7,15 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL, STRATEGIES, SUPPORTED_STRATEGIES
+from app.core.config import (
+    BTC_SMA200_DEFENSIVE_STRATEGY,
+    BUY_SIGNAL,
+    NO_ACTION_SIGNAL,
+    SELL_SIGNAL,
+    STRATEGIES,
+    SUPPORTED_STRATEGIES,
+    is_crypto_strategy_allowed_for_asset,
+)
 from app.core.logger import get_logger
 
 # IMPORTANT:
@@ -361,9 +369,9 @@ def strategy_sma200(
     entry_band_pct: float = 0.0,
     exit_band_pct: float = 0.0,
     min_hold_days: int = 0,
+    strat_name: str = "SMA200",
 ) -> Tuple[bool, bool]:
     """Hold above SMA200 with optional hysteresis bands and a minimum holding period."""
-    strat_name = "SMA200"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
 
     sma_values = getattr(trader, "moving_averages", {}).get("200", [])
@@ -409,6 +417,33 @@ def strategy_sma200(
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
 
     return r_buy, r_sell
+
+
+def strategy_btc_sma200_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    entry_band_pct: float = 0.05,
+    exit_band_pct: float = 0.05,
+    min_hold_days: int = 0,
+) -> Tuple[bool, bool]:
+    """Trade the fixed defensive SMA200 rule and reject every non-BTC asset."""
+    if not is_crypto_strategy_allowed_for_asset(
+        BTC_SMA200_DEFENSIVE_STRATEGY, trader.crypto_name
+    ):
+        raise ValueError(
+            f"{BTC_SMA200_DEFENSIVE_STRATEGY} is restricted to BTC; "
+            f"received {trader.crypto_name}"
+        )
+    return strategy_sma200(
+        trader=trader,
+        new_p=new_p,
+        today=today,
+        entry_band_pct=entry_band_pct,
+        exit_band_pct=exit_band_pct,
+        min_hold_days=min_hold_days,
+        strat_name=BTC_SMA200_DEFENSIVE_STRATEGY,
+    )
 
 
 def strategy_double_moving_averages(
@@ -4308,6 +4343,7 @@ def strategy_adaptive_ma_selves_macro_enhanced(
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "ECONOMIC-INDICATORS": EconomicIndicatorsStrategy,
+    BTC_SMA200_DEFENSIVE_STRATEGY: strategy_btc_sma200_defensive,
     "SMA200": strategy_sma200,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "MA-SELVES-MACRO": strategy_ma_selves_macro_enhanced,

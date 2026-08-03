@@ -592,7 +592,14 @@ def main_defi():
         logger.warning("DEFI event client email not sent: missing credentials in secret.ini")
 
 
-def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClient, coinbase_client: CBProClient, exchange_configs: list):
+def fetch_historical_data_with_fallback(
+    asset: str,
+    binance_client: BinanceClient,
+    coinbase_client: CBProClient,
+    exchange_configs: list,
+    interval_hours: int = DATA_INTERVAL_HOURS,
+    lookback_days: int = TIMESPAN,
+):
     """
     Fetch historical data for an asset, trying Binance first, then falling back to Coinbase.
     
@@ -630,7 +637,11 @@ def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClien
         try:
             binance_symbol = binance_config["symbol_format"](asset)
             logger.info(f"Attempting to fetch {asset} data from Binance using symbol: {binance_symbol}")
-            data_stream = binance_client.get_historic_data(binance_symbol)
+            data_stream = binance_client.get_historic_data(
+                binance_symbol,
+                interval_hours=interval_hours,
+                lookback_days=lookback_days,
+            )
             
             # Validate and format the data
             formatted_data = validate_and_format_data(data_stream)
@@ -648,7 +659,11 @@ def fetch_historical_data_with_fallback(asset: str, binance_client: BinanceClien
         try:
             coinbase_symbol = coinbase_config["symbol_format"](asset)
             logger.info(f"Attempting to fetch {asset} data from Coinbase using symbol: {coinbase_symbol}")
-            data_stream = coinbase_client.get_historic_data(coinbase_symbol)
+            data_stream = coinbase_client.get_historic_data(
+                coinbase_symbol,
+                interval_hours=interval_hours,
+                lookback_days=lookback_days,
+            )
             
             # Validate and format the data
             formatted_data = validate_and_format_data(data_stream)
@@ -822,9 +837,9 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
             trader_driver.feed_data(data_stream)
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
-            # For crypto (6h candles), avoid missing a recent actionable signal by looking back 24 hours.
+            # Daily-close signals execute on the next daily open; inspect the latest two days.
             try:
-                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=24)
+                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=48)
             except Exception:
                 signal = best_t.trade_signal
             if best_summaries is not None:
@@ -1165,8 +1180,14 @@ def main(asset: str = "all"):
             v_c=exchange["crypto_value"], v_s=exchange["stablecoin_value"], before=True
         )
 
-    asset_list = CURS[:1] if DEBUG else CURS # only test 1 asset for debugging purposes
+    configured_assets = CURS[:1] if DEBUG else CURS
+    asset_list = [
+        candidate
+        for candidate in configured_assets
+        if crypto_strategies_for_asset(candidate)
+    ]
     for asset in asset_list:
+        asset_strategies = crypto_strategies_for_asset(asset)
         # Only simulate each asset once, regardless of exchange
         if asset in simulated_assets:
             logger.info(f"Skipping duplicate simulation for asset: {asset}")
@@ -1179,7 +1200,12 @@ def main(asset: str = "all"):
         
         # Use fallback approach: try Binance first, then Coinbase
         data_stream, source_exchange = fetch_historical_data_with_fallback(
-            asset, binance_client, coinbase_client, EXCHANGE_CONFIGS
+            asset,
+            binance_client,
+            coinbase_client,
+            EXCHANGE_CONFIGS,
+            interval_hours=CRYPTO_SIGNAL_INTERVAL_HOURS,
+            lookback_days=CRYPTO_SIGNAL_LOOKBACK_DAYS,
         )
         
         if data_stream is None:
@@ -1189,7 +1215,7 @@ def main(asset: str = "all"):
         logger.info(f"Using data from {source_exchange.value} for {asset}")
 
         intraday_stream = None
-        if MA_BOLL_ZOOM_IN:
+        if "MA-BOLL-BANDS" in asset_strategies and MA_BOLL_ZOOM_IN:
             try:
                 intraday_stream = fetch_intraday_data_with_fallback(
                     asset=asset,
@@ -1256,22 +1282,22 @@ def main(asset: str = "all"):
                 logger.error(f"No historical data available for {asset}")
                 continue
             
-            if len(data_stream) < 2:
-                logger.error(f"Insufficient historical data for {asset}: only {len(data_stream)} data points available")
+            if len(data_stream) < 200:
+                logger.error(f"Insufficient daily history for {asset}: {len(data_stream)} rows; SMA200 needs at least 200")
                 continue
             
-            # Convert window size from days to data points based on DATA_INTERVAL_HOURS
-            # Data points per day = 24 hours / DATA_INTERVAL_HOURS
-            data_points_per_day = 24 / DATA_INTERVAL_HOURS
-            window_size_data_points = int(MOVING_WINDOW_DAYS * data_points_per_day)
-            step_size_data_points = int(MOVING_WINDOW_STEP * data_points_per_day)
+            # The strategy was validated on daily candles. Use all fetched rows as one
+            # evaluation window so SMA200 receives a complete warmup period.
+            data_points_per_day = 24 / CRYPTO_SIGNAL_INTERVAL_HOURS
+            window_size_data_points = len(data_stream)
+            step_size_data_points = len(data_stream)
             
             logger.info(
                 f"Starting moving window simulation for {asset} using {source_exchange.value} data "
-                f"with {len(data_stream)} data points (window size: {MOVING_WINDOW_DAYS} days = {window_size_data_points} data points, step: {MOVING_WINDOW_STEP} days = {step_size_data_points} data points)"
+                f"with {len(data_stream)} daily data points (single full-history evaluation window)"
             )
             logger.info(
-                f"Data interval configuration: {DATA_INTERVAL_HOURS}h intervals, "
+                f"Data interval configuration: {CRYPTO_SIGNAL_INTERVAL_HOURS}h intervals, "
                 f"~{data_points_per_day:.2f} data points per day, "
                 f"total data span covers ~{len(data_stream) / data_points_per_day:.1f} days"
             )
@@ -1286,7 +1312,7 @@ def main(asset: str = "all"):
                 init_amount=source_exchange_config["stablecoin_value"],
                 cur_coin=sim_coin_amount,
                 # only test 1 strategy for debugging purposes
-                overall_stats=CRYPTO_STRATEGIES if DEBUG is not True else CRYPTO_STRATEGIES[:5],
+                overall_stats=asset_strategies,
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -1302,6 +1328,9 @@ def main(asset: str = "all"):
                 kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
                 kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
                 mode="normal",
+                execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
+                slippage_bps=CRYPTO_SLIPPAGE_BPS,
+                enable_options=False,
             )
             
             # Get aggregated metrics for best strategy
@@ -1316,7 +1345,7 @@ def main(asset: str = "all"):
                 init_amount=source_exchange_config["stablecoin_value"],
                 cur_coin=sim_coin_amount,
                 # only test 1 strategy for debugging purposes
-                overall_stats=CRYPTO_STRATEGIES if DEBUG is not True else CRYPTO_STRATEGIES[:5],
+                overall_stats=asset_strategies,
                 tol_pcts=TOL_PCTS,
                 ma_lengths=MA_LENGTHS,
                 ema_lengths=EMA_LENGTHS,
@@ -1335,6 +1364,9 @@ def main(asset: str = "all"):
                 zoom_in_min_move_pct=MA_BOLL_ZOOM_IN_MIN_MOVE_PCT,
                 ma_boll_simplify=MA_BOLL_SIMPLIFY,
                 mode="normal",
+                execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
+                slippage_bps=CRYPTO_SLIPPAGE_BPS,
+                enable_options=False,
             )
             trader_driver.feed_data(
                 data_stream,
@@ -1343,9 +1375,9 @@ def main(asset: str = "all"):
             )
             best_info = trader_driver.best_trader_info
             best_t = trader_driver.traders[best_info["trader_index"]]
-            # For crypto (6h candles), avoid missing a recent actionable signal by looking back 24 hours.
+            # Daily-close signals execute on the next daily open; inspect the latest two days.
             try:
-                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=24)
+                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=48)
             except Exception:
                 signal = best_t.trade_signal
             th = getattr(best_t, "trade_history", []) or []

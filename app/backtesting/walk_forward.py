@@ -13,6 +13,7 @@ from typing import Any, Iterable, Sequence
 from sqlalchemy import select
 
 from app.core.config import (
+    BTC_SMA200_DEFENSIVE_STRATEGY,
     BOLLINGER_MAS,
     BOLLINGER_TOLS,
     BUY_PCTS,
@@ -29,6 +30,7 @@ from app.core.config import (
     SELL_PCTS,
     SELL_STAS,
     TOL_PCTS,
+    crypto_strategies_for_asset,
 )
 from app.db.database import HistoricalData, SessionLocal
 from app.trading.trader_driver import TraderDriver
@@ -233,7 +235,8 @@ def _driver_kwargs(
                     "min_hold_days": candidate.sma200_min_hold_days,
                 }
             ]
-            if candidate and candidate.strategy == "SMA200"
+            if candidate
+            and candidate.strategy in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY}
             else None
         ),
     }
@@ -280,7 +283,7 @@ def run_symbol_walk_forward(
     test_days: int = 30,
     purge_days: int = 7,
     top_k: int = 10,
-    warmup_days: int = 35,
+    warmup_days: int = 200,
     slippage_bps: float = 10.0,
     max_folds: int | None = None,
 ) -> dict[str, Any]:
@@ -311,9 +314,7 @@ def run_symbol_walk_forward(
             ) : fold.validation_start
         ]
         test_warmup = data[
-            max(
-                fold.validation_end - warmup_days, fold.validation_start
-            ) : fold.test_start
+            max(fold.test_start - warmup_days, fold.train_start) : fold.test_start
         ]
 
         training_candidates = _train_candidates(symbol, train_data, top_k, slippage_bps)
@@ -399,13 +400,17 @@ def run_symbol_walk_forward(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Strict daily walk-forward backtest")
-    parser.add_argument("--symbols", nargs="+", default=CURS)
+    parser.add_argument(
+        "--symbols",
+        nargs="+",
+        default=[symbol for symbol in CURS if crypto_strategies_for_asset(symbol)],
+    )
     parser.add_argument("--train-days", type=int, default=365)
     parser.add_argument("--validation-days", type=int, default=90)
     parser.add_argument("--test-days", type=int, default=30)
     parser.add_argument("--purge-days", type=int, default=7)
     parser.add_argument("--top-k", type=int, default=10)
-    parser.add_argument("--warmup-days", type=int, default=35)
+    parser.add_argument("--warmup-days", type=int, default=200)
     parser.add_argument("--slippage-bps", type=float, default=10.0)
     parser.add_argument("--max-folds", type=int)
     parser.add_argument("--output", type=Path)

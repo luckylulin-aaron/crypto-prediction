@@ -3,10 +3,13 @@ from datetime import datetime, timedelta
 import pytest
 
 from app.core.config import (
+    BTC_SMA200_DEFENSIVE_STRATEGY,
     BUY_SIGNAL,
+    CRYPTO_STRATEGIES,
     SELL_SIGNAL,
     SMA200_VARIANTS,
     SUPPORTED_STRATEGIES,
+    crypto_strategies_for_asset,
 )
 from app.trading.strat_trader import StratTrader
 from app.trading.strategies import STRATEGY_REGISTRY
@@ -148,3 +151,72 @@ def test_sma200_signal_executes_at_next_open_when_enabled():
         item for item in trader.trade_history if item["action"] == BUY_SIGNAL
     )
     assert buy_trade["price"] == pytest.approx(105.105)
+
+
+def test_btc_defensive_is_the_only_enabled_crypto_strategy():
+    assert CRYPTO_STRATEGIES == [BTC_SMA200_DEFENSIVE_STRATEGY]
+    assert crypto_strategies_for_asset("BTC") == [BTC_SMA200_DEFENSIVE_STRATEGY]
+    assert crypto_strategies_for_asset("ETH") == []
+    assert BTC_SMA200_DEFENSIVE_STRATEGY in SUPPORTED_STRATEGIES
+    assert STRATEGY_REGISTRY[BTC_SMA200_DEFENSIVE_STRATEGY] is not None
+
+
+def test_btc_defensive_forces_fixed_execution_configuration():
+    trader = _trader(
+        stat=BTC_SMA200_DEFENSIVE_STRATEGY,
+        sma200_entry_band_pct=0.0,
+        sma200_exit_band_pct=0.0,
+        execute_on_next_open=False,
+        slippage_bps=0.0,
+    )
+
+    assert trader.high_strategy == BTC_SMA200_DEFENSIVE_STRATEGY
+    assert trader.sma200_entry_band_pct == pytest.approx(0.05)
+    assert trader.sma200_exit_band_pct == pytest.approx(0.05)
+    assert trader.buy_pct == 1.0
+    assert trader.sell_pct == 1.0
+    assert trader.brokerage_pct == pytest.approx(0.02)
+    assert trader.execute_on_next_open is True
+    assert trader.slippage_bps == pytest.approx(10.0)
+    assert "200" in trader.moving_averages
+
+
+def test_btc_defensive_rejects_non_btc_assets_at_construction():
+    with pytest.raises(ValueError, match="restricted to BTC"):
+        _trader(name="ETH", stat=BTC_SMA200_DEFENSIVE_STRATEGY)
+
+
+def test_btc_defensive_signal_executes_on_next_daily_open():
+    trader = _trader(stat=BTC_SMA200_DEFENSIVE_STRATEGY)
+    for index in range(199):
+        _add_day(trader, index, 100, execute_strategy=False)
+
+    _add_day(trader, 199, 110)
+    assert trader.cur_coin == 0
+    assert trader.pending_order["action"] == BUY_SIGNAL
+
+    _add_day(trader, 200, 110, open_price=105)
+    expected_quantity = 10_000 * 0.98 / 105.105
+    assert trader.cur_coin == pytest.approx(expected_quantity)
+    assert trader.strat_dct[BTC_SMA200_DEFENSIVE_STRATEGY][-1][1] in {
+        BUY_SIGNAL,
+        "NO ACTION",
+    }
+
+
+def test_driver_rejects_btc_defensive_for_eth():
+    kwargs = {
+        "name": "ETH",
+        "init_amount": 10_000,
+        "cur_coin": 0.0,
+        "overall_stats": [BTC_SMA200_DEFENSIVE_STRATEGY],
+        "tol_pcts": [0.1],
+        "ma_lengths": [6, 12, 30],
+        "ema_lengths": [6, 12, 26, 30],
+        "bollinger_mas": [6, 12],
+        "bollinger_tols": [2],
+        "buy_pcts": [1.0],
+        "sell_pcts": [1.0],
+    }
+    with pytest.raises(ValueError, match="restricted to BTC"):
+        TraderDriver(**kwargs)
