@@ -571,11 +571,11 @@ poetry run python app/db/db_management.py stats
 
 # Example output:
 # === Database Statistics ===
-# Symbol         Records    Last Updated
-# --------------------------------------------------
-# BTC-USD        90         2024-01-15 14:30:00
-# ETH-USD        90         2024-01-15 14:30:00
-# SOL-USD        90         2024-01-15 14:30:00
+# Symbol               Records    First Date   Last Date
+# ----------------------------------------------------------
+# BTCUSDT__1d           1095       2023-08-04   2026-08-02
+# ETHUSDT__1d           1095       2023-08-04   2026-08-02
+# SOLUSDT__1d           1095       2023-08-04   2026-08-02
 # 
 # Total symbols: 3
 ```

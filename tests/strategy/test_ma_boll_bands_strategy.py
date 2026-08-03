@@ -25,8 +25,10 @@ def create_mock_trader():
 
     trader.strat_dct = {"MA-BOLL-BANDS": []}
     trader.moving_averages = {"6": []}
+    trader.crypto_prices = []
     trader.cash = 10000.0
     trader.cur_coin = 0.0
+    trader.portfolio_value = 10000.0
 
     return trader
 

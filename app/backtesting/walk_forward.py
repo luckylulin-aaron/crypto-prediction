@@ -61,6 +61,9 @@ class Candidate:
     rsi_overbought: float | None = None
     kdj_oversold: float | None = None
     kdj_overbought: float | None = None
+    sma200_entry_band_pct: float = 0.0
+    sma200_exit_band_pct: float = 0.0
+    sma200_min_hold_days: int = 0
 
 
 def build_walk_forward_folds(
@@ -152,6 +155,13 @@ def _candidate_from_trader(trader: Any) -> Candidate:
         rsi_overbought=getattr(trader, "rsi_overbought", None),
         kdj_oversold=getattr(trader, "kdj_oversold", None),
         kdj_overbought=getattr(trader, "kdj_overbought", None),
+        sma200_entry_band_pct=float(
+            getattr(trader, "sma200_entry_band_pct", 0.0)
+        ),
+        sma200_exit_band_pct=float(
+            getattr(trader, "sma200_exit_band_pct", 0.0)
+        ),
+        sma200_min_hold_days=int(getattr(trader, "sma200_min_hold_days", 0)),
     )
 
 
@@ -215,6 +225,17 @@ def _driver_kwargs(
         "execute_on_next_open": True,
         "slippage_bps": slippage_bps,
         "enable_options": False,
+        "sma200_variants": (
+            [
+                {
+                    "entry_band_pct": candidate.sma200_entry_band_pct,
+                    "exit_band_pct": candidate.sma200_exit_band_pct,
+                    "min_hold_days": candidate.sma200_min_hold_days,
+                }
+            ]
+            if candidate and candidate.strategy == "SMA200"
+            else None
+        ),
     }
 
 

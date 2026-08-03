@@ -333,21 +333,31 @@ class DatabaseManager:
         finally:
             db.close()
 
-    def get_data_statistics(self) -> List[Tuple[str, int, datetime]]:
+    def get_data_statistics(
+        self,
+    ) -> List[Tuple[str, int, datetime, datetime]]:
         """
-        Get statistics about cached data.
+        Get statistics from the historical price records.
 
         Returns:
-            List of (symbol, record_count, last_updated) tuples
+            List of (symbol, record_count, first_date, last_date) tuples.
         """
         try:
             db = SessionLocal()
 
-            stats = db.query(
-                DataCache.symbol, DataCache.data_count, DataCache.last_updated
-            ).all()
+            stats = (
+                db.query(
+                    HistoricalData.symbol,
+                    func.count(HistoricalData.id),
+                    func.min(HistoricalData.date),
+                    func.max(HistoricalData.date),
+                )
+                .group_by(HistoricalData.symbol)
+                .order_by(HistoricalData.symbol)
+                .all()
+            )
 
-            return [(stat.symbol, stat.data_count, stat.last_updated) for stat in stats]
+            return [(stat[0], int(stat[1]), stat[2], stat[3]) for stat in stats]
 
         except Exception as e:
             self.logger.error(f"Error getting data statistics: {e}")

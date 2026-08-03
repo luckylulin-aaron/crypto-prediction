@@ -354,6 +354,63 @@ def strategy_moving_average_w_tolerance(
     return r_buy, r_sell
 
 
+def strategy_sma200(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    entry_band_pct: float = 0.0,
+    exit_band_pct: float = 0.0,
+    min_hold_days: int = 0,
+) -> Tuple[bool, bool]:
+    """Hold above SMA200 with optional hysteresis bands and a minimum holding period."""
+    strat_name = "SMA200"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    sma_values = getattr(trader, "moving_averages", {}).get("200", [])
+    last_sma = sma_values[-1] if sma_values else None
+    r_buy, r_sell = False, False
+
+    if last_sma is not None:
+        has_cash = _is_positive_number(getattr(trader, "cash", 0))
+        has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+        entry_threshold = last_sma * (1.0 + float(entry_band_pct))
+        exit_threshold = last_sma * (1.0 - float(exit_band_pct))
+        holding_period_satisfied = True
+
+        if has_position and int(min_hold_days) > 0:
+            for item in reversed(getattr(trader, "trade_history", [])):
+                if item.get("action") != BUY_SIGNAL:
+                    continue
+                buy_date = item.get("date")
+                try:
+                    held_days = (today.date() - buy_date.date()).days
+                except AttributeError:
+                    held_days = (today - buy_date).days
+                holding_period_satisfied = held_days >= int(min_hold_days)
+                break
+
+        if new_p > entry_threshold and has_cash:
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif (
+            new_p < exit_threshold
+            and has_position
+            and holding_period_satisfied
+        ):
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    if not r_buy and not r_sell:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    return r_buy, r_sell
+
+
 def strategy_double_moving_averages(
     trader,
     shorter_queue_name: str,
@@ -4251,6 +4308,7 @@ def strategy_adaptive_ma_selves_macro_enhanced(
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "ECONOMIC-INDICATORS": EconomicIndicatorsStrategy,
+    "SMA200": strategy_sma200,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "MA-SELVES-MACRO": strategy_ma_selves_macro_enhanced,
     "EXP-MA-SELVES": strategy_exponential_moving_average_w_tolerance,

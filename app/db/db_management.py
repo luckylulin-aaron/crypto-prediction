@@ -53,16 +53,18 @@ def show_statistics():
     try:
         stats = db_manager.get_data_statistics()
         if not stats:
-            print("No cached data found in database.")
+            print("No historical data found in database.")
             return
 
         print("\n=== Database Statistics ===")
-        print(f"{'Symbol':<15} {'Records':<10} {'Last Updated':<20}")
-        print("-" * 50)
+        print(f"{'Symbol':<20} {'Records':<10} {'First Date':<12} {'Last Date':<12}")
+        print("-" * 58)
 
-        for symbol, count, last_updated in stats:
+        for symbol, count, first_date, last_date in stats:
             print(
-                f"{symbol:<15} {count:<10} {last_updated.strftime('%Y-%m-%d %H:%M:%S')}"
+                f"{symbol:<20} {count:<10} "
+                f"{first_date.strftime('%Y-%m-%d'):<12} "
+                f"{last_date.strftime('%Y-%m-%d'):<12}"
             )
 
         print(f"\nTotal symbols: {len(stats)}")

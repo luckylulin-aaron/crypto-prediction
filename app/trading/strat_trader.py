@@ -53,6 +53,9 @@ class StratTrader:
         execute_on_next_open: bool = False,
         slippage_bps: float = 0.0,
         enable_options: bool = True,
+        sma200_entry_band_pct: float = 0.0,
+        sma200_exit_band_pct: float = 0.0,
+        sma200_min_hold_days: int = 0,
         mode: str = "normal",
     ):
         """
@@ -90,6 +93,9 @@ class StratTrader:
         # Enabled strategies differ between crypto vs stocks (see config.CRYPTO_STRATEGIES/STOCK_STRATEGIES).
         if stat not in SUPPORTED_STRATEGIES:
             raise ValueError("Unknown high-level trading strategy!")
+        ma_lengths = list(ma_lengths)
+        if stat == "SMA200" and 200 not in ma_lengths:
+            ma_lengths.append(200)
         if not all([x in ma_lengths for x in bollinger_mas]):
             raise ValueError(
                 "cannot initialize Bollinger Band strategy if some of moving averages are not available!"
@@ -127,7 +133,10 @@ class StratTrader:
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
-        self.buy_pct, self.sell_pct = buy_pct, sell_pct
+        if stat == "SMA200":
+            self.buy_pct, self.sell_pct = 1.0, 1.0
+        else:
+            self.buy_pct, self.sell_pct = buy_pct, sell_pct
         self.strategies = {"buy": buy_stas, "sell": sell_stas}
         # high-level strategy
         self.high_strategy = stat
@@ -148,6 +157,15 @@ class StratTrader:
         self.zoom_in = zoom_in
         self.zoom_in_min_move_pct = zoom_in_min_move_pct
         self.ma_boll_simplify = ma_boll_simplify
+        self.sma200_entry_band_pct = float(sma200_entry_band_pct)
+        self.sma200_exit_band_pct = float(sma200_exit_band_pct)
+        self.sma200_min_hold_days = int(sma200_min_hold_days)
+        if min(
+            self.sma200_entry_band_pct,
+            self.sma200_exit_band_pct,
+            self.sma200_min_hold_days,
+        ) < 0:
+            raise ValueError("SMA200 bands and minimum holding period cannot be negative")
         self.execute_on_next_open = execute_on_next_open
         self.slippage_bps = float(slippage_bps)
         if self.slippage_bps < 0:
@@ -214,7 +232,17 @@ class StratTrader:
         if self.high_strategy in STRATEGY_REGISTRY:
             strategy_func = STRATEGY_REGISTRY[self.high_strategy]
 
-            if self.high_strategy == "MA-SELVES":
+            if self.high_strategy == "SMA200":
+                strategy_func(
+                    trader=self,
+                    new_p=new_p,
+                    today=d,
+                    entry_band_pct=self.sma200_entry_band_pct,
+                    exit_band_pct=self.sma200_exit_band_pct,
+                    min_hold_days=self.sma200_min_hold_days,
+                )
+
+            elif self.high_strategy == "MA-SELVES":
                 for queue_name in self.moving_averages:
                     # if we don't have a moving average yet, skip
                     if self.moving_averages[queue_name][-1] is None:
@@ -483,7 +511,7 @@ class StratTrader:
             None
         """
         max_l = int(queue_name)
-        if len(self.crypto_prices) <= max_l:
+        if len(self.crypto_prices) < max_l:
             self.moving_averages[queue_name].append(None)
             return
         # compute new moving average, add it
@@ -1198,4 +1226,12 @@ class StratTrader:
             "tol_pct": self.tol_pct,
             "bollinger_sigma": self.bollinger_sigma,
         }
+        if self.high_strategy == "SMA200":
+            basic.update(
+                {
+                    "sma200_entry_band_pct": self.sma200_entry_band_pct,
+                    "sma200_exit_band_pct": self.sma200_exit_band_pct,
+                    "sma200_min_hold_days": self.sma200_min_hold_days,
+                }
+            )
         return {**basic, **self.strategies}

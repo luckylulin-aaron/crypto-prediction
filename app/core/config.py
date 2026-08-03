@@ -18,6 +18,7 @@ DEBUG = False
 # NOTE: We keep `STRATEGIES` as a backward-compatible alias to `CRYPTO_STRATEGIES` because many scripts/tests
 # pass it into `TraderDriver(overall_stats=...)`.
 SUPPORTED_STRATEGIES = [
+    "SMA200",
     "MA-SELVES",
     "MA-SELVES-MACRO",
     "EXP-MA-SELVES",
@@ -50,6 +51,7 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
+    "SMA200",
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
@@ -76,6 +78,10 @@ MA_LENGTHS = [6, 12, 30]
 EMA_LENGTHS = [6, 12, 26, 30]
 BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4, 5]
+
+SMA200_VARIANTS = [
+    {"entry_band_pct": 0.05, "exit_band_pct": 0.05, "min_hold_days": 0},
+]
 
 # --- MA-BOLL-BANDS zoom-in configuration ---
 # When enabled, use intraday candles to refine actions during high-volatility regimes.
