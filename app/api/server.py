@@ -508,11 +508,14 @@ def get_database_stats():
                     {
                         "symbol": symbol,
                         "record_count": count,
-                        "last_updated": last_updated.isoformat()
-                        if last_updated
-                        else None,
+                        "first_recorded": (
+                            first_date.isoformat() if first_date else None
+                        ),
+                        "last_recorded": last_date.isoformat() if last_date else None,
+                        # Backward-compatible alias for existing dashboard clients.
+                        "last_updated": last_date.isoformat() if last_date else None,
                     }
-                    for symbol, count, last_updated in stats
+                    for symbol, count, first_date, last_date in stats
                 ],
             }
         )

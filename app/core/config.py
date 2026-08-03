@@ -18,6 +18,7 @@ DEBUG = False
 # NOTE: We keep `STRATEGIES` as a backward-compatible alias to `CRYPTO_STRATEGIES` because many scripts/tests
 # pass it into `TraderDriver(overall_stats=...)`.
 SUPPORTED_STRATEGIES = [
+    "SMA200",
     "MA-SELVES",
     "MA-SELVES-MACRO",
     "EXP-MA-SELVES",
@@ -50,6 +51,7 @@ SUPPORTED_STRATEGIES = [
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
     "MA-BOLL-BANDS",
+    "SMA200",
 ]
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto

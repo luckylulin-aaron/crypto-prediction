@@ -354,6 +354,41 @@ def strategy_moving_average_w_tolerance(
     return r_buy, r_sell
 
 
+def strategy_sma200(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+) -> Tuple[bool, bool]:
+    """Follow the long-term trend by holding above SMA200 and cash below it."""
+    strat_name = "SMA200"
+    assert strat_name in STRATEGIES, "Unknown trading strategy name!"
+
+    sma_values = getattr(trader, "moving_averages", {}).get("200", [])
+    last_sma = sma_values[-1] if sma_values else None
+    r_buy, r_sell = False, False
+
+    if last_sma is not None:
+        has_cash = _is_positive_number(getattr(trader, "cash", 0))
+        has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+
+        if new_p > last_sma and has_cash:
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+        elif new_p < last_sma and has_position:
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    if not r_buy and not r_sell:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+
+    return r_buy, r_sell
+
+
 def strategy_double_moving_averages(
     trader,
     shorter_queue_name: str,
@@ -4251,6 +4286,7 @@ def strategy_adaptive_ma_selves_macro_enhanced(
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "ECONOMIC-INDICATORS": EconomicIndicatorsStrategy,
+    "SMA200": strategy_sma200,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "MA-SELVES-MACRO": strategy_ma_selves_macro_enhanced,
     "EXP-MA-SELVES": strategy_exponential_moving_average_w_tolerance,

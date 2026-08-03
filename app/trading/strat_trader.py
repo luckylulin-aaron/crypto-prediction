@@ -90,6 +90,9 @@ class StratTrader:
         # Enabled strategies differ between crypto vs stocks (see config.CRYPTO_STRATEGIES/STOCK_STRATEGIES).
         if stat not in SUPPORTED_STRATEGIES:
             raise ValueError("Unknown high-level trading strategy!")
+        ma_lengths = list(ma_lengths)
+        if stat == "SMA200" and 200 not in ma_lengths:
+            ma_lengths.append(200)
         if not all([x in ma_lengths for x in bollinger_mas]):
             raise ValueError(
                 "cannot initialize Bollinger Band strategy if some of moving averages are not available!"
@@ -127,7 +130,10 @@ class StratTrader:
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
-        self.buy_pct, self.sell_pct = buy_pct, sell_pct
+        if stat == "SMA200":
+            self.buy_pct, self.sell_pct = 1.0, 1.0
+        else:
+            self.buy_pct, self.sell_pct = buy_pct, sell_pct
         self.strategies = {"buy": buy_stas, "sell": sell_stas}
         # high-level strategy
         self.high_strategy = stat
@@ -214,7 +220,14 @@ class StratTrader:
         if self.high_strategy in STRATEGY_REGISTRY:
             strategy_func = STRATEGY_REGISTRY[self.high_strategy]
 
-            if self.high_strategy == "MA-SELVES":
+            if self.high_strategy == "SMA200":
+                strategy_func(
+                    trader=self,
+                    new_p=new_p,
+                    today=d,
+                )
+
+            elif self.high_strategy == "MA-SELVES":
                 for queue_name in self.moving_averages:
                     # if we don't have a moving average yet, skip
                     if self.moving_averages[queue_name][-1] is None:
@@ -483,7 +496,7 @@ class StratTrader:
             None
         """
         max_l = int(queue_name)
-        if len(self.crypto_prices) <= max_l:
+        if len(self.crypto_prices) < max_l:
             self.moving_averages[queue_name].append(None)
             return
         # compute new moving average, add it
