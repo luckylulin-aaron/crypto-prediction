@@ -782,11 +782,18 @@ def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = No
         logger.info(f"\n\n# --- Simulating for Stock: {stock} --- #")
 
         try:
-            # Get historical data for the stock using TIMESPAN
+            # Stock strategy evaluation uses a dedicated three-year daily history.
             end_date = datetime.now().strftime("%Y-%m-%d")
-            start_date = (datetime.now() - timedelta(days=TIMESPAN)).strftime("%Y-%m-%d")
-            data_stream = stock_client.get_historic_data(stock, start=start_date, end=end_date)
-            logger.info(f"Retrieved {len(data_stream)} data points for {stock} (last {TIMESPAN} days)")
+            start_date = (
+                datetime.now() - timedelta(days=STOCK_HISTORY_LOOKBACK_DAYS)
+            ).strftime("%Y-%m-%d")
+            data_stream = stock_client.get_historic_data(
+                stock, start=start_date, end=end_date
+            )
+            logger.info(
+                f"Retrieved {len(data_stream)} data points for {stock} "
+                f"(last {STOCK_HISTORY_LOOKBACK_DAYS} days)"
+            )
 
             # Validate data stream before creating trader driver
             if not data_stream:

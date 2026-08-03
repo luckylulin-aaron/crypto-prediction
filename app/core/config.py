@@ -297,6 +297,9 @@ EXCHANGE_CONFIGS = [
     },
 ]
 
+# Stock simulations and backfills use three calendar years of daily prices.
+STOCK_HISTORY_LOOKBACK_DAYS = 3 * 365
+
 # List of US stock tickers to fetch via yfinance
 STOCKS = [
     'AAPL',  # Apple
@@ -312,7 +315,7 @@ STOCKS = [
     'SNAP', # Snapchat
     'BIDU', # Baidu
     'BABA', # Alibaba
-    'TECHY', # Tencent
+    'TCEHY', # Tencent
     'UBER', # Uber
     'DASH' # Doordash
 ]
