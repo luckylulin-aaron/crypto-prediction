@@ -189,7 +189,7 @@ def apply_signal_option_leverage(
     Returns:
         Optional[Dict]: The recorded option trade dict, or None if skipped.
     """
-    if not enabled:
+    if not enabled or not getattr(trader, "enable_options", True):
         return None
 
     if signal not in (BUY_SIGNAL, SELL_SIGNAL):

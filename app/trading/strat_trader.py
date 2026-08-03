@@ -25,7 +25,6 @@ from app.utils.util import ema_helper, max_drawdown_helper
 
 
 class StratTrader:
-
     """Moving Average Trader, a strategic-trading implementation that focus and relies on moving averages."""
 
     def __init__(
@@ -51,6 +50,9 @@ class StratTrader:
         zoom_in: bool = False,
         zoom_in_min_move_pct: float = 0.003,
         ma_boll_simplify: bool = False,
+        execute_on_next_open: bool = False,
+        slippage_bps: float = 0.0,
+        enable_options: bool = True,
         mode: str = "normal",
     ):
         """
@@ -146,10 +148,24 @@ class StratTrader:
         self.zoom_in = zoom_in
         self.zoom_in_min_move_pct = zoom_in_min_move_pct
         self.ma_boll_simplify = ma_boll_simplify
+        self.execute_on_next_open = execute_on_next_open
+        self.slippage_bps = float(slippage_bps)
+        if self.slippage_bps < 0:
+            raise ValueError("slippage_bps cannot be negative")
+        self.enable_options = enable_options
+        self.pending_order = None
+        self.signal_history = []
+        self._executing_pending_order = False
         # strategy signal lists
         self.strat_dct = collections.defaultdict(list)
 
-    def add_new_day(self, new_p: float, d: datetime.datetime, misc_p: dict):
+    def add_new_day(
+        self,
+        new_p: float,
+        d: datetime.datetime,
+        misc_p: dict,
+        execute_strategy: bool = True,
+    ):
         """
         Add a new day's crypto-currency price, find out a computed transaction for today.
 
@@ -157,6 +173,7 @@ class StratTrader:
             new_p (float): New price.
             d (datetime.datetime): Date.
             misc_p (dict): Miscellaneous price info (open, low, high).
+            execute_strategy (bool): Update indicators but suppress trades when False.
 
         Returns:
             None
@@ -181,6 +198,14 @@ class StratTrader:
 
         # compute KDJ related arrays
         self.compute_kdj_related(d=d, low=low, high=high, open=open, close=new_p)
+
+        if execute_strategy:
+            self._execute_pending_order(open_price=open, d=d)
+
+        # Walk-forward tests use earlier candles only to warm indicators. No strategy
+        # decision, option settlement, or portfolio mutation is allowed before the test.
+        if not execute_strategy:
+            return
 
         # Settle any expired options before executing new strategy logic.
         self._settle_expired_options(new_p=new_p, d=d)
@@ -620,6 +645,10 @@ class StratTrader:
                 print("no more cash left, cannot buy anymore!")
             return False
 
+        if self.execute_on_next_open and not self._executing_pending_order:
+            self.pending_order = {"action": BUY_SIGNAL, "method": method}
+            return True
+
         # execution body
         if method == "by_percentage":
             # Use percentage of available cash
@@ -666,6 +695,10 @@ class StratTrader:
             if self.mode == "verbose":
                 print("no coin left, cannot sell anymore!")
             return False
+
+        if self.execute_on_next_open and not self._executing_pending_order:
+            self.pending_order = {"action": SELL_SIGNAL, "method": method}
+            return True
 
         # execution body
         if method == "by_percentage":
@@ -724,6 +757,15 @@ class StratTrader:
         Returns:
             None
         """
+        if (
+            self.execute_on_next_open
+            and not self._executing_pending_order
+            and self.pending_order
+            and self.pending_order["action"] == action
+        ):
+            self.signal_history.append({"action": action, "price": new_p, "date": d})
+            return
+
         item = {
             "action": action,
             "price": new_p,
@@ -736,6 +778,29 @@ class StratTrader:
 
         if self.mode == "verbose":
             print(item)
+
+    def _execute_pending_order(self, open_price: float, d: datetime.datetime) -> None:
+        """Execute a prior-close signal at today's open with adverse slippage."""
+        if not self.execute_on_next_open or not self.pending_order:
+            return
+
+        order = self.pending_order
+        self.pending_order = None
+        action = order["action"]
+        slip = self.slippage_bps / 10_000.0
+        execution_price = float(open_price) * (
+            1.0 + slip if action == BUY_SIGNAL else 1.0 - slip
+        )
+        self._executing_pending_order = True
+        try:
+            if action == BUY_SIGNAL:
+                success = self._execute_one_buy(order["method"], execution_price)
+            else:
+                success = self._execute_one_sell(order["method"], execution_price)
+            if success:
+                self._record_history(execution_price, d, action)
+        finally:
+            self._executing_pending_order = False
 
     def _settle_expired_options(self, new_p: float, d: datetime.datetime) -> None:
         """
@@ -920,26 +985,30 @@ class StratTrader:
             final_price = self.crypto_prices[-1][0]
             init_p = self.init_coin * init_price + self.init_cash
             final_p = self.init_coin * final_price + self.init_cash
-            
+
             # Handle division by zero
             if init_p == 0:
                 if final_p == 0:
                     return 0.0  # No change if both initial and final are zero
                 else:
-                    return float('inf') if final_p > 0 else float('-inf')  # Infinite return if starting from zero
-            
+                    return (
+                        float("inf") if final_p > 0 else float("-inf")
+                    )  # Infinite return if starting from zero
+
             return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
         else:
             init_p = self.all_history[0]["portfolio"]
             final_p = self.init_coin * self.all_history[-1]["price"] + self.init_cash
-            
+
             # Handle division by zero
             if init_p == 0:
                 if final_p == 0:
                     return 0.0  # No change if both initial and final are zero
                 else:
-                    return float('inf') if final_p > 0 else float('-inf')  # Infinite return if starting from zero
-            
+                    return (
+                        float("inf") if final_p > 0 else float("-inf")
+                    )  # Infinite return if starting from zero
+
             return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
@@ -955,8 +1024,10 @@ class StratTrader:
             if final_p == 0:
                 return 0.0  # No change if both initial and final are zero
             else:
-                return float('inf') if final_p > 0 else float('-inf')  # Infinite return if starting from zero
-        
+                return (
+                    float("inf") if final_p > 0 else float("-inf")
+                )  # Infinite return if starting from zero
+
         return np.round(100 * (final_p - init_p) / init_p, ROUND_PRECISION)
 
     @property
@@ -968,29 +1039,37 @@ class StratTrader:
                 return 0.0  # Not enough price data
             init_price = self.crypto_prices[0][0]
             final_price = self.crypto_prices[-1][0]
-            
+
             # Handle division by zero
             if init_price == 0:
                 if final_price == 0:
                     return 0.0  # No change if both initial and final are zero
                 else:
-                    return float('inf') if final_price > 0 else float('-inf')  # Infinite return if starting from zero
-            
-            return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
+                    return (
+                        float("inf") if final_price > 0 else float("-inf")
+                    )  # Infinite return if starting from zero
+
+            return np.round(
+                100 * (final_price - init_price) / init_price, ROUND_PRECISION
+            )
         else:
             init_price, final_price = (
                 self.all_history[0]["price"],
                 self.all_history[-1]["price"],
             )
-            
+
             # Handle division by zero
             if init_price == 0:
                 if final_price == 0:
                     return 0.0  # No change if both initial and final are zero
                 else:
-                    return float('inf') if final_price > 0 else float('-inf')  # Infinite return if starting from zero
-            
-            return np.round(100 * (final_price - init_price) / init_price, ROUND_PRECISION)
+                    return (
+                        float("inf") if final_price > 0 else float("-inf")
+                    )  # Infinite return if starting from zero
+
+            return np.round(
+                100 * (final_price - init_price) / init_price, ROUND_PRECISION
+            )
 
     @property
     def trade_signal(self):

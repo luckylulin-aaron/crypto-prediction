@@ -1,0 +1,1026 @@
+[
+  {
+    "symbol": "BTC",
+    "data_start": "2023-08-04 00:00:00",
+    "data_end": "2026-08-02 00:00:00",
+    "data_rows": 1095,
+    "folds": [
+      {
+        "fold": 1,
+        "train": {
+          "start": "2023-08-04 00:00:00",
+          "end": "2024-08-02 00:00:00",
+          "strategy_return": 85.677,
+          "buy_hold_return": 111.23291585935146,
+          "excess_return": -25.555915859351458,
+          "max_drawdown": 24.88,
+          "transactions": 107
+        },
+        "validation": {
+          "start": "2024-08-03 00:00:00",
+          "end": "2024-10-31 00:00:00",
+          "strategy_return": 7.119,
+          "buy_hold_return": 15.806157666835418,
+          "excess_return": -8.687157666835418,
+          "max_drawdown": 8.4,
+          "transactions": 12
+        },
+        "purge": {
+          "start": "2024-11-01 00:00:00",
+          "end": "2024-11-07 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2024-11-08 00:00:00",
+          "end": "2024-12-07 00:00:00",
+          "strategy_return": 19.716,
+          "buy_hold_return": 30.48265202174154,
+          "excess_return": -10.766652021741539,
+          "max_drawdown": 7.580000000000001,
+          "transactions": 15
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 2,
+        "train": {
+          "start": "2023-09-03 00:00:00",
+          "end": "2024-09-01 00:00:00",
+          "strategy_return": 79.218,
+          "buy_hold_return": 120.63608126074988,
+          "excess_return": -41.41808126074987,
+          "max_drawdown": 27.389999999999997,
+          "transactions": 110
+        },
+        "validation": {
+          "start": "2024-09-02 00:00:00",
+          "end": "2024-11-30 00:00:00",
+          "strategy_return": 40.245,
+          "buy_hold_return": 63.03825010193276,
+          "excess_return": -22.793250101932763,
+          "max_drawdown": 8.18,
+          "transactions": 28
+        },
+        "purge": {
+          "start": "2024-12-01 00:00:00",
+          "end": "2024-12-07 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2024-12-08 00:00:00",
+          "end": "2025-01-06 00:00:00",
+          "strategy_return": -7.047,
+          "buy_hold_return": 1.1136530174833181,
+          "excess_return": -8.160653017483318,
+          "max_drawdown": 8.18,
+          "transactions": 8
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 4.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 3,
+        "train": {
+          "start": "2023-10-03 00:00:00",
+          "end": "2024-10-01 00:00:00",
+          "strategy_return": 47.628,
+          "buy_hold_return": 121.70480623456328,
+          "excess_return": -74.07680623456328,
+          "max_drawdown": 27.389999999999997,
+          "transactions": 105
+        },
+        "validation": {
+          "start": "2024-10-02 00:00:00",
+          "end": "2024-12-30 00:00:00",
+          "strategy_return": 28.886,
+          "buy_hold_return": 52.997776725461556,
+          "excess_return": -24.111776725461556,
+          "max_drawdown": 7.62,
+          "transactions": 33
+        },
+        "purge": {
+          "start": "2024-12-31 00:00:00",
+          "end": "2025-01-06 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-01-07 00:00:00",
+          "end": "2025-02-05 00:00:00",
+          "strategy_return": -5.687,
+          "buy_hold_return": -0.3529280350877628,
+          "excess_return": -5.334071964912237,
+          "max_drawdown": 7.86,
+          "transactions": 6
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 4.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 4,
+        "train": {
+          "start": "2023-11-02 00:00:00",
+          "end": "2024-10-31 00:00:00",
+          "strategy_return": 48.626,
+          "buy_hold_return": 101.17003834112874,
+          "excess_return": -52.54403834112875,
+          "max_drawdown": 29.299999999999997,
+          "transactions": 94
+        },
+        "validation": {
+          "start": "2024-11-01 00:00:00",
+          "end": "2025-01-29 00:00:00",
+          "strategy_return": 33.708,
+          "buy_hold_return": 49.265029747751,
+          "excess_return": -15.557029747751002,
+          "max_drawdown": 11.08,
+          "transactions": 36
+        },
+        "purge": {
+          "start": "2025-01-30 00:00:00",
+          "end": "2025-02-05 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-02-06 00:00:00",
+          "end": "2025-03-07 00:00:00",
+          "strategy_return": 0.0,
+          "buy_hold_return": -10.100632441728418,
+          "excess_return": 10.100632441728418,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 5,
+        "train": {
+          "start": "2023-12-02 00:00:00",
+          "end": "2024-11-30 00:00:00",
+          "strategy_return": 80.743,
+          "buy_hold_return": 144.37803466889397,
+          "excess_return": -63.63503466889398,
+          "max_drawdown": 29.299999999999997,
+          "transactions": 94
+        },
+        "validation": {
+          "start": "2024-12-01 00:00:00",
+          "end": "2025-02-28 00:00:00",
+          "strategy_return": -16.234,
+          "buy_hold_return": -13.206993082690166,
+          "excess_return": -3.0270069173098353,
+          "max_drawdown": 19.86,
+          "transactions": 22
+        },
+        "purge": {
+          "start": "2025-03-01 00:00:00",
+          "end": "2025-03-07 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-03-08 00:00:00",
+          "end": "2025-04-06 00:00:00",
+          "strategy_return": -6.039,
+          "buy_hold_return": -9.037611434145044,
+          "excess_return": 2.998611434145044,
+          "max_drawdown": 7.12,
+          "transactions": 1
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 6,
+        "train": {
+          "start": "2024-01-01 00:00:00",
+          "end": "2024-12-30 00:00:00",
+          "strategy_return": 80.372,
+          "buy_hold_return": 110.03394104285805,
+          "excess_return": -29.661941042858047,
+          "max_drawdown": 29.299999999999997,
+          "transactions": 101
+        },
+        "validation": {
+          "start": "2024-12-31 00:00:00",
+          "end": "2025-03-30 00:00:00",
+          "strategy_return": -20.761,
+          "buy_hold_return": -11.95393049499871,
+          "excess_return": -8.807069505001289,
+          "max_drawdown": 25.0,
+          "transactions": 10
+        },
+        "purge": {
+          "start": "2025-03-31 00:00:00",
+          "end": "2025-04-06 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-04-07 00:00:00",
+          "end": "2025-05-06 00:00:00",
+          "strategy_return": 9.105,
+          "buy_hold_return": 22.32195145120386,
+          "excess_return": -13.216951451203858,
+          "max_drawdown": 3.17,
+          "transactions": 10
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 7,
+        "train": {
+          "start": "2024-01-31 00:00:00",
+          "end": "2025-01-29 00:00:00",
+          "strategy_return": 59.229,
+          "buy_hold_return": 143.61963363081261,
+          "excess_return": -84.39063363081262,
+          "max_drawdown": 28.58,
+          "transactions": 114
+        },
+        "validation": {
+          "start": "2025-01-30 00:00:00",
+          "end": "2025-04-29 00:00:00",
+          "strategy_return": 6.337,
+          "buy_hold_return": -9.994104443591823,
+          "excess_return": 16.331104443591823,
+          "max_drawdown": 9.35,
+          "transactions": 8
+        },
+        "purge": {
+          "start": "2025-04-30 00:00:00",
+          "end": "2025-05-06 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-05-07 00:00:00",
+          "end": "2025-06-05 00:00:00",
+          "strategy_return": -3.59,
+          "buy_hold_return": 4.615229232045581,
+          "excess_return": -8.205229232045582,
+          "max_drawdown": 7.580000000000001,
+          "transactions": 9
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 3.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 8,
+        "train": {
+          "start": "2024-03-01 00:00:00",
+          "end": "2025-02-28 00:00:00",
+          "strategy_return": 6.761,
+          "buy_hold_return": 35.202403030074734,
+          "excess_return": -28.441403030074735,
+          "max_drawdown": 25.119999999999997,
+          "transactions": 83
+        },
+        "validation": {
+          "start": "2025-03-01 00:00:00",
+          "end": "2025-05-29 00:00:00",
+          "strategy_return": 10.142,
+          "buy_hold_return": 22.68672123115063,
+          "excess_return": -12.544721231150632,
+          "max_drawdown": 8.14,
+          "transactions": 24
+        },
+        "purge": {
+          "start": "2025-05-30 00:00:00",
+          "end": "2025-06-05 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-06-06 00:00:00",
+          "end": "2025-07-05 00:00:00",
+          "strategy_return": -1.155,
+          "buy_hold_return": 3.7489102339626434,
+          "excess_return": -4.903910233962644,
+          "max_drawdown": 1.25,
+          "transactions": 2
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.3,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 9,
+        "train": {
+          "start": "2024-03-31 00:00:00",
+          "end": "2025-03-30 00:00:00",
+          "strategy_return": 5.882,
+          "buy_hold_return": 15.586389508082288,
+          "excess_return": -9.704389508082288,
+          "max_drawdown": 26.14,
+          "transactions": 78
+        },
+        "validation": {
+          "start": "2025-03-31 00:00:00",
+          "end": "2025-06-28 00:00:00",
+          "strategy_return": 17.632,
+          "buy_hold_return": 29.977924896677788,
+          "excess_return": -12.345924896677786,
+          "max_drawdown": 7.7299999999999995,
+          "transactions": 25
+        },
+        "purge": {
+          "start": "2025-06-29 00:00:00",
+          "end": "2025-07-05 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-07-06 00:00:00",
+          "end": "2025-08-04 00:00:00",
+          "strategy_return": 1.53,
+          "buy_hold_return": 5.358044185991995,
+          "excess_return": -3.8280441859919945,
+          "max_drawdown": 6.15,
+          "transactions": 9
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 10,
+        "train": {
+          "start": "2024-04-30 00:00:00",
+          "end": "2025-04-29 00:00:00",
+          "strategy_return": 13.514,
+          "buy_hold_return": 55.35472705696203,
+          "excess_return": -41.840727056962024,
+          "max_drawdown": 25.82,
+          "transactions": 81
+        },
+        "validation": {
+          "start": "2025-04-30 00:00:00",
+          "end": "2025-07-28 00:00:00",
+          "strategy_return": 16.329,
+          "buy_hold_return": 25.368814509620698,
+          "excess_return": -9.039814509620697,
+          "max_drawdown": 7.53,
+          "transactions": 30
+        },
+        "purge": {
+          "start": "2025-07-29 00:00:00",
+          "end": "2025-08-04 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-08-05 00:00:00",
+          "end": "2025-09-03 00:00:00",
+          "strategy_return": 0.0,
+          "buy_hold_return": -2.123933505505793,
+          "excess_return": 2.123933505505793,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.5,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 11,
+        "train": {
+          "start": "2024-05-30 00:00:00",
+          "end": "2025-05-29 00:00:00",
+          "strategy_return": 35.79,
+          "buy_hold_return": 54.47900191025392,
+          "excess_return": -18.68900191025392,
+          "max_drawdown": 26.700000000000003,
+          "transactions": 89
+        },
+        "validation": {
+          "start": "2025-05-30 00:00:00",
+          "end": "2025-08-27 00:00:00",
+          "strategy_return": 0.292,
+          "buy_hold_return": 6.997640439799868,
+          "excess_return": -6.705640439799868,
+          "max_drawdown": 6.43,
+          "transactions": 15
+        },
+        "purge": {
+          "start": "2025-08-28 00:00:00",
+          "end": "2025-09-03 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-09-04 00:00:00",
+          "end": "2025-10-03 00:00:00",
+          "strategy_return": 0.295,
+          "buy_hold_return": 10.386561579440311,
+          "excess_return": -10.091561579440311,
+          "max_drawdown": 7.449999999999999,
+          "transactions": 6
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 12,
+        "train": {
+          "start": "2024-06-29 00:00:00",
+          "end": "2025-06-28 00:00:00",
+          "strategy_return": 48.505,
+          "buy_hold_return": 75.93479428622774,
+          "excess_return": -27.42979428622774,
+          "max_drawdown": 26.700000000000003,
+          "transactions": 81
+        },
+        "validation": {
+          "start": "2025-06-29 00:00:00",
+          "end": "2025-09-26 00:00:00",
+          "strategy_return": -3.145,
+          "buy_hold_return": 1.1873075399976951,
+          "excess_return": -4.332307539997695,
+          "max_drawdown": 9.6,
+          "transactions": 23
+        },
+        "purge": {
+          "start": "2025-09-27 00:00:00",
+          "end": "2025-10-03 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-10-04 00:00:00",
+          "end": "2025-11-02 00:00:00",
+          "strategy_return": -12.359,
+          "buy_hold_return": -9.68234592412841,
+          "excess_return": -2.676654075871589,
+          "max_drawdown": 15.25,
+          "transactions": 6
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 13,
+        "train": {
+          "start": "2024-07-29 00:00:00",
+          "end": "2025-07-28 00:00:00",
+          "strategy_return": 62.841,
+          "buy_hold_return": 76.78051661241521,
+          "excess_return": -13.939516612415211,
+          "max_drawdown": 26.700000000000003,
+          "transactions": 93
+        },
+        "validation": {
+          "start": "2025-07-29 00:00:00",
+          "end": "2025-10-26 00:00:00",
+          "strategy_return": -5.31,
+          "buy_hold_return": -2.8752336992148297,
+          "excess_return": -2.43476630078517,
+          "max_drawdown": 13.669999999999998,
+          "transactions": 12
+        },
+        "purge": {
+          "start": "2025-10-27 00:00:00",
+          "end": "2025-11-02 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-11-03 00:00:00",
+          "end": "2025-12-02 00:00:00",
+          "strategy_return": 0.0,
+          "buy_hold_return": -14.359845618965261,
+          "excess_return": 14.359845618965261,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 14,
+        "train": {
+          "start": "2024-08-28 00:00:00",
+          "end": "2025-08-27 00:00:00",
+          "strategy_return": 49.319,
+          "buy_hold_return": 88.46819423764585,
+          "excess_return": -39.149194237645844,
+          "max_drawdown": 25.790000000000003,
+          "transactions": 94
+        },
+        "validation": {
+          "start": "2025-08-28 00:00:00",
+          "end": "2025-11-25 00:00:00",
+          "strategy_return": -22.662,
+          "buy_hold_return": -22.383968999768133,
+          "excess_return": -0.27803100023186644,
+          "max_drawdown": 26.729999999999997,
+          "transactions": 15
+        },
+        "purge": {
+          "start": "2025-11-26 00:00:00",
+          "end": "2025-12-02 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2025-12-03 00:00:00",
+          "end": "2026-01-01 00:00:00",
+          "strategy_return": 0.0,
+          "buy_hold_return": -4.913745538769964,
+          "excess_return": 4.913745538769964,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.7,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 15,
+        "train": {
+          "start": "2024-09-27 00:00:00",
+          "end": "2025-09-26 00:00:00",
+          "strategy_return": 32.877,
+          "buy_hold_return": 66.70753132699663,
+          "excess_return": -33.83053132699663,
+          "max_drawdown": 25.790000000000003,
+          "transactions": 94
+        },
+        "validation": {
+          "start": "2025-09-27 00:00:00",
+          "end": "2025-12-25 00:00:00",
+          "strategy_return": -25.387,
+          "buy_hold_return": -20.44092329288276,
+          "excess_return": -4.946076707117239,
+          "max_drawdown": 27.450000000000003,
+          "transactions": 9
+        },
+        "purge": {
+          "start": "2025-12-26 00:00:00",
+          "end": "2026-01-01 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2026-01-02 00:00:00",
+          "end": "2026-01-31 00:00:00",
+          "strategy_return": -16.516,
+          "buy_hold_return": -12.50516555729183,
+          "excess_return": -4.010834442708168,
+          "max_drawdown": 17.91,
+          "transactions": 6
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.7,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 16,
+        "train": {
+          "start": "2024-10-27 00:00:00",
+          "end": "2025-10-26 00:00:00",
+          "strategy_return": 9.894,
+          "buy_hold_return": 68.41596137703114,
+          "excess_return": -58.52196137703114,
+          "max_drawdown": 25.1,
+          "transactions": 85
+        },
+        "validation": {
+          "start": "2025-10-27 00:00:00",
+          "end": "2026-01-24 00:00:00",
+          "strategy_return": -7.852,
+          "buy_hold_return": -21.805996355196168,
+          "excess_return": 13.953996355196168,
+          "max_drawdown": 9.99,
+          "transactions": 4
+        },
+        "purge": {
+          "start": "2026-01-25 00:00:00",
+          "end": "2026-01-31 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2026-02-01 00:00:00",
+          "end": "2026-03-02 00:00:00",
+          "strategy_return": 0.0,
+          "buy_hold_return": -10.573391274137734,
+          "excess_return": 10.573391274137734,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.2,
+          "buy_pct": 0.9,
+          "sell_pct": 0.1,
+          "bollinger_sigma": 3.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 17,
+        "train": {
+          "start": "2024-11-26 00:00:00",
+          "end": "2025-11-25 00:00:00",
+          "strategy_return": 9.589,
+          "buy_hold_return": -4.996674827728231,
+          "excess_return": 14.585674827728232,
+          "max_drawdown": 29.189999999999998,
+          "transactions": 68
+        },
+        "validation": {
+          "start": "2025-11-26 00:00:00",
+          "end": "2026-02-23 00:00:00",
+          "strategy_return": -3.265,
+          "buy_hold_return": -28.544266711403854,
+          "excess_return": 25.279266711403853,
+          "max_drawdown": 11.29,
+          "transactions": 6
+        },
+        "purge": {
+          "start": "2026-02-24 00:00:00",
+          "end": "2026-03-02 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2026-03-03 00:00:00",
+          "end": "2026-04-01 00:00:00",
+          "strategy_return": 2.116,
+          "buy_hold_return": -0.327899558078959,
+          "excess_return": 2.443899558078959,
+          "max_drawdown": 10.25,
+          "transactions": 3
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.3,
+          "buy_pct": 0.1,
+          "sell_pct": 0.9,
+          "bollinger_sigma": 3.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 18,
+        "train": {
+          "start": "2024-12-26 00:00:00",
+          "end": "2025-12-25 00:00:00",
+          "strategy_return": 13.761,
+          "buy_hold_return": -8.942673470325168,
+          "excess_return": 22.703673470325167,
+          "max_drawdown": 27.089999999999996,
+          "transactions": 67
+        },
+        "validation": {
+          "start": "2025-12-26 00:00:00",
+          "end": "2026-03-25 00:00:00",
+          "strategy_return": 1.703,
+          "buy_hold_return": -18.350819209802594,
+          "excess_return": 20.053819209802594,
+          "max_drawdown": 21.4,
+          "transactions": 12
+        },
+        "purge": {
+          "start": "2026-03-26 00:00:00",
+          "end": "2026-04-01 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2026-04-02 00:00:00",
+          "end": "2026-05-01 00:00:00",
+          "strategy_return": -17.768,
+          "buy_hold_return": 16.933935746903785,
+          "excess_return": -34.701935746903786,
+          "max_drawdown": 27.439999999999998,
+          "transactions": 10
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.3,
+          "buy_pct": 0.1,
+          "sell_pct": 0.9,
+          "bollinger_sigma": 3.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 19,
+        "train": {
+          "start": "2025-01-25 00:00:00",
+          "end": "2026-01-24 00:00:00",
+          "strategy_return": 2.463,
+          "buy_hold_return": -14.81811624884186,
+          "excess_return": 17.28111624884186,
+          "max_drawdown": 21.959999999999997,
+          "transactions": 73
+        },
+        "validation": {
+          "start": "2026-01-25 00:00:00",
+          "end": "2026-04-24 00:00:00",
+          "strategy_return": -2.611,
+          "buy_hold_return": -10.653272929753598,
+          "excess_return": 8.042272929753597,
+          "max_drawdown": 26.790000000000003,
+          "transactions": 21
+        },
+        "purge": {
+          "start": "2026-04-25 00:00:00",
+          "end": "2026-05-01 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2026-05-02 00:00:00",
+          "end": "2026-05-31 00:00:00",
+          "strategy_return": -3.656,
+          "buy_hold_return": -6.370136814474092,
+          "excess_return": 2.714136814474092,
+          "max_drawdown": 3.75,
+          "transactions": 4
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.3,
+          "buy_pct": 0.1,
+          "sell_pct": 0.5,
+          "bollinger_sigma": 5.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 20,
+        "train": {
+          "start": "2025-02-24 00:00:00",
+          "end": "2026-02-23 00:00:00",
+          "strategy_return": 8.655,
+          "buy_hold_return": -29.378496886171146,
+          "excess_return": 38.03349688617114,
+          "max_drawdown": 36.75,
+          "transactions": 64
+        },
+        "validation": {
+          "start": "2026-02-24 00:00:00",
+          "end": "2026-05-24 00:00:00",
+          "strategy_return": -1.774,
+          "buy_hold_return": 20.30469190883597,
+          "excess_return": -22.07869190883597,
+          "max_drawdown": 40.96,
+          "transactions": 23
+        },
+        "purge": {
+          "start": "2026-05-25 00:00:00",
+          "end": "2026-05-31 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2026-06-01 00:00:00",
+          "end": "2026-06-30 00:00:00",
+          "strategy_return": 0.0,
+          "buy_hold_return": -17.90279643013686,
+          "excess_return": 17.90279643013686,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.1,
+          "buy_pct": 0.1,
+          "sell_pct": 0.9,
+          "bollinger_sigma": 2.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      },
+      {
+        "fold": 21,
+        "train": {
+          "start": "2025-03-26 00:00:00",
+          "end": "2026-03-25 00:00:00",
+          "strategy_return": 17.128,
+          "buy_hold_return": -17.91829331703433,
+          "excess_return": 35.046293317034326,
+          "max_drawdown": 36.15,
+          "transactions": 76
+        },
+        "validation": {
+          "start": "2026-03-26 00:00:00",
+          "end": "2026-06-23 00:00:00",
+          "strategy_return": -12.952,
+          "buy_hold_return": -8.842941858297348,
+          "excess_return": -4.109058141702652,
+          "max_drawdown": 31.86,
+          "transactions": 26
+        },
+        "purge": {
+          "start": "2026-06-24 00:00:00",
+          "end": "2026-06-30 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 35,
+        "test": {
+          "start": "2026-07-01 00:00:00",
+          "end": "2026-07-30 00:00:00",
+          "strategy_return": -9.941,
+          "buy_hold_return": 7.923530587764893,
+          "excess_return": -17.864530587764893,
+          "max_drawdown": 10.16,
+          "transactions": 2
+        },
+        "frozen_parameters": {
+          "strategy": "MA-BOLL-BANDS",
+          "tol_pct": 0.1,
+          "buy_pct": 0.1,
+          "sell_pct": 0.9,
+          "bollinger_sigma": 3.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null
+        }
+      }
+    ],
+    "summary": {
+      "fold_count": 21,
+      "compounded_strategy_return": -44.342086122075216,
+      "compounded_buy_hold_return": -9.597808253285567,
+      "compounded_excess_return": -34.74427786878965,
+      "mean_excess_return": -2.6490493297184656,
+      "excess_win_rate": 0.42857142857142855
+    }
+  }
+]
