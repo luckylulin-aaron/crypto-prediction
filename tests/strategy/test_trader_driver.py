@@ -33,7 +33,7 @@ class TestMADriver(unittest.TestCase):
         t_driver = TraderDriver(
             name=name,
             init_amount=int(sim_cash),
-            overall_stats=STRATEGIES,
+            overall_stats=crypto_strategies_for_asset(name),
             cur_coin=sim_coin,
             tol_pcts=TOL_PCTS,
             ma_lengths=MA_LENGTHS,

@@ -12,6 +12,10 @@ import numpy as np
 from app.core.config import (
     BTC_SMA200_DEFENSIVE_PARAMETERS,
     BTC_SMA200_DEFENSIVE_STRATEGY,
+    ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS,
+    ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+    SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
     CRYPTO_EXECUTE_ON_NEXT_OPEN,
     CRYPTO_SLIPPAGE_BPS,
     is_crypto_strategy_allowed_for_asset,
@@ -61,6 +65,9 @@ class StratTrader:
         sma200_entry_band_pct: float = 0.0,
         sma200_exit_band_pct: float = 0.0,
         sma200_min_hold_days: int = 0,
+        breakout_lookback_days: int = 0,
+        breakout_trailing_stop_pct: float = 0.0,
+        breakout_require_btc_regime: bool = False,
         mode: str = "normal",
     ):
         """
@@ -98,17 +105,44 @@ class StratTrader:
         # Enabled strategies differ between crypto vs stocks (see config.CRYPTO_STRATEGIES/STOCK_STRATEGIES).
         if stat not in SUPPORTED_STRATEGIES:
             raise ValueError("Unknown high-level trading strategy!")
-        if stat == BTC_SMA200_DEFENSIVE_STRATEGY:
-            if not is_crypto_strategy_allowed_for_asset(
-                BTC_SMA200_DEFENSIVE_STRATEGY, name
-            ):
+        fixed_asset_strategies = {
+            BTC_SMA200_DEFENSIVE_STRATEGY,
+            ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+            SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+        }
+        if stat in fixed_asset_strategies and not is_crypto_strategy_allowed_for_asset(
+            stat, name
+        ):
+            if stat == BTC_SMA200_DEFENSIVE_STRATEGY:
                 raise ValueError(
-                    f"{BTC_SMA200_DEFENSIVE_STRATEGY} is restricted to BTC; "
-                    f"received {name}"
+                    f"{stat} is restricted to BTC; received {name}"
                 )
+            raise ValueError(f"{stat} is not allowed for {name}")
+        if stat == BTC_SMA200_DEFENSIVE_STRATEGY:
             sma200_entry_band_pct = BTC_SMA200_DEFENSIVE_PARAMETERS["entry_band_pct"]
             sma200_exit_band_pct = BTC_SMA200_DEFENSIVE_PARAMETERS["exit_band_pct"]
             sma200_min_hold_days = BTC_SMA200_DEFENSIVE_PARAMETERS["min_hold_days"]
+        elif stat == ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY:
+            breakout_lookback_days = ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS[
+                "lookback_days"
+            ]
+            breakout_trailing_stop_pct = ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS[
+                "trailing_stop_pct"
+            ]
+            breakout_require_btc_regime = ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS[
+                "require_btc_regime"
+            ]
+        elif stat == SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY:
+            breakout_lookback_days = SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS[
+                "lookback_days"
+            ]
+            breakout_trailing_stop_pct = SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS[
+                "trailing_stop_pct"
+            ]
+            breakout_require_btc_regime = SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS[
+                "require_btc_regime"
+            ]
+        if stat in fixed_asset_strategies:
             execute_on_next_open = CRYPTO_EXECUTE_ON_NEXT_OPEN
             slippage_bps = CRYPTO_SLIPPAGE_BPS
         ma_lengths = list(ma_lengths)
@@ -151,7 +185,7 @@ class StratTrader:
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
-        if stat in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY}:
+        if stat in {"SMA200", *fixed_asset_strategies}:
             self.buy_pct, self.sell_pct = 1.0, 1.0
         else:
             self.buy_pct, self.sell_pct = buy_pct, sell_pct
@@ -178,6 +212,12 @@ class StratTrader:
         self.sma200_entry_band_pct = float(sma200_entry_band_pct)
         self.sma200_exit_band_pct = float(sma200_exit_band_pct)
         self.sma200_min_hold_days = int(sma200_min_hold_days)
+        self.breakout_lookback_days = int(breakout_lookback_days)
+        self.breakout_trailing_stop_pct = float(breakout_trailing_stop_pct)
+        self.breakout_require_btc_regime = bool(breakout_require_btc_regime)
+        self.breakout_in_position = cur_coin > 0
+        self.breakout_peak = None
+        self.market_context = {}
         if (
             min(
                 self.sma200_entry_band_pct,
@@ -189,6 +229,14 @@ class StratTrader:
             raise ValueError(
                 "SMA200 bands and minimum holding period cannot be negative"
             )
+        if stat in {
+            ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+            SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+        } and (
+            self.breakout_lookback_days <= 0
+            or not 0.0 < self.breakout_trailing_stop_pct < 1.0
+        ):
+            raise ValueError("Invalid fixed breakout strategy parameters")
         self.execute_on_next_open = execute_on_next_open
         self.slippage_bps = float(slippage_bps)
         if self.slippage_bps < 0:
@@ -222,6 +270,7 @@ class StratTrader:
         open, low, high = misc_p["open"], misc_p["low"], misc_p["high"]
 
         self.crypto_prices.append((new_p, d, open, low, high))
+        self.market_context = dict(misc_p.get("market_context") or {})
         self.price_history.append(new_p)  # Track price for volatility calculations
 
         # Track volume if available in misc_p
@@ -255,7 +304,20 @@ class StratTrader:
         if self.high_strategy in STRATEGY_REGISTRY:
             strategy_func = STRATEGY_REGISTRY[self.high_strategy]
 
-            if self.high_strategy in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY}:
+            if self.high_strategy in {
+                ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+                SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+            }:
+                strategy_func(
+                    trader=self,
+                    new_p=new_p,
+                    today=d,
+                    lookback_days=self.breakout_lookback_days,
+                    trailing_stop_pct=self.breakout_trailing_stop_pct,
+                    require_btc_regime=self.breakout_require_btc_regime,
+                )
+
+            elif self.high_strategy in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY}:
                 strategy_func(
                     trader=self,
                     new_p=new_p,
@@ -1255,6 +1317,17 @@ class StratTrader:
                     "sma200_entry_band_pct": self.sma200_entry_band_pct,
                     "sma200_exit_band_pct": self.sma200_exit_band_pct,
                     "sma200_min_hold_days": self.sma200_min_hold_days,
+                }
+            )
+        elif self.high_strategy in {
+            ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+            SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+        }:
+            basic.update(
+                {
+                    "breakout_lookback_days": self.breakout_lookback_days,
+                    "breakout_trailing_stop_pct": self.breakout_trailing_stop_pct,
+                    "breakout_require_btc_regime": self.breakout_require_btc_regime,
                 }
             )
         return {**basic, **self.strategies}

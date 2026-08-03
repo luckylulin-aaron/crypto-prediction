@@ -6,6 +6,8 @@ from app.core.config import (
     BTC_SMA200_DEFENSIVE_STRATEGY,
     BUY_SIGNAL,
     CRYPTO_STRATEGIES,
+    ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
     SELL_SIGNAL,
     SMA200_VARIANTS,
     SUPPORTED_STRATEGIES,
@@ -153,10 +155,15 @@ def test_sma200_signal_executes_at_next_open_when_enabled():
     assert buy_trade["price"] == pytest.approx(105.105)
 
 
-def test_btc_defensive_is_the_only_enabled_crypto_strategy():
-    assert CRYPTO_STRATEGIES == [BTC_SMA200_DEFENSIVE_STRATEGY]
+def test_btc_defensive_remains_isolated_when_altcoin_strategies_are_enabled():
+    assert CRYPTO_STRATEGIES == [
+        BTC_SMA200_DEFENSIVE_STRATEGY,
+        ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+        SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+    ]
     assert crypto_strategies_for_asset("BTC") == [BTC_SMA200_DEFENSIVE_STRATEGY]
-    assert crypto_strategies_for_asset("ETH") == []
+    assert crypto_strategies_for_asset("ETH") == [ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY]
+    assert crypto_strategies_for_asset("SOL") == [SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY]
     assert BTC_SMA200_DEFENSIVE_STRATEGY in SUPPORTED_STRATEGIES
     assert STRATEGY_REGISTRY[BTC_SMA200_DEFENSIVE_STRATEGY] is not None
 

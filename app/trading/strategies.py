@@ -9,6 +9,8 @@ import numpy as np
 
 from app.core.config import (
     BTC_SMA200_DEFENSIVE_STRATEGY,
+    ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
     BUY_SIGNAL,
     NO_ACTION_SIGNAL,
     SELL_SIGNAL,
@@ -445,6 +447,98 @@ def strategy_btc_sma200_defensive(
         strat_name=BTC_SMA200_DEFENSIVE_STRATEGY,
     )
 
+
+def strategy_breakout_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    lookback_days: int,
+    trailing_stop_pct: float,
+    require_btc_regime: bool,
+    strat_name: str,
+) -> Tuple[bool, bool]:
+    """Trade a prior-high breakout with a close-based trailing stop."""
+    if not is_crypto_strategy_allowed_for_asset(strat_name, trader.crypto_name):
+        raise ValueError(f"{strat_name} is not allowed for {trader.crypto_name}")
+    if lookback_days <= 0 or not 0.0 < trailing_stop_pct < 1.0:
+        raise ValueError("Invalid breakout lookback or trailing stop")
+
+    market_context = getattr(trader, "market_context", {}) or {}
+    btc_ok = not require_btc_regime or bool(
+        market_context.get("btc_defensive_active", False)
+    )
+    in_position = bool(getattr(trader, "breakout_in_position", trader.cur_coin > 0))
+    peak = getattr(trader, "breakout_peak", None)
+    r_buy, r_sell = False, False
+
+    if in_position:
+        peak = new_p if peak is None else max(float(peak), new_p)
+        stopped = new_p < peak * (1.0 - trailing_stop_pct)
+        if stopped or not btc_ok:
+            trader.breakout_in_position = False
+            trader.breakout_peak = None
+            r_sell = trader._execute_one_sell("by_percentage", new_p)
+            if r_sell:
+                trader._record_history(new_p, today, SELL_SIGNAL)
+                trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+            in_position = False
+        else:
+            trader.breakout_peak = peak
+
+    if not in_position and not r_sell and len(trader.crypto_prices) > lookback_days:
+        prior_closes = [
+            item[0] for item in trader.crypto_prices[-lookback_days - 1 : -1]
+        ]
+        if new_p > max(prior_closes) and btc_ok:
+            trader.breakout_in_position = True
+            trader.breakout_peak = new_p
+            r_buy = trader._execute_one_buy("by_percentage", new_p)
+            if r_buy:
+                trader._record_history(new_p, today, BUY_SIGNAL)
+                trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+
+    if not r_buy and not r_sell:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return r_buy, r_sell
+
+
+def strategy_eth_120d_breakout_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    lookback_days: int = 120,
+    trailing_stop_pct: float = 0.05,
+    require_btc_regime: bool = False,
+) -> Tuple[bool, bool]:
+    return strategy_breakout_defensive(
+        trader,
+        new_p,
+        today,
+        lookback_days,
+        trailing_stop_pct,
+        require_btc_regime,
+        ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+    )
+
+
+def strategy_sol_30d_breakout_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    lookback_days: int = 30,
+    trailing_stop_pct: float = 0.10,
+    require_btc_regime: bool = True,
+) -> Tuple[bool, bool]:
+    return strategy_breakout_defensive(
+        trader,
+        new_p,
+        today,
+        lookback_days,
+        trailing_stop_pct,
+        require_btc_regime,
+        SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+    )
 
 def strategy_double_moving_averages(
     trader,
@@ -4344,6 +4438,8 @@ def strategy_adaptive_ma_selves_macro_enhanced(
 STRATEGY_REGISTRY = {
     "ECONOMIC-INDICATORS": EconomicIndicatorsStrategy,
     BTC_SMA200_DEFENSIVE_STRATEGY: strategy_btc_sma200_defensive,
+    ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY: strategy_eth_120d_breakout_defensive,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY: strategy_sol_30d_breakout_defensive,
     "SMA200": strategy_sma200,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "MA-SELVES-MACRO": strategy_ma_selves_macro_enhanced,

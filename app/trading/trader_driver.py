@@ -12,6 +12,10 @@ import numpy as np
 from app.core.config import (
     BTC_SMA200_DEFENSIVE_PARAMETERS,
     BTC_SMA200_DEFENSIVE_STRATEGY,
+    ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS,
+    ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+    SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
     KDJ_OVERBOUGHT_THRESHOLDS,
     KDJ_OVERSOLD_THRESHOLDS,
     ROUND_PRECISION,
@@ -78,7 +82,11 @@ class TraderDriver:
         fixed_strategy_count = 0
         configured_sma200_variants = sma200_variants or SMA200_VARIANTS
         for s in overall_stats:
-            if s == BTC_SMA200_DEFENSIVE_STRATEGY:
+            if s in {
+                BTC_SMA200_DEFENSIVE_STRATEGY,
+                ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+                SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+            }:
                 fixed_strategy_count += 1
             elif s == "SMA200":
                 fixed_strategy_count += len(configured_sma200_variants)
@@ -165,6 +173,30 @@ class TraderDriver:
                     "sma200_min_hold_days": int(variant["min_hold_days"]),
                 }
                 continue
+            if stat in {
+                ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+                SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+            }:
+                params = (
+                    ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS
+                    if stat == ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY
+                    else SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS
+                )
+                yield {
+                    "stat": stat,
+                    "tol_pct": 0.0,
+                    "buy_pct": 1.0,
+                    "sell_pct": 1.0,
+                    "bollinger_sigma": bollinger_tols[0] if bollinger_tols else 2,
+                    "breakout_lookback_days": int(params["lookback_days"]),
+                    "breakout_trailing_stop_pct": float(
+                        params["trailing_stop_pct"]
+                    ),
+                    "breakout_require_btc_regime": bool(
+                        params["require_btc_regime"]
+                    ),
+                }
+                continue
             if stat == "SMA200":
                 for variant in configured_sma200_variants:
                     yield {
@@ -227,6 +259,7 @@ class TraderDriver:
         slippage_bps: float = 0.0,
         enable_options: bool = True,
         sma200_variants: Optional[List[Dict[str, Any]]] = None,
+        btc_data_stream: Optional[List[tuple]] = None,
         mode: str = "normal",
     ):
         """
@@ -254,13 +287,19 @@ class TraderDriver:
         Returns:
             None
         """
-        if BTC_SMA200_DEFENSIVE_STRATEGY in overall_stats and not (
-            is_crypto_strategy_allowed_for_asset(BTC_SMA200_DEFENSIVE_STRATEGY, name)
-        ):
+        disallowed = [
+            strategy
+            for strategy in overall_stats
+            if not is_crypto_strategy_allowed_for_asset(strategy, name)
+        ]
+        if BTC_SMA200_DEFENSIVE_STRATEGY in disallowed:
             raise ValueError(
                 f"{BTC_SMA200_DEFENSIVE_STRATEGY} is restricted to BTC; received {name}"
             )
+        if disallowed:
+            raise ValueError(f"Strategies {disallowed} are not allowed for {name}")
         self.name = name
+        self.btc_data_stream = btc_data_stream
         self.init_amount, self.init_coin = init_amount, cur_coin
         self.mode = mode
         self.traders = []
@@ -307,6 +346,13 @@ class TraderDriver:
                 sma200_entry_band_pct=spec.get("sma200_entry_band_pct", 0.0),
                 sma200_exit_band_pct=spec.get("sma200_exit_band_pct", 0.0),
                 sma200_min_hold_days=spec.get("sma200_min_hold_days", 0),
+                breakout_lookback_days=spec.get("breakout_lookback_days", 0),
+                breakout_trailing_stop_pct=spec.get(
+                    "breakout_trailing_stop_pct", 0.0
+                ),
+                breakout_require_btc_regime=spec.get(
+                    "breakout_require_btc_regime", False
+                ),
             )
             self.traders.append(t)
 
@@ -355,6 +401,7 @@ class TraderDriver:
         self,
         data_stream: List[tuple],
         intraday_stream: Optional[List[tuple]] = None,
+        btc_data_stream: Optional[List[tuple]] = None,
         intraday_interval_hours: int = 1,
         warmup_points: int = 0,
     ):
@@ -426,6 +473,58 @@ class TraderDriver:
             # If all parsing fails, raise an error
             raise ValueError(f"Unable to parse date: {date_input}")
 
+        requires_btc_regime = any(
+            trader.high_strategy == SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY
+            for trader in self.traders
+        )
+        btc_regime_by_date: Dict[datetime.date, bool] = {}
+        if requires_btc_regime:
+            effective_btc_stream = (
+                btc_data_stream if btc_data_stream is not None else self.btc_data_stream
+            )
+            if not effective_btc_stream:
+                raise ValueError(
+                    f"{SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY} requires a BTC daily data stream"
+                )
+            parsed_btc = sorted(
+                (
+                    (parse_date(item[1]), float(item[0]))
+                    for item in effective_btc_stream
+                ),
+                key=lambda item: item[0],
+            )
+            btc_closes: List[float] = []
+            btc_active = False
+            for btc_date, btc_close in parsed_btc:
+                btc_closes.append(btc_close)
+                if len(btc_closes) >= 200:
+                    btc_sma200 = float(np.mean(btc_closes[-200:]))
+                    if btc_close > btc_sma200 * 1.05:
+                        btc_active = True
+                    elif btc_close < btc_sma200 * 0.95:
+                        btc_active = False
+                else:
+                    btc_active = False
+                btc_regime_by_date[btc_date.date()] = btc_active
+
+            missing_dates = [
+                parse_date(item[1]).date()
+                for item in data_stream
+                if parse_date(item[1]).date() not in btc_regime_by_date
+            ]
+            if missing_dates:
+                raise ValueError(
+                    "BTC daily data is not aligned with the SOL stream; "
+                    f"first missing date: {missing_dates[0]}"
+                )
+
+        def market_context_for(date_value: datetime.datetime) -> Dict[str, bool]:
+            if not requires_btc_regime:
+                return {}
+            return {
+                "btc_defensive_active": btc_regime_by_date[date_value.date()]
+            }
+
         max_final_p = -math.inf
         num_traders = len(self.traders)
 
@@ -472,6 +571,7 @@ class TraderDriver:
                     "high": data_stream[0][4],
                     "intraday_candles": intraday_slice,
                     "intraday_interval_hours": intraday_interval_hours,
+                    "market_context": market_context_for(date_obj),
                     **(
                         {"volume": data_stream[0][5]}
                         if isinstance(data_stream[0], (list, tuple))
@@ -502,6 +602,7 @@ class TraderDriver:
                     "high": data_stream[i][4],
                     "intraday_candles": intraday_slice,
                     "intraday_interval_hours": intraday_interval_hours,
+                    "market_context": market_context_for(d),
                     **(
                         {"volume": data_stream[i][5]}
                         if isinstance(data_stream[i], (list, tuple))

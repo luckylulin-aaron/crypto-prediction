@@ -134,6 +134,18 @@ def run_trading_simulation():
                 data_stream = data_stream[-CRYPTO_SIGNAL_LOOKBACK_DAYS:]
                 logger.info(f"using the latest {CRYPTO_SIGNAL_LOOKBACK_DAYS} daily candles")
 
+                btc_data_stream = None
+                if SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY in asset_strategies:
+                    btc_data_stream = client.get_historic_data(
+                        name="BTC-USD",
+                        interval_hours=CRYPTO_SIGNAL_INTERVAL_HOURS,
+                        lookback_days=CRYPTO_SIGNAL_LOOKBACK_DAYS,
+                    )[-CRYPTO_SIGNAL_LOOKBACK_DAYS:]
+                    if not btc_data_stream:
+                        raise ValueError(
+                            "SOL defensive strategy requires aligned BTC daily data"
+                        )
+
                 # initial cash amount
                 _, cash = client.portfolio_value
                 # initial coin at hand
@@ -207,6 +219,7 @@ def run_trading_simulation():
                     execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
                     slippage_bps=CRYPTO_SLIPPAGE_BPS,
                     enable_options=False,
+                    btc_data_stream=btc_data_stream,
                 )
 
                 t_driver.feed_data(data_stream)
