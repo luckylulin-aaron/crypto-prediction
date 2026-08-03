@@ -10,6 +10,11 @@ import numpy as np
 
 # customized packages
 from app.core.config import (
+    BTC_SMA200_DEFENSIVE_PARAMETERS,
+    BTC_SMA200_DEFENSIVE_STRATEGY,
+    CRYPTO_EXECUTE_ON_NEXT_OPEN,
+    CRYPTO_SLIPPAGE_BPS,
+    is_crypto_strategy_allowed_for_asset,
     BUY_SIGNAL,
     DEA_NUM_OF_DAYS,
     DEPOSIT_CST,
@@ -93,8 +98,21 @@ class StratTrader:
         # Enabled strategies differ between crypto vs stocks (see config.CRYPTO_STRATEGIES/STOCK_STRATEGIES).
         if stat not in SUPPORTED_STRATEGIES:
             raise ValueError("Unknown high-level trading strategy!")
+        if stat == BTC_SMA200_DEFENSIVE_STRATEGY:
+            if not is_crypto_strategy_allowed_for_asset(
+                BTC_SMA200_DEFENSIVE_STRATEGY, name
+            ):
+                raise ValueError(
+                    f"{BTC_SMA200_DEFENSIVE_STRATEGY} is restricted to BTC; "
+                    f"received {name}"
+                )
+            sma200_entry_band_pct = BTC_SMA200_DEFENSIVE_PARAMETERS["entry_band_pct"]
+            sma200_exit_band_pct = BTC_SMA200_DEFENSIVE_PARAMETERS["exit_band_pct"]
+            sma200_min_hold_days = BTC_SMA200_DEFENSIVE_PARAMETERS["min_hold_days"]
+            execute_on_next_open = CRYPTO_EXECUTE_ON_NEXT_OPEN
+            slippage_bps = CRYPTO_SLIPPAGE_BPS
         ma_lengths = list(ma_lengths)
-        if stat == "SMA200" and 200 not in ma_lengths:
+        if stat in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY} and 200 not in ma_lengths:
             ma_lengths.append(200)
         if not all([x in ma_lengths for x in bollinger_mas]):
             raise ValueError(
@@ -133,7 +151,7 @@ class StratTrader:
         # 3. Trading Strategy
         # buy percentage (how much you want to invest) of your cash
         # sell percentage (how much you want to sell off) from your coin
-        if stat == "SMA200":
+        if stat in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY}:
             self.buy_pct, self.sell_pct = 1.0, 1.0
         else:
             self.buy_pct, self.sell_pct = buy_pct, sell_pct
@@ -160,12 +178,17 @@ class StratTrader:
         self.sma200_entry_band_pct = float(sma200_entry_band_pct)
         self.sma200_exit_band_pct = float(sma200_exit_band_pct)
         self.sma200_min_hold_days = int(sma200_min_hold_days)
-        if min(
-            self.sma200_entry_band_pct,
-            self.sma200_exit_band_pct,
-            self.sma200_min_hold_days,
-        ) < 0:
-            raise ValueError("SMA200 bands and minimum holding period cannot be negative")
+        if (
+            min(
+                self.sma200_entry_band_pct,
+                self.sma200_exit_band_pct,
+                self.sma200_min_hold_days,
+            )
+            < 0
+        ):
+            raise ValueError(
+                "SMA200 bands and minimum holding period cannot be negative"
+            )
         self.execute_on_next_open = execute_on_next_open
         self.slippage_bps = float(slippage_bps)
         if self.slippage_bps < 0:
@@ -232,7 +255,7 @@ class StratTrader:
         if self.high_strategy in STRATEGY_REGISTRY:
             strategy_func = STRATEGY_REGISTRY[self.high_strategy]
 
-            if self.high_strategy == "SMA200":
+            if self.high_strategy in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY}:
                 strategy_func(
                     trader=self,
                     new_p=new_p,
@@ -1226,7 +1249,7 @@ class StratTrader:
             "tol_pct": self.tol_pct,
             "bollinger_sigma": self.bollinger_sigma,
         }
-        if self.high_strategy == "SMA200":
+        if self.high_strategy in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY}:
             basic.update(
                 {
                     "sma200_entry_band_pct": self.sma200_entry_band_pct,

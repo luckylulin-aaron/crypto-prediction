@@ -17,7 +17,10 @@ DEBUG = False
 #
 # NOTE: We keep `STRATEGIES` as a backward-compatible alias to `CRYPTO_STRATEGIES` because many scripts/tests
 # pass it into `TraderDriver(overall_stats=...)`.
+BTC_SMA200_DEFENSIVE_STRATEGY = "BTC-SMA200-DEFENSIVE"
+
 SUPPORTED_STRATEGIES = [
+    BTC_SMA200_DEFENSIVE_STRATEGY,
     "SMA200",
     "MA-SELVES",
     "MA-SELVES-MACRO",
@@ -50,9 +53,47 @@ SUPPORTED_STRATEGIES = [
 
 # Enabled strategies (crypto)
 CRYPTO_STRATEGIES = [
-    "MA-BOLL-BANDS",
-    "SMA200",
+    BTC_SMA200_DEFENSIVE_STRATEGY,
 ]
+
+BTC_SMA200_DEFENSIVE_ASSETS = frozenset({"BTC"})
+BTC_SMA200_DEFENSIVE_PARAMETERS = {
+    "entry_band_pct": 0.05,
+    "exit_band_pct": 0.05,
+    "min_hold_days": 0,
+}
+CRYPTO_STRATEGY_ASSET_ALLOWLIST = {
+    BTC_SMA200_DEFENSIVE_STRATEGY: BTC_SMA200_DEFENSIVE_ASSETS,
+}
+CRYPTO_EXECUTE_ON_NEXT_OPEN = True
+CRYPTO_SLIPPAGE_BPS = 10.0
+CRYPTO_SIGNAL_INTERVAL_HOURS = 24
+CRYPTO_SIGNAL_LOOKBACK_DAYS = 365
+
+
+def normalize_crypto_asset(asset: str) -> str:
+    """Normalize exchange pairs and file-derived fixture names to a base asset."""
+    normalized = str(asset).replace("\\", "/").rsplit("/", 1)[-1].upper()
+    return normalized.replace("-USD", "").replace("USDT", "")
+
+
+def crypto_strategies_for_asset(asset: str):
+    """Return enabled crypto strategies that are allowed to trade the asset."""
+    normalized_asset = normalize_crypto_asset(asset)
+    return [
+        strategy
+        for strategy in CRYPTO_STRATEGIES
+        if normalized_asset in CRYPTO_STRATEGY_ASSET_ALLOWLIST.get(
+            strategy, {normalized_asset}
+        )
+    ]
+
+
+def is_crypto_strategy_allowed_for_asset(strategy: str, asset: str) -> bool:
+    """Enforce any asset allowlist attached to a registered crypto strategy."""
+    normalized_asset = normalize_crypto_asset(asset)
+    allowed_assets = CRYPTO_STRATEGY_ASSET_ALLOWLIST.get(strategy)
+    return allowed_assets is None or normalized_asset in allowed_assets
 
 # Enabled strategies (stocks) - daily candles only; keep separate from crypto
 STOCK_STRATEGIES = [
@@ -80,7 +121,7 @@ BOLLINGER_MAS = [6, 12]
 BOLLINGER_TOLS = [2, 3, 4, 5]
 
 SMA200_VARIANTS = [
-    {"entry_band_pct": 0.05, "exit_band_pct": 0.05, "min_hold_days": 0},
+    BTC_SMA200_DEFENSIVE_PARAMETERS.copy(),
 ]
 
 # --- MA-BOLL-BANDS zoom-in configuration ---

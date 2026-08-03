@@ -115,16 +115,24 @@ def run_trading_simulation():
 
         results = {}
 
-        for index, cur_name in enumerate(CURS):
+        crypto_assets = [
+            asset for asset in CURS if crypto_strategies_for_asset(asset)
+        ]
+        for index, cur_name in enumerate(crypto_assets):
+            asset_strategies = crypto_strategies_for_asset(cur_name)
             logger.info(f"[{index+1}] processing for currency={cur_name}...")
 
             try:
                 cur_rate = client.get_cur_rate(name=cur_name + "-USD")
-                data_stream = client.get_historic_data(name=cur_name + "-USD")
+                data_stream = client.get_historic_data(
+                    name=cur_name + "-USD",
+                    interval_hours=CRYPTO_SIGNAL_INTERVAL_HOURS,
+                    lookback_days=CRYPTO_SIGNAL_LOOKBACK_DAYS,
+                )
 
                 # cut-off, only want the last X days of data
-                data_stream = data_stream[-TIMESPAN:]
-                logger.info(f"only want the latest {TIMESPAN} days of data!")
+                data_stream = data_stream[-CRYPTO_SIGNAL_LOOKBACK_DAYS:]
+                logger.info(f"using the latest {CRYPTO_SIGNAL_LOOKBACK_DAYS} daily candles")
 
                 # initial cash amount
                 _, cash = client.portfolio_value
@@ -175,7 +183,7 @@ def run_trading_simulation():
                 t_driver = TraderDriver(
                     name=cur_name,
                     init_amount=int(sim_cash),
-                    overall_stats=STRATEGIES,
+                    overall_stats=asset_strategies,
                     cur_coin=sim_coin,
                     tol_pcts=TOL_PCTS,
                     ma_lengths=MA_LENGTHS,
@@ -196,6 +204,9 @@ def run_trading_simulation():
                     kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
                     kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
                     mode="normal",
+                    execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
+                    slippage_bps=CRYPTO_SLIPPAGE_BPS,
+                    enable_options=False,
                 )
 
                 t_driver.feed_data(data_stream)

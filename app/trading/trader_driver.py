@@ -10,6 +10,8 @@ import numpy as np
 
 # customized packages
 from app.core.config import (
+    BTC_SMA200_DEFENSIVE_PARAMETERS,
+    BTC_SMA200_DEFENSIVE_STRATEGY,
     KDJ_OVERBOUGHT_THRESHOLDS,
     KDJ_OVERSOLD_THRESHOLDS,
     ROUND_PRECISION,
@@ -17,6 +19,7 @@ from app.core.config import (
     RSI_OVERSOLD_THRESHOLDS,
     RSI_PERIODS,
     SMA200_VARIANTS,
+    is_crypto_strategy_allowed_for_asset,
 )
 from app.trading.strat_trader import StratTrader
 from app.utils.util import timer
@@ -75,7 +78,9 @@ class TraderDriver:
         fixed_strategy_count = 0
         configured_sma200_variants = sma200_variants or SMA200_VARIANTS
         for s in overall_stats:
-            if s == "SMA200":
+            if s == BTC_SMA200_DEFENSIVE_STRATEGY:
+                fixed_strategy_count += 1
+            elif s == "SMA200":
                 fixed_strategy_count += len(configured_sma200_variants)
             elif s == "RSI":
                 per_combo += max(1, rsi_extra)
@@ -147,6 +152,19 @@ class TraderDriver:
         """
         configured_sma200_variants = sma200_variants or SMA200_VARIANTS
         for stat in overall_stats:
+            if stat == BTC_SMA200_DEFENSIVE_STRATEGY:
+                variant = BTC_SMA200_DEFENSIVE_PARAMETERS
+                yield {
+                    "stat": stat,
+                    "tol_pct": 0.0,
+                    "buy_pct": 1.0,
+                    "sell_pct": 1.0,
+                    "bollinger_sigma": bollinger_tols[0] if bollinger_tols else 2,
+                    "sma200_entry_band_pct": float(variant["entry_band_pct"]),
+                    "sma200_exit_band_pct": float(variant["exit_band_pct"]),
+                    "sma200_min_hold_days": int(variant["min_hold_days"]),
+                }
+                continue
             if stat == "SMA200":
                 for variant in configured_sma200_variants:
                     yield {
@@ -236,6 +254,12 @@ class TraderDriver:
         Returns:
             None
         """
+        if BTC_SMA200_DEFENSIVE_STRATEGY in overall_stats and not (
+            is_crypto_strategy_allowed_for_asset(BTC_SMA200_DEFENSIVE_STRATEGY, name)
+        ):
+            raise ValueError(
+                f"{BTC_SMA200_DEFENSIVE_STRATEGY} is restricted to BTC; received {name}"
+            )
         self.name = name
         self.init_amount, self.init_coin = init_amount, cur_coin
         self.mode = mode
