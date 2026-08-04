@@ -821,10 +821,12 @@ def _run_stock_simulation(
     )
 
     # Initialize US Stock Client
-    stock_client = USStockClient(tickers=STOCKS)
+    stock_client = USStockClient(tickers=STOCK_SIMULATION_ASSETS)
 
     # only 1 stock for debugging purposes
-    stock_list = STOCKS[:1] if DEBUG else STOCKS
+    stock_list = (
+        STOCK_SIMULATION_ASSETS[:1] if DEBUG else STOCK_SIMULATION_ASSETS
+    )
 
     # Simulate stock trading for each stock
     for stock in stock_list:
@@ -1138,12 +1140,13 @@ def _run_stock_simulation(
             continue
 
 
-def main(asset: str = "all"):
+def main(asset: str = "all", send_email: bool = True):
     """
     Run simulation and make trades.
 
     Args:
         asset (str): "crypto" | "stock" | "all" (default "all").
+        send_email (bool): Whether to send recommendation email after simulation.
 
     Returns:
         None
@@ -1168,7 +1171,7 @@ def main(asset: str = "all"):
         _run_stock_simulation(all_actions, best_summaries)
 
         # Send daily recommendations email if not in debug mode
-        if DEBUG is False:
+        if DEBUG is False and send_email:
             send_daily_recommendations_email(
                 LOG_FILE,
                 RECIPIENT_LIST,
@@ -1369,40 +1372,15 @@ def main(asset: str = "all"):
             logger.error(f"Could not find configuration for {source_exchange.value}")
             continue
 
-        wallet = source_exchange_config["client"].get_wallets()
-        coin_amount = 0.0
-
-        for item in wallet:
-            if isinstance(item, dict):
-                asset_name = item.get(source_exchange_config["asset_key"])
-                if asset_name == asset:
-                    if source_exchange_config["coin_value_key"]:
-                        coin_amount = float(
-                            item[source_exchange_config["coin_key"]][
-                                source_exchange_config["coin_value_key"]
-                            ]
-                        )
-                    else:
-                        coin_amount = float(item[source_exchange_config["coin_key"]])
-            else:
-                asset_name = getattr(item, source_exchange_config["asset_key"], None)
-                if asset_name == asset:
-                    balance = getattr(item, source_exchange_config["coin_key"])
-                    if source_exchange_config["coin_value_key"]:
-                        coin_amount = float(
-                            balance[source_exchange_config["coin_value_key"]]
-                        )
-                    else:
-                        coin_amount = float(balance)
-        if coin_amount == 0.0:
-            logger.warning(f"No {asset} found in {source_exchange.value} wallet.")
-            # Set a default initial amount for simulation purposes
-            sim_coin_amount = DEFAULT_SIMULATION_COIN_AMOUNT
-            logger.info(
-                f"Using simulation amount of {sim_coin_amount} {asset} for testing"
-            )
-        else:
-            sim_coin_amount = coin_amount
+        # Performance simulation must be independent of the live wallet. Using
+        # a fallback 1-coin position made returns depend on the asset's starting
+        # price and did not match the frozen validation's capital convention.
+        simulation_initial_cash = CRYPTO_SIMULATION_INITIAL_CASH
+        simulation_initial_coin = CRYPTO_SIMULATION_INITIAL_COIN
+        logger.info(
+            f"Using standardized simulation capital for {asset}: "
+            f"cash=${simulation_initial_cash:.2f}, coin={simulation_initial_coin:.1f}"
+        )
 
         # Run simulation
         # simulation configuration
@@ -1447,8 +1425,8 @@ def main(asset: str = "all"):
                 window_size=window_size_data_points,
                 step_size=step_size_data_points,
                 name=asset,
-                init_amount=source_exchange_config["stablecoin_value"],
-                cur_coin=sim_coin_amount,
+                init_amount=simulation_initial_cash,
+                cur_coin=simulation_initial_coin,
                 # only test 1 strategy for debugging purposes
                 overall_stats=asset_strategies,
                 tol_pcts=TOL_PCTS,
@@ -1481,8 +1459,8 @@ def main(asset: str = "all"):
             # Use the most recent data for signal generation
             trader_driver = TraderDriver(
                 name=asset,
-                init_amount=source_exchange_config["stablecoin_value"],
-                cur_coin=sim_coin_amount,
+                init_amount=simulation_initial_cash,
+                cur_coin=simulation_initial_coin,
                 # only test 1 strategy for debugging purposes
                 overall_stats=asset_strategies,
                 tol_pcts=TOL_PCTS,
@@ -1795,7 +1773,7 @@ def main(asset: str = "all"):
         _run_stock_simulation(all_actions, best_summaries)
 
     # Send daily recommendations email if not in debug mode
-    if DEBUG is False:
+    if DEBUG is False and send_email:
         send_daily_recommendations_email(
             LOG_FILE,
             RECIPIENT_LIST,
@@ -1844,6 +1822,7 @@ if __name__ == "__main__":
     import sys
 
     asset_mode = "all"
+    send_email = "--no-email" not in sys.argv[1:]
     for arg in sys.argv[1:]:
         if arg.startswith("--asset="):
             asset_mode = arg.split("=", 1)[1].strip().lower()
@@ -1851,7 +1830,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--cronjob":
         logger.info("Starting trading bot in schedule-based cronjob mode...")
         # Schedule the job for 1:00 PM UTC (9:00 PM SGT)
-        schedule.every().day.at("13:00").do(lambda: main(asset=asset_mode))
+        schedule.every().day.at("13:00").do(
+            lambda: main(asset=asset_mode, send_email=send_email)
+        )
         logger.info("Trading bot scheduled to run daily at 9:00 PM SGT (1:00 PM UTC)")
         logger.info("Press Ctrl+C to stop the bot")
         try:
@@ -1874,4 +1855,4 @@ if __name__ == "__main__":
 
     else:
         logger.info("Starting trading bot in one-time mode...")
-        main(asset=asset_mode)
+        main(asset=asset_mode, send_email=send_email)

@@ -92,7 +92,12 @@ CRYPTO_STRATEGY_ASSET_ALLOWLIST = {
 CRYPTO_EXECUTE_ON_NEXT_OPEN = True
 CRYPTO_SLIPPAGE_BPS = 10.0
 CRYPTO_SIGNAL_INTERVAL_HOURS = 24
-CRYPTO_SIGNAL_LOOKBACK_DAYS = 365
+# Keep the daily simulation on the same three-calendar-year history used by the
+# frozen-strategy validation. A one-year slice leaves only ~165 post-warmup
+# observations for SMA200 and can produce a misleading short-regime return.
+CRYPTO_SIGNAL_LOOKBACK_DAYS = 3 * 365
+CRYPTO_SIMULATION_INITIAL_CASH = 10000.0
+CRYPTO_SIMULATION_INITIAL_COIN = 0.0
 
 
 def normalize_crypto_asset(asset: str) -> str:
@@ -322,7 +327,9 @@ MOVING_WINDOW_STEP = 3  # Step size for moving window (1 = overlapping windows, 
 SIMULATION_METHOD = (
     "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
 )
-SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
+SIMULATION_BASE_AMOUNT = int(
+    CRYPTO_SIMULATION_INITIAL_CASH
+)  # Standard simulation amount for scaling
 SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method
 DEFAULT_SIMULATION_COIN_AMOUNT = (
     1.0  # Default coin amount to use for simulation when asset is not found in wallet
@@ -386,4 +393,13 @@ STOCKS = [
     "TCEHY",  # Tencent
     "UBER",  # Uber
     "DASH",  # Doordash
+]
+
+# Daily stock recommendations intentionally run only the three frozen,
+# asset-isolated strategies. STOCKS remains the broader research/backfill
+# universe and must not implicitly expand the scheduled simulation workload.
+STOCK_SIMULATION_ASSETS = [
+    "MSFT",
+    "TCEHY",
+    "COIN",
 ]

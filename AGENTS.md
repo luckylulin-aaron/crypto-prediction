@@ -31,9 +31,10 @@ that is “100% invested” means 100% of the amount the user assigned to that a
 not the user's entire portfolio.
 
 Known user-held / deliberately enabled strategy assets are BTC, ETH, SOL, TCEHY,
-COIN, and MSFT. The user explicitly confirmed holdings in TCEHY, COIN, and MSFT.
-Other assets in `CURS` or `STOCKS` may still be fetched or run with legacy generic
-strategies, but must not silently inherit one of the asset-specific strategies.
+COIN, and MSFT. The scheduled daily simulation is intentionally limited to these
+six assets. The user explicitly confirmed holdings in TCEHY, COIN, and MSFT.
+Other assets in `CURS` or `STOCKS` are research/backfill scope only and must not
+silently enter the daily run or inherit an asset-specific strategy.
 
 ## Non-negotiable safety rules
 
@@ -78,6 +79,11 @@ Important isolation behavior:
   the legacy generic stock strategies.
 - Fixed strategies force `buy_pct = sell_pct = 1.0` inside their simulation
   bucket. The user controls the real per-asset allocation separately.
+- `STOCK_SIMULATION_ASSETS` limits the daily stock loop to MSFT, TCEHY, and COIN;
+  `STOCKS` remains the broader research and historical-backfill universe.
+- Crypto daily performance uses about 1,095 daily rows with standardized
+  `$10,000` cash and zero initial coin, independent of live wallet holdings.
+- Same-cost buy-and-hold invests cash at the first executable open.
 - `MA-BOLL-BANDS` was not robustly superior across bull, bear, and range crypto
   regimes. Do not restart parameter tuning for deployment without new evidence.
 
@@ -161,6 +167,7 @@ Running without activation is usually clearer:
 poetry run python app/core/main.py
 poetry run python app/core/main.py --asset=crypto
 poetry run python app/core/main.py --asset=stock
+poetry run python app/core/main.py --no-email
 ```
 
 If `poetry` is not on `PATH`, discover it with `Get-Command poetry -All`. On the

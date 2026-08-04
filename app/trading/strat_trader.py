@@ -1181,6 +1181,23 @@ class StratTrader:
     @property
     def baseline_rate_of_return(self):
         """Computes for baseline gain percentage (i.e. hold all coins, have 0 transaction)."""
+        if (
+            self.init_coin == 0
+            and self.init_cash > 0
+            and len(self.crypto_prices) >= 2
+        ):
+            entry_price = float(self.crypto_prices[0][0])
+            if self.execute_on_next_open:
+                slip = self.slippage_bps / 10_000.0
+                entry_price = float(self.crypto_prices[0][2]) * (1.0 + slip)
+            baseline_coin = (
+                self.init_cash * (1.0 - self.broker_pct) / entry_price
+            )
+            final_value = baseline_coin * float(self.crypto_prices[-1][0])
+            return np.round(
+                100 * (final_value - self.init_cash) / self.init_cash, ROUND_PRECISION
+            )
+
         if len(self.all_history) == 0:
             # No trades made, compute baseline return using price data
             if len(self.crypto_prices) < 2:

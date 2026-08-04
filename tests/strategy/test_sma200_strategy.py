@@ -227,3 +227,12 @@ def test_driver_rejects_btc_defensive_for_eth():
     }
     with pytest.raises(ValueError, match="restricted to BTC"):
         TraderDriver(**kwargs)
+
+
+def test_cash_only_baseline_is_same_cost_buy_and_hold():
+    trader = _trader(execute_on_next_open=True, slippage_bps=10)
+    _add_day(trader, 0, 100, open_price=90, execute_strategy=False)
+    _add_day(trader, 1, 120, execute_strategy=False)
+
+    expected_return = (10_000 * 0.98 / 90.09 * 120 / 10_000 - 1) * 100
+    assert trader.baseline_rate_of_return == pytest.approx(expected_return, abs=0.001)
