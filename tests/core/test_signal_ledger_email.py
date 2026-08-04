@@ -14,7 +14,9 @@ def test_pending_ledger_signal_drives_email_with_original_signal_date(
         sent_messages.append(kwargs)
         return True
 
-    monkeypatch.setattr(main, "send_email", fake_send_email)
+    monkeypatch.setitem(
+        main.send_daily_recommendations_email.__globals__, "send_email", fake_send_email
+    )
     pending = [
         {
             "id": 7,
@@ -48,7 +50,11 @@ def test_pending_ledger_signal_drives_email_with_original_signal_date(
 def test_admin_send_failure_keeps_delivery_unsuccessful(tmp_path, monkeypatch):
     log_file = tmp_path / "log.txt"
     log_file.write_text("", encoding="utf-8")
-    monkeypatch.setattr(main, "send_email", lambda **kwargs: False)
+    monkeypatch.setitem(
+        main.send_daily_recommendations_email.__globals__,
+        "send_email",
+        lambda **kwargs: False,
+    )
 
     delivered = main.send_daily_recommendations_email(
         log_file,

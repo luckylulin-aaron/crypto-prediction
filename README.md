@@ -405,6 +405,13 @@ The trading bot automatically uses SQLite for development (no setup required) an
 
 The bot automatically creates a SQLite database file (`crypto_trading.db`) in the project root. No additional setup required!
 
+Apply the non-destructive Alembic schema baseline before the first scheduled run:
+
+```powershell
+$env:DATABASE_URL = "sqlite:///./crypto_trading.db"
+poetry run alembic upgrade head
+```
+
 ```bash
 # The database will be created automatically when you first run the bot
 poetry run python app/core/main.py --symbol BTC-USD --strategy MA-SELVES --days 30
@@ -979,7 +986,7 @@ app.run(host='0.0.0.0', port=8000, debug=True)
 ## 📝 Logging
 
 Logs are written to:
-- `app/log.txt` - Application logs
+- `runtime/logs/trading-bot.log` - Application logs (Git-ignored runtime output)
 - Console output - Real-time status
 
 Log levels:
@@ -1007,7 +1014,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 For issues and questions:
 1. Check the troubleshooting section
-2. Review error logs in `app/log.txt`
+2. Review error logs in `runtime/logs/trading-bot.log`
 3. Check the web dashboard for error messages
 4. Open an issue on GitHub
 

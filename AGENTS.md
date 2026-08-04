@@ -133,10 +133,20 @@ Caveats that must survive account changes:
 
 ## Repository map
 
-- `app/core/config.py`: safety flags, enabled strategies, frozen parameters,
-  allowlists, data windows, assets, and execution settings.
-- `app/core/main.py`: one-time/cron entrypoint, crypto and stock simulations,
-  logging, email composition, and DEFI monitoring.
+- `app/core/config.py`: safety flags, data windows, execution settings, and
+  backward-compatible strategy exports.
+- `app/core/asset_strategy_registry.py`: asset-specific strategy names, frozen
+  parameters, allowlists, and stock/crypto strategy routing.
+- `app/core/main.py`: thin one-time/cron entrypoint (kept at <=500 lines),
+  top-level client/service wiring, portfolio checks, email, and DEFI monitoring.
+- `app/runners/stock_simulation_runner.py` and
+  `app/runners/crypto_simulation_runner.py`: complete per-asset simulation loops;
+  the crypto runner also owns exchange history fallback helpers.
+- `app/services/daily_recommendation_renderer.py`: plain-text and HTML email
+  rendering; main re-exports its function for backward compatibility.
+- `app/services/`: shared simulation-result, notification, TraderDriver factory,
+  and external market-client construction boundaries.
+- `app/repositories/`: persistence boundaries, including the signal ledger.
 - `app/trading/strategies.py`: strategy functions and `STRATEGY_REGISTRY`.
 - `app/trading/strat_trader.py`: portfolio state, 2% brokerage, pending
   next-open orders, slippage, and indicator state.
@@ -144,6 +154,7 @@ Caveats that must survive account changes:
   BTC context alignment, and historical data feed.
 - `app/trading/us_stock_client.py`: Yahoo Finance daily data and SQLite cache.
 - `app/db/database.py`: SQLAlchemy models and SQLite/PostgreSQL connection.
+- `migrations/`: non-destructive Alembic schema migrations.
 - `app/db/db_management.py`: init/test/stats/backfill/clear/drop CLI.
 - `app/backtesting/`: auditable pure simulations and registered-runtime checks.
 - `tests/strategy/` and `tests/backtesting/`: strategy, isolation, execution,
@@ -188,7 +199,7 @@ account/workspace-specific. After switching accounts, inspect or recreate the
 08:45 automation before assuming it still runs. Do not silently change either
 schedule.
 
-Runtime output is written to `./log.txt` in addition to console logs. A process
+Runtime output is written to `./runtime/logs/trading-bot.log` in addition to console logs. A process
 monitor should report crashes, missing market data, Gmail failures, and the
 final recommendations, not just that the process exists.
 
@@ -198,6 +209,16 @@ SQLite is the current preferred local database. The default URL is
 `sqlite:///./crypto_trading.db`; the database file is local and Git-ignored.
 PostgreSQL remains optional and is available through `docker-compose.yml` or a
 local server.
+Schema changes are managed with Alembic. The initial baseline is intentionally
+non-destructive and never drops historical prices or signal delivery state:
+
+```powershell
+$env:DATABASE_URL = "sqlite:///./crypto_trading.db"
+poetry run alembic upgrade head
+```
+
+Daily BUY/SELL notifications use `signal_ledger` plus per-strategy checkpoints.
+The admin delivery must succeed before a pending signal is marked delivered.
 
 PowerShell commands:
 

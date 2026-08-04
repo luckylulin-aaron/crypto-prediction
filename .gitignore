@@ -144,3 +144,7 @@ config.ini
 settings.ini
 api_keys.txt
 tokens.txt
+
+# Local runtime logs and non-audited generated artifacts
+runtime/
+artifacts/local/
