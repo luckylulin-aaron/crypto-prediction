@@ -131,6 +131,25 @@ Caveats that must survive account changes:
 - These rules are defensive/regime-dependent, not uniformly superior in every
   market interval.
 
+### AAPL research status (2026-08-04)
+
+- AAPL is research-only and is **not** registered, enabled, or included in
+  `STOCK_SIMULATION_ASSETS`.
+- Local SQLite contains 2,509 adjusted daily rows from 2016-08-08 through
+  2026-07-31 for longer-history research.
+- `app/backtesting/aapl_defensive_research.py` evaluates a deliberately small
+  long/cash set: breakout/trailing-stop, SMA bands, Donchian, asymmetric SMA
+  exit with breakout re-entry, and monthly SMA checks.
+- Under the same 2% per-side friction and 10 bps slippage, no unlevered AAPL/cash
+  candidate achieved the requested +10 percentage-point excess over same-cost
+  buy-and-hold. The strict first frozen SMA200 candidate underperformed the
+  final test by 24.11 pp; the best recent-three-year post-hoc feasibility result
+  also remained below buy-and-hold.
+- Do not register AAPL or continue narrowing parameters merely to manufacture
+  the target. Continuing requires an explicit user decision to broaden the risk
+  boundary (for example leverage, shorting, or cross-asset rotation), followed
+  by a new validation design that discloses the prior holdout inspection.
+
 ## Repository map
 
 - `app/core/config.py`: safety flags, data windows, execution settings, and
