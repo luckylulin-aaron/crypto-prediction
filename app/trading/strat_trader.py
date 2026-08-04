@@ -1312,7 +1312,7 @@ class StratTrader:
                 Defaults to 0 (disabled; use the original freshness check).
 
         Returns:
-            dict: {"action": str, "buy_percentage": float, "sell_percentage": float}
+            dict: action, percentages, and the originating signal_date.
 
         Raises:
             ValueError: If lag_intervals is negative.
@@ -1326,10 +1326,14 @@ class StratTrader:
             "action": NO_ACTION_SIGNAL,
             "buy_percentage": self.buy_pct,
             "sell_percentage": self.sell_pct,
+            "signal_date": None,
         }
 
-        # Need at least 1 event (+ lag)
-        if len(self.trade_history) <= lag_intervals:
+        # Close-derived signals are recorded before their next-open executions.
+        # Prefer that history so reminders refer to the actual signal candle.
+        signal_events = getattr(self, "signal_history", None) or []
+        event_history = signal_events if signal_events else self.trade_history
+        if len(event_history) <= lag_intervals:
             return res
 
         def _normalize_dt(x):
@@ -1367,9 +1371,9 @@ class StratTrader:
         # If lookback is enabled, search backwards for the most recent BUY/SELL within the window.
         if lookback_hours > 0:
             max_age_seconds = int(lookback_hours) * 3600
-            start_idx = len(self.trade_history) - 1 - lag_intervals
+            start_idx = len(event_history) - 1 - lag_intervals
             for i in range(start_idx, -1, -1):
-                evt = self.trade_history[i]
+                evt = event_history[i]
                 dt_obj = _normalize_dt(evt.get("date"))
                 if dt_obj is None:
                     continue
@@ -1380,11 +1384,12 @@ class StratTrader:
                 act = str(evt.get("action", NO_ACTION_SIGNAL)).upper()
                 if act in ("BUY", "SELL"):
                     res["action"] = act
+                    res["signal_date"] = dt_obj
                     return res
             return res
 
         # Original behavior: only consider the single last (lagged) event, with freshness check.
-        last_evt = self.trade_history[-1 - lag_intervals]
+        last_evt = event_history[-1 - lag_intervals]
         last_date_dt_obj = _normalize_dt(last_evt.get("date"))
         if last_date_dt_obj is None:
             return res
@@ -1393,6 +1398,7 @@ class StratTrader:
         max_age_seconds = (lag_intervals + 1) * interval_hours * 3600
         if diff.total_seconds() <= max_age_seconds:
             res["action"] = last_evt.get("action", NO_ACTION_SIGNAL)
+            res["signal_date"] = last_date_dt_obj
 
         return res
 

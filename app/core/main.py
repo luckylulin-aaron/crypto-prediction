@@ -20,6 +20,7 @@ try:
     from core.logger import get_logger
     from data.defi_event_client import DefiEventClient
     from data.fear_greed_client import FearGreedClient
+    from db.database import db_manager
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
@@ -48,6 +49,7 @@ except ImportError:
     from core.logger import get_logger
     from data.defi_event_client import DefiEventClient
     from data.fear_greed_client import FearGreedClient
+    from db.database import db_manager
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
@@ -85,12 +87,50 @@ RECIPIENT_LIST = [
 ]
 
 
+def _record_trader_signals(
+    *, asset_type: str, exchange: str, asset: str, trader, data_stream: list
+) -> None:
+    """Persist newly evaluated close-derived signals without duplicating reruns."""
+    if not data_stream:
+        return
+    signal_events = getattr(trader, "signal_history", None) or []
+    event_source = signal_events or (getattr(trader, "trade_history", None) or [])
+    events = [
+        {
+            "date": event.get("date"),
+            "action": event.get("action"),
+            "buy_percentage": trader.buy_pct,
+            "sell_percentage": trader.sell_pct,
+        }
+        for event in event_source
+        if str(event.get("action", "")).upper() in ("BUY", "SELL")
+    ]
+    try:
+        inserted = db_manager.record_signal_events(
+            asset_type=asset_type,
+            exchange=exchange,
+            asset=asset,
+            strategy=trader.high_strategy,
+            strategy_version=SIGNAL_LEDGER_STRATEGY_VERSION,
+            latest_candle_date=data_stream[-1][1],
+            events=events,
+            bootstrap_days=SIGNAL_LEDGER_BOOTSTRAP_DAYS,
+        )
+        logger.info(
+            f"Signal ledger checkpoint updated for {asset}/{trader.high_strategy}; "
+            f"new pending signals={inserted}"
+        )
+    except Exception as exc:
+        logger.error(f"Failed to update signal ledger for {asset}: {exc}")
+
+
 def send_daily_recommendations_email(
     log_file,
     recipient_list,
     from_email,
     app_password,
     best_summaries: Optional[list] = None,
+    pending_signals: Optional[list] = None,
 ):
     """
     Send daily recommendations email from log.txt for today's actions.
@@ -109,6 +149,8 @@ def send_daily_recommendations_email(
     """
     today_str = datetime.now().strftime("%Y-%m-%d")
     best_summaries = best_summaries or []
+    ledger_authoritative = pending_signals is not None
+    pending_signals = pending_signals or []
 
     def _to_dt(x):
         try:
@@ -299,7 +341,7 @@ def send_daily_recommendations_email(
                     action_val = action.replace("Action: ", "")
                     buy_val = buy.replace("Buy %: ", "")
                     sell_val = sell.replace("Sell %: ", "")
-                    if action_val.upper() in ("BUY", "SELL"):
+                    if action_val.upper() in ("BUY", "SELL") and not ledger_authoritative:
                         buy_sell_lines.append(
                             (time, exch, asset, action_val, buy_val, sell_val)
                         )
@@ -309,11 +351,31 @@ def send_daily_recommendations_email(
                     # fallback: treat as no action
                     no_action_entries.append(("?", "?"))
 
+    # Pending ledger rows are authoritative for actionable reminders. Their time
+    # is the signal candle date, not the date on which this process happens to run.
+    for row in pending_signals:
+        signal_dt = _to_dt(row.get("signal_date"))
+        signal_time = (
+            signal_dt.strftime("%Y-%m-%d %H:%M:%S")
+            if signal_dt is not None
+            else str(row.get("signal_date", ""))
+        )
+        buy_sell_lines.append(
+            (
+                signal_time,
+                row.get("exchange", ""),
+                row.get("asset", ""),
+                row.get("action", ""),
+                _fmt_pct(row.get("buy_percentage")),
+                _fmt_pct(row.get("sell_percentage")),
+            )
+        )
+
     # If we have no parsed log entries for today, we can still send the best summary table
     # (when simulations ran in this process and provided `best_summaries`).
     if not buy_sell_lines and not no_action_entries and not best_summaries:
         logger.info("No trading actions found for today, skipping email notification.")
-        return
+        return True
 
     # Separate crypto and stock recommendations
     crypto_lines = []
@@ -342,7 +404,7 @@ def send_daily_recommendations_email(
     if not buy_sell_lines:
         if not recipient_list:
             logger.info("Recipient list is empty; skipping email notification.")
-            return
+            return False
 
         admin_recipient = recipient_list[0]
         sim_ts = latest_sim_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -385,7 +447,7 @@ def send_daily_recommendations_email(
         html_body += "</div>"
 
         subject = f"Daily Trading Bot Recommendations ({today_str}) - NO ACTION"
-        send_email(
+        sent = send_email(
             subject=subject,
             body=body.strip(),
             to_emails=[admin_recipient],
@@ -393,12 +455,19 @@ def send_daily_recommendations_email(
             app_password=app_password,
             html_body=html_body,
         )
-        logger.info(
-            "No BUY/SELL recommendations today; sent heartbeat to admin only and muted other recipients."
-        )
-        return
+        if sent:
+            logger.info(
+                "No BUY/SELL recommendations today; sent heartbeat to admin only and muted other recipients."
+            )
+        else:
+            logger.error("Failed to deliver NO ACTION heartbeat to admin.")
+        return bool(sent)
 
     # Send different emails to different recipients
+    if not recipient_list:
+        logger.info("Recipient list is empty; pending signals remain undelivered.")
+        return False
+    admin_sent = False
     for i, recipient in enumerate(recipient_list):
         sim_ts = latest_sim_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         body = f"Latest simulation time: {sim_ts}\n\n"
@@ -559,7 +628,7 @@ def send_daily_recommendations_email(
 
         subject = f"Daily Trading Bot Recommendations ({today_str})"
         html_body += "</div>"
-        send_email(
+        sent = send_email(
             subject=subject,
             body=body.strip(),
             to_emails=[recipient],
@@ -567,9 +636,47 @@ def send_daily_recommendations_email(
             app_password=app_password,
             html_body=html_body,
         )
+        if i == 0:
+            admin_sent = bool(sent)
 
-    return
+    return admin_sent
 
+
+
+def _send_daily_recommendations_with_ledger(best_summaries=None) -> bool:
+    """Send pending ledger signals and persist the admin delivery outcome."""
+    try:
+        pending_signals = db_manager.get_pending_signals()
+    except Exception as exc:
+        logger.error(f"Failed to read pending signal ledger; using log fallback: {exc}")
+        pending_signals = None
+
+    delivered = send_daily_recommendations_email(
+        LOG_FILE,
+        RECIPIENT_LIST,
+        GMAIL_ADDRESS,
+        GMAIL_APP_PASSWORD,
+        best_summaries=best_summaries,
+        pending_signals=pending_signals,
+    )
+
+    if pending_signals:
+        signal_ids = [row["id"] for row in pending_signals]
+        try:
+            db_manager.mark_signal_delivery(
+                signal_ids,
+                success=bool(delivered),
+                error=None if delivered else "admin email delivery failed",
+            )
+            logger.info(
+                f"Signal ledger delivery recorded: signals={len(signal_ids)}, "
+                f"success={bool(delivered)}"
+            )
+        except Exception as exc:
+            logger.error(f"Failed to update signal ledger delivery status: {exc}")
+            return False
+
+    return bool(delivered)
 
 def main_defi():
     """Send the DEFI asset valuation report email (runs only on Sundays)."""
@@ -925,6 +1032,13 @@ def _run_stock_simulation(
                 signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=48)
             except Exception:
                 signal = best_t.trade_signal
+            _record_trader_signals(
+                asset_type="STOCK",
+                exchange="STOCK",
+                asset=stock,
+                trader=best_t,
+                data_stream=data_stream,
+            )
             if best_summaries is not None:
                 # Signal frequency stats from the best trader's full trade history
                 th = getattr(best_t, "trade_history", []) or []
@@ -1172,13 +1286,7 @@ def main(asset: str = "all", send_email: bool = True):
 
         # Send daily recommendations email if not in debug mode
         if DEBUG is False and send_email:
-            send_daily_recommendations_email(
-                LOG_FILE,
-                RECIPIENT_LIST,
-                GMAIL_ADDRESS,
-                GMAIL_APP_PASSWORD,
-                best_summaries=best_summaries,
-            )
+            _send_daily_recommendations_with_ledger(best_summaries)
 
         # write to log file
         now = datetime.now()
@@ -1498,6 +1606,13 @@ def main(asset: str = "all", send_email: bool = True):
                 signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=48)
             except Exception:
                 signal = best_t.trade_signal
+            _record_trader_signals(
+                asset_type="CRYPTO",
+                exchange=source_exchange.value,
+                asset=asset,
+                trader=best_t,
+                data_stream=data_stream,
+            )
             th = getattr(best_t, "trade_history", []) or []
             num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
             num_sell = len(
@@ -1774,13 +1889,7 @@ def main(asset: str = "all", send_email: bool = True):
 
     # Send daily recommendations email if not in debug mode
     if DEBUG is False and send_email:
-        send_daily_recommendations_email(
-            LOG_FILE,
-            RECIPIENT_LIST,
-            GMAIL_ADDRESS,
-            GMAIL_APP_PASSWORD,
-            best_summaries=best_summaries,
-        )
+        _send_daily_recommendations_with_ledger(best_summaries)
 
     # Send DEFI report email based on configuration
     if DEFI_MONITORING_ENABLED:
@@ -1849,9 +1958,7 @@ if __name__ == "__main__":
         logger.info(
             "Sending daily trading recommendations email only (no simulation)..."
         )
-        send_daily_recommendations_email(
-            LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
-        )
+        _send_daily_recommendations_with_ledger()
 
     else:
         logger.info("Starting trading bot in one-time mode...")

@@ -99,6 +99,10 @@ CRYPTO_SIGNAL_LOOKBACK_DAYS = 3 * 365
 CRYPTO_SIMULATION_INITIAL_CASH = 10000.0
 CRYPTO_SIMULATION_INITIAL_COIN = 0.0
 
+# Increment when deployed signal semantics change; it is part of the ledger key.
+SIGNAL_LEDGER_STRATEGY_VERSION = "v1"
+SIGNAL_LEDGER_BOOTSTRAP_DAYS = 2
+
 
 def normalize_crypto_asset(asset: str) -> str:
     """Normalize exchange pairs and file-derived fixture names to a base asset."""

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     create_engine,
     func,
     text,
@@ -88,6 +89,64 @@ class DataCache(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class SignalLedger(Base):
+    """Durable, idempotent BUY/SELL notification record."""
+
+    __tablename__ = "signal_ledger"
+    __table_args__ = (
+        UniqueConstraint(
+            "asset_type",
+            "asset",
+            "strategy",
+            "strategy_version",
+            "signal_date",
+            "action",
+            name="uq_signal_ledger_identity",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_type = Column(String(20), nullable=False, index=True)
+    exchange = Column(String(40), nullable=False)
+    asset = Column(String(20), nullable=False, index=True)
+    strategy = Column(String(100), nullable=False)
+    strategy_version = Column(String(40), nullable=False, default="v1")
+    signal_date = Column(DateTime, nullable=False, index=True)
+    action = Column(String(10), nullable=False)
+    buy_percentage = Column(Float, nullable=True)
+    sell_percentage = Column(Float, nullable=True)
+    delivery_status = Column(String(20), nullable=False, default="pending", index=True)
+    delivery_attempts = Column(Integer, nullable=False, default=0)
+    first_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    delivered_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+
+
+class SignalLedgerCheckpoint(Base):
+    """Last completed candle scanned for one asset/strategy runtime."""
+
+    __tablename__ = "signal_ledger_checkpoint"
+    __table_args__ = (
+        UniqueConstraint(
+            "asset_type",
+            "asset",
+            "strategy",
+            "strategy_version",
+            name="uq_signal_ledger_checkpoint",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_type = Column(String(20), nullable=False)
+    asset = Column(String(20), nullable=False)
+    strategy = Column(String(100), nullable=False)
+    strategy_version = Column(String(40), nullable=False, default="v1")
+    last_evaluated_candle = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 def get_db_session():
     """Get a database session."""
     db = SessionLocal()
@@ -120,15 +179,6 @@ class DatabaseManager:
         """Ensure database is initialized before operations."""
         if not self._initialized:
             self._create_tables()
-
-    def _create_tables(self):
-        """Create database tables if they don't exist."""
-        try:
-            Base.metadata.create_all(bind=engine)
-            self.logger.info("Database tables created successfully")
-        except Exception as e:
-            self.logger.error(f"Error creating database tables: {e}")
-            raise
 
     def store_historical_data(self, symbol: str, data: List[List]) -> bool:
         """
@@ -395,6 +445,171 @@ class DatabaseManager:
             self.logger.error(f"Error clearing old data: {e}")
             db.rollback()
             return 0
+        finally:
+            db.close()
+
+    def record_signal_events(
+        self,
+        *,
+        asset_type: str,
+        exchange: str,
+        asset: str,
+        strategy: str,
+        strategy_version: str,
+        latest_candle_date,
+        events: list,
+        bootstrap_days: int = 2,
+    ) -> int:
+        """Idempotently record new signal events since the prior candle checkpoint."""
+
+        def _as_datetime(value):
+            if isinstance(value, datetime):
+                return value.replace(tzinfo=None)
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return parsed.replace(tzinfo=None)
+
+        self.ensure_initialized()
+        latest_candle = _as_datetime(latest_candle_date)
+        db = SessionLocal()
+        try:
+            checkpoint = (
+                db.query(SignalLedgerCheckpoint)
+                .filter(
+                    SignalLedgerCheckpoint.asset_type == asset_type,
+                    SignalLedgerCheckpoint.asset == asset,
+                    SignalLedgerCheckpoint.strategy == strategy,
+                    SignalLedgerCheckpoint.strategy_version == strategy_version,
+                )
+                .first()
+            )
+            scan_after = (
+                checkpoint.last_evaluated_candle
+                if checkpoint is not None
+                else latest_candle - timedelta(days=max(1, int(bootstrap_days)))
+            )
+
+            inserted = 0
+            now = datetime.utcnow()
+            for event in events or []:
+                action = str(event.get("action", "")).upper()
+                if action not in ("BUY", "SELL"):
+                    continue
+                signal_date = _as_datetime(event.get("date"))
+                if signal_date < scan_after or signal_date > latest_candle:
+                    continue
+
+                existing = (
+                    db.query(SignalLedger)
+                    .filter(
+                        SignalLedger.asset_type == asset_type,
+                        SignalLedger.asset == asset,
+                        SignalLedger.strategy == strategy,
+                        SignalLedger.strategy_version == strategy_version,
+                        SignalLedger.signal_date == signal_date,
+                        SignalLedger.action == action,
+                    )
+                    .first()
+                )
+                if existing is not None:
+                    existing.last_seen_at = now
+                    continue
+
+                db.add(
+                    SignalLedger(
+                        asset_type=asset_type,
+                        exchange=exchange,
+                        asset=asset,
+                        strategy=strategy,
+                        strategy_version=strategy_version,
+                        signal_date=signal_date,
+                        action=action,
+                        buy_percentage=event.get("buy_percentage"),
+                        sell_percentage=event.get("sell_percentage"),
+                        first_seen_at=now,
+                        last_seen_at=now,
+                    )
+                )
+                inserted += 1
+
+            if checkpoint is None:
+                checkpoint = SignalLedgerCheckpoint(
+                    asset_type=asset_type,
+                    asset=asset,
+                    strategy=strategy,
+                    strategy_version=strategy_version,
+                    last_evaluated_candle=latest_candle,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(checkpoint)
+            elif latest_candle >= checkpoint.last_evaluated_candle:
+                checkpoint.last_evaluated_candle = latest_candle
+                checkpoint.updated_at = now
+
+            db.commit()
+            return inserted
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def get_pending_signals(self) -> list:
+        """Return detached pending/failed signals in signal-date order."""
+        self.ensure_initialized()
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(SignalLedger)
+                .filter(SignalLedger.delivery_status != "delivered")
+                .order_by(SignalLedger.signal_date.asc(), SignalLedger.id.asc())
+                .all()
+            )
+            return [
+                {
+                    "id": row.id,
+                    "asset_type": row.asset_type,
+                    "exchange": row.exchange,
+                    "asset": row.asset,
+                    "strategy": row.strategy,
+                    "strategy_version": row.strategy_version,
+                    "signal_date": row.signal_date,
+                    "action": row.action,
+                    "buy_percentage": row.buy_percentage,
+                    "sell_percentage": row.sell_percentage,
+                    "delivery_attempts": row.delivery_attempts,
+                    "last_error": row.last_error,
+                }
+                for row in rows
+            ]
+        finally:
+            db.close()
+
+    def mark_signal_delivery(self, signal_ids: list, *, success: bool, error=None) -> int:
+        """Record one delivery attempt for the selected ledger rows."""
+        ids = [int(signal_id) for signal_id in signal_ids or []]
+        if not ids:
+            return 0
+        self.ensure_initialized()
+        db = SessionLocal()
+        try:
+            rows = db.query(SignalLedger).filter(SignalLedger.id.in_(ids)).all()
+            now = datetime.utcnow()
+            for row in rows:
+                row.delivery_attempts = int(row.delivery_attempts or 0) + 1
+                row.last_seen_at = now
+                if success:
+                    row.delivery_status = "delivered"
+                    row.delivered_at = now
+                    row.last_error = None
+                else:
+                    row.delivery_status = "failed"
+                    row.last_error = str(error or "email delivery failed")[:2000]
+            db.commit()
+            return len(rows)
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
