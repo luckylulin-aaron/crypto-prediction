@@ -15,6 +15,7 @@ from app.core.config import BUY_SIGNAL, NO_ACTION_SIGNAL, SELL_SIGNAL
 
 class DummyTrader:
     def __init__(self):
+        self.signal_history = []
         self.buy_pct = 0.3
         self.sell_pct = 0.3
         self.crypto_name = "ETH"  # not a stock
@@ -37,6 +38,20 @@ class TestCryptoSignalLookback(unittest.TestCase):
         ]
         sig = t.get_trade_signal(lag_intervals=0, lookback_hours=24)
         self.assertEqual(sig["action"], "BUY")
+
+    def test_prefers_close_signal_history_and_returns_signal_date(self):
+        t = DummyTrader()
+        now = datetime.datetime.now().replace(microsecond=0)
+        t.trade_history = [
+            {"date": now - datetime.timedelta(hours=1), "action": SELL_SIGNAL}
+        ]
+        signal_date = now - datetime.timedelta(hours=2)
+        t.signal_history = [{"date": signal_date, "action": BUY_SIGNAL}]
+
+        sig = t.get_trade_signal(lag_intervals=0, lookback_hours=24)
+
+        self.assertEqual(sig["action"], "BUY")
+        self.assertEqual(sig["signal_date"], signal_date)
 
     def test_skips_no_action_and_picks_recent_sell(self):
         t = DummyTrader()

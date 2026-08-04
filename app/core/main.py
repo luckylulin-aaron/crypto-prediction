@@ -1,17 +1,12 @@
 # built-in packages
 import configparser
 import os
-import smtplib
 import sys
 import time
-from datetime import datetime, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from typing import Optional, Tuple
+from datetime import datetime
+from typing import Optional
 
 # third-party packages
-import numpy as np
-import pandas as pd
 import schedule
 
 # customized packages
@@ -20,24 +15,24 @@ try:
     from core.logger import get_logger
     from data.defi_event_client import DefiEventClient
     from data.fear_greed_client import FearGreedClient
+    from db.database import db_manager
+    from repositories.signal_ledger_repository import SignalLedgerRepository
+    from services.daily_recommendation_renderer import send_daily_recommendations_email
+    from services.market_client_factory import MarketClientFactory
+    from services.trader_driver_factory import TraderDriverFactory
+    from runners.stock_simulation_runner import StockSimulationRunner
+    from runners.crypto_simulation_runner import (  # noqa: F401
+        CryptoSimulationRunner,
+        fetch_historical_data_with_fallback,  # noqa: F401 - compatibility export
+        fetch_intraday_data_with_fallback,  # noqa: F401 - compatibility export
+    )
+    from services.notification_service import NotificationService
+    from services.simulation_service import SimulationService
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from trading.us_stock_client import USStockClient
-    from utils.email_util import send_email
-    from utils.util import (
-        calculate_simulation_amounts,
-        compute_option_signal_win_rates,
-        display_port_msg,
-        load_csv,
-        run_moving_window_simulation,
-    )
-    from visualization.visualization import (
-        create_comprehensive_dashboard,
-        create_moving_window_signals_report,
-        create_portfolio_value_chart,
-        create_strategy_performance_chart,
-    )
+    from utils.util import display_port_msg
 except ImportError:
     # Fallback for when running as script
     import os
@@ -48,26 +43,69 @@ except ImportError:
     from core.logger import get_logger
     from data.defi_event_client import DefiEventClient
     from data.fear_greed_client import FearGreedClient
+    from db.database import db_manager
+    from repositories.signal_ledger_repository import SignalLedgerRepository
+    from services.daily_recommendation_renderer import send_daily_recommendations_email
+    from services.market_client_factory import MarketClientFactory
+    from services.trader_driver_factory import TraderDriverFactory
+    from runners.stock_simulation_runner import StockSimulationRunner
+    from runners.crypto_simulation_runner import (  # noqa: F401
+        CryptoSimulationRunner,
+        fetch_historical_data_with_fallback,  # noqa: F401 - compatibility export
+        fetch_intraday_data_with_fallback,  # noqa: F401 - compatibility export
+    )
+    from services.notification_service import NotificationService
+    from services.simulation_service import SimulationService
     from trading.binance_client import BinanceClient
     from trading.cbpro_client import CBProClient
     from trading.trader_driver import TraderDriver
     from trading.us_stock_client import USStockClient
-    from utils.email_util import send_email
-    from utils.util import (
-        calculate_simulation_amounts,
-        compute_option_signal_win_rates,
-        display_port_msg,
-        load_csv,
-        run_moving_window_simulation,
-    )
-    from visualization.visualization import (
-        create_comprehensive_dashboard,
-        create_moving_window_signals_report,
-        create_portfolio_value_chart,
-        create_strategy_performance_chart,
-    )
+    from utils.util import display_port_msg
 
 logger = get_logger(__name__)
+
+signal_ledger_repository = SignalLedgerRepository(db_manager)
+simulation_service = SimulationService(
+    signal_ledger_repository,
+    strategy_version=SIGNAL_LEDGER_STRATEGY_VERSION,
+    bootstrap_days=SIGNAL_LEDGER_BOOTSTRAP_DAYS,
+    logger=logger,
+)
+market_client_factory = MarketClientFactory(CBProClient, BinanceClient, USStockClient)
+trader_driver_factory = TraderDriverFactory(
+    TraderDriver,
+    {
+        "tol_pcts": TOL_PCTS,
+        "ma_lengths": MA_LENGTHS,
+        "ema_lengths": EMA_LENGTHS,
+        "bollinger_mas": BOLLINGER_MAS,
+        "bollinger_tols": BOLLINGER_TOLS,
+        "buy_stas": BUY_STAS,
+        "sell_stas": SELL_STAS,
+        "rsi_periods": RSI_PERIODS,
+        "rsi_oversold_thresholds": RSI_OVERSOLD_THRESHOLDS,
+        "rsi_overbought_thresholds": RSI_OVERBOUGHT_THRESHOLDS,
+        "kdj_oversold_thresholds": KDJ_OVERSOLD_THRESHOLDS,
+        "kdj_overbought_thresholds": KDJ_OVERBOUGHT_THRESHOLDS,
+        "mode": "normal",
+    },
+)
+
+stock_simulation_runner = StockSimulationRunner(
+    logger=logger,
+    market_client_factory=market_client_factory,
+    trader_driver_factory=trader_driver_factory,
+    simulation_service=simulation_service,
+)
+
+crypto_simulation_runner = CryptoSimulationRunner(
+    logger=logger,
+    trader_driver_factory=trader_driver_factory,
+    simulation_service=simulation_service,
+)
+
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+os.makedirs(LOCAL_ARTIFACT_DIR, exist_ok=True)
 
 # Read API credentials from secret.ini
 config = configparser.ConfigParser()
@@ -85,484 +123,18 @@ RECIPIENT_LIST = [
 ]
 
 
-def send_daily_recommendations_email(
-    log_file, recipient_list, from_email, app_password, best_summaries: Optional[list] = None
-):
-    """
-    Send daily recommendations email from log.txt for today's actions.
-    
-    Sends different content based on recipient:
-    - First recipient (you): Gets all recommendations (crypto + stocks)
-    - Other recipients: Gets only crypto recommendations (stocks filtered out)
-
-    Args:
-        log_file: path to the log file
-        recipient_list: list of email addresses to send the email to
-        from_email: email address to send the email from
-        app_password: app password for the email account
-
-    Returns:
-    """
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    best_summaries = best_summaries or []
-
-    def _to_dt(x):
-        try:
-            if isinstance(x, datetime):
-                return x
-            return datetime.fromisoformat(str(x).replace("Z", "+00:00"))
-        except Exception:
-            try:
-                return datetime.strptime(str(x), "%Y-%m-%d %H:%M:%S")
-            except Exception:
-                return None
-
-    def _fmt_pct(v) -> str:
-        try:
-            if v is None or v == "":
-                return ""
-            return f"{float(v):.2f}"
-        except Exception:
-            return str(v)
-
-    def _fmt_int(v) -> str:
-        try:
-            if v is None or v == "":
-                return ""
-            return str(int(v))
-        except Exception:
-            return str(v)
-
-    def _leverage_suggestion(action: str) -> Tuple[str, str, str]:
-        try:
-            act = str(action).upper()
-        except Exception:
-            act = ""
-        if act == "BUY":
-            return "CALL", "x3/x5", "10d"
-        if act == "SELL":
-            return "PUT", "x3/x5", "10d"
-        return "", "", ""
-
-    def _render_best_table(rows: list) -> Tuple[str, str]:
-        """
-        Return (plain_text, html) table with best strategy + signal frequency per asset.
-        Expected keys:
-          asset_type, exchange, asset, best_strategy, buy_pct, sell_pct,
-          num_buy, num_sell, num_intervals, signal_rate_pct,
-          signals_per_30d, avg_days_between_signals,
-          last_buy_date, last_sell_date
-          call_win_rate_pct, put_win_rate_pct, call_trials, put_trials
-        """
-        if not rows:
-            return "", ""
-
-        header = (
-            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Best Strategy':<20} | {'Buy %':<6} | {'Sell %':<6} | {'BUY':<3} | {'SELL':<4} | {'Sig%':<5} | {'Sig/30d':<7} | {'AvgDays':<6} | {'Last BUY':<16} | {'Last SELL':<16} | {'CallWin%':<8} | {'PutWin%':<8}"
-        )
-        sep = "-" * len(header)
-        lines = []
-        for r in rows:
-            lines.append(
-                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | {r.get('best_strategy',''):<20} | {_fmt_pct(r.get('buy_pct')):<6} | {_fmt_pct(r.get('sell_pct')):<6} | {_fmt_int(r.get('num_buy')):<3} | {_fmt_int(r.get('num_sell')):<4} | {_fmt_pct(r.get('signal_rate_pct')):<5} | {_fmt_pct(r.get('signals_per_30d')):<7} | {_fmt_pct(r.get('avg_days_between_signals')):<6} | {str(r.get('last_buy_date','')):<16} | {str(r.get('last_sell_date','')):<16} | {_fmt_pct(r.get('call_win_rate_pct')):<8} | {_fmt_pct(r.get('put_win_rate_pct')):<8}"
-            )
-        plain = "\n".join([header, sep] + lines) + "\n"
-
-        html = (
-            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
-            "<thead>"
-            "<tr style=\"background:#0f172a;color:#ffffff;\">"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Best strategy</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Buy %</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sell %</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">BUY</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">SELL</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig%</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Sig/30d</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">AvgDays</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Last BUY</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Last SELL</th>"
-            f"<th style=\"padding:10px;text-align:right;font-weight:600;\" title=\"Call option win rate: BUY→SELL within {OPTION_SIGNAL_HOLD_DAYS}d, sell_price > buy_price\">CallWin%</th>"
-            f"<th style=\"padding:10px;text-align:right;font-weight:600;\" title=\"Put option win rate: SELL→BUY within {OPTION_SIGNAL_HOLD_DAYS}d, buy_price < sell_price\">PutWin%</th>"
-            "</tr></thead><tbody>"
-        )
-        for idx, r in enumerate(rows):
-            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
-            icon = "🪙" if r.get("asset_type") == "CRYPTO" else "📈"
-            html += (
-                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
-                f"<td style=\"padding:10px;color:#0f172a;\">{icon} {r.get('asset_type','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
-                f"<td style=\"padding:10px;color:#334155;font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;\">{r.get('best_strategy','')}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('buy_pct'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('sell_pct'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_int(r.get('num_buy'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_int(r.get('num_sell'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('signal_rate_pct'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('signals_per_30d'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('avg_days_between_signals'))}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('last_buy_date','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('last_sell_date','')}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\" title=\"{_fmt_int(r.get('call_wins'))}/{_fmt_int(r.get('call_trials'))} wins\">{_fmt_pct(r.get('call_win_rate_pct'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\" title=\"{_fmt_int(r.get('put_wins'))}/{_fmt_int(r.get('put_trials'))} wins\">{_fmt_pct(r.get('put_win_rate_pct'))}</td>"
-                "</tr>"
-            )
-        html += "</tbody></table>"
-        return plain, html
-
-    def _render_option_settlements(rows: list) -> Tuple[str, str]:
-        """
-        Return (plain_text, html) table for option settlements.
-        Expected keys:
-          asset_type, exchange, asset, option_type, leverage_multiple,
-          entry_price, exit_price, pnl, settled_on
-        """
-        if not rows:
-            return "", ""
-
-        header = (
-            f"{'Type':<6} | {'Exchange':<8} | {'Asset':<8} | {'Opt':<5} | {'Lev':<4} | "
-            f"{'Entry':<10} | {'Exit':<10} | {'PnL':<10} | {'Settled':<19}"
-        )
-        sep = "-" * len(header)
-        lines = []
-        for r in rows:
-            lines.append(
-                f"{r.get('asset_type',''):<6} | {r.get('exchange',''):<8} | {r.get('asset',''):<8} | "
-                f"{r.get('option_type',''):<5} | {str(r.get('leverage_multiple','')):<4} | "
-                f"{_fmt_pct(r.get('entry_price')):<10} | {_fmt_pct(r.get('exit_price')):<10} | "
-                f"{_fmt_pct(r.get('pnl')):<10} | {str(r.get('settled_on','')):<19}"
-            )
-        plain = "\n".join([header, sep] + lines) + "\n"
-
-        html = (
-            "<table style=\"border-collapse:collapse;width:100%;margin-top:10px;\">"
-            "<thead>"
-            "<tr style=\"background:#0f172a;color:#ffffff;\">"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Type</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Exchange</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Asset</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Option</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Lev</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Entry</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">Exit</th>"
-            "<th style=\"padding:10px;text-align:right;font-weight:600;\">PnL</th>"
-            "<th style=\"padding:10px;text-align:left;font-weight:600;\">Settled</th>"
-            "</tr></thead><tbody>"
-        )
-        for idx, r in enumerate(rows):
-            bg = "#f8fafc" if idx % 2 == 0 else "#ffffff"
-            html += (
-                f"<tr style=\"background:{bg};border-bottom:1px solid #e2e8f0;\">"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('asset_type','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('exchange','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;font-weight:600;\">{r.get('asset','')}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('option_type','')}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{r.get('leverage_multiple','')}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('entry_price'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('exit_price'))}</td>"
-                f"<td style=\"padding:10px;text-align:right;color:#0f172a;\">{_fmt_pct(r.get('pnl'))}</td>"
-                f"<td style=\"padding:10px;color:#0f172a;\">{r.get('settled_on','')}</td>"
-                "</tr>"
-            )
-        html += "</tbody></table>"
-        return plain, html
-
-    buy_sell_lines = []
-    no_action_entries = []
-
-    # Find latest simulation time (best-effort) from the log footer:
-    # `Finish job at time <timestamp>`
-    latest_sim_time = None
-    try:
-        with open(log_file, "r") as f:
-            all_log_lines = f.readlines()
-        for line in reversed(all_log_lines):
-            if "Finish job at time" in line:
-                latest_sim_time = line.split("Finish job at time", 1)[1].strip()
-                break
-    except Exception as e:
-        logger.warning(f"Could not parse latest simulation time from log: {e}")
-
-    with open(log_file, "r") as infile:
-        for line in infile:
-            if line.strip() and line[:10] == today_str:
-                parts = [p.strip() for p in line.strip().split("|")]
-                if len(parts) == 6:
-                    time, exch, asset, action, buy, sell = parts
-                    action_val = action.replace("Action: ", "")
-                    buy_val = buy.replace("Buy %: ", "")
-                    sell_val = sell.replace("Sell %: ", "")
-                    if action_val.upper() in ("BUY", "SELL"):
-                        buy_sell_lines.append(
-                            (time, exch, asset, action_val, buy_val, sell_val)
-                        )
-                    else:
-                        no_action_entries.append((exch, asset))
-                else:
-                    # fallback: treat as no action
-                    no_action_entries.append(("?", "?"))
-
-    # If we have no parsed log entries for today, we can still send the best summary table
-    # (when simulations ran in this process and provided `best_summaries`).
-    if not buy_sell_lines and not no_action_entries and not best_summaries:
-        logger.info("No trading actions found for today, skipping email notification.")
-        return
-
-    # Separate crypto and stock recommendations
-    crypto_lines = []
-    stock_lines = []
-    crypto_no_action = []
-    stock_no_action = []
-    
-    # Filter buy/sell lines
-    for line in buy_sell_lines:
-        time, exch, asset, action, buy, sell = line
-        if exch == "STOCK":
-            stock_lines.append(line)
-        else:
-            crypto_lines.append(line)
-    
-    # Filter no action entries
-    for exch, asset in no_action_entries:
-        if exch == "STOCK":
-            stock_no_action.append((exch, asset))
-        else:
-            crypto_no_action.append((exch, asset))
-
-    # If there are NO BUY/SELL recommendations at all, mute notifications for non-admin recipients
-    # to avoid spamming with "NO ACTION" emails. We still send a heartbeat to the first recipient
-    # (admin) so you can see the latest simulation time and confirm the bot is running.
-    if not buy_sell_lines:
-        if not recipient_list:
-            logger.info("Recipient list is empty; skipping email notification.")
-            return
-
-        admin_recipient = recipient_list[0]
-        sim_ts = latest_sim_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        body = f"Latest simulation time: {sim_ts}\n\nNo BUY/SELL recommendations today.\n\n"
-        html_body = (
-            "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, Arial, sans-serif;\">"
-            f"<div style=\"font-size:14px;color:#334155;\">⏱️ Latest simulation time: <b>{sim_ts}</b></div>"
-            "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📭 No BUY/SELL recommendations today</h2>"
-        )
-
-        if no_action_entries:
-            from collections import defaultdict
-
-            exch_assets = defaultdict(list)
-            for exch, asset in no_action_entries:
-                exch_assets[exch].append(asset)
-            body += "No action recommended for the following assets today:\n"
-            for exch, assets in exch_assets.items():
-                asset_list = ", ".join(sorted(set(assets)))
-                body += f"- {exch}: {asset_list}\n"
-            html_body += "<div style=\"margin-top:10px;font-size:13px;color:#334155;\"><b>No action</b> for:</div>"
-            html_body += "<ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
-            for exch, assets in exch_assets.items():
-                asset_list = ", ".join(sorted(set(assets)))
-                html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
-            html_body += "</ul>"
-
-        if best_summaries:
-            summary_rows = sorted(
-                list(best_summaries),
-                key=lambda r: (r.get("asset_type") != "STOCK", r.get("asset", "")),
-            )
-            body += "\nBest strategy + signal frequency (per asset):\n"
-            plain_tbl, html_tbl = _render_best_table(summary_rows)
-            body += plain_tbl + "\n"
-            html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📊 Strategy + signal frequency</h2>"
-            html_body += html_tbl
-        html_body += "</div>"
-
-        subject = f"Daily Trading Bot Recommendations ({today_str}) - NO ACTION"
-        send_email(
-            subject=subject,
-            body=body.strip(),
-            to_emails=[admin_recipient],
-            from_email=from_email,
-            app_password=app_password,
-            html_body=html_body,
-        )
-        logger.info(
-            "No BUY/SELL recommendations today; sent heartbeat to admin only and muted other recipients."
-        )
-        return
-
-    # Send different emails to different recipients
-    for i, recipient in enumerate(recipient_list):
-        sim_ts = latest_sim_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        body = f"Latest simulation time: {sim_ts}\n\n"
-        html_body = (
-            "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Arial,sans-serif;\">"
-            f"<div style=\"font-size:14px;color:#334155;\">⏱️ Latest simulation time: <b>{sim_ts}</b></div>"
-        )
-
-        if i == 0:
-            # First recipient (admin) - gets everything
-            all_lines = crypto_lines + stock_lines
-            all_no_action = crypto_no_action + stock_no_action
-
-            summary_rows = sorted(
-                list(best_summaries),
-                key=lambda r: (r.get("asset_type") != "STOCK", r.get("asset", "")),
-            )
-            if summary_rows:
-                body += "Best strategy summary (per asset):\n"
-                plain_tbl, html_tbl = _render_best_table(summary_rows)
-                body += plain_tbl + "\n"
-                html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">📊 Best strategy summary (per asset)</h2>"
-                    + html_tbl
-                )
-
-            if all_lines:
-                header = (
-                    f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | "
-                    f"{'Buy %':<6} | {'Sell %':<6} | {'Option':<6} | {'Lev':<5} | {'Exp':<4}"
-                )
-                sep = "-" * len(header)
-                formatted_lines = []
-                for t, e, a, ac, b, s in all_lines:
-                    opt, lev, exp = _leverage_suggestion(ac)
-                    formatted_lines.append(
-                        f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6} | {opt:<6} | {lev:<5} | {exp:<4}"
-                    )
-                body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
-                body += (
-                    "\nBuy %: Recommended proportion of available funds to use for buying this asset.\n"
-                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n"
-                    "Option/Lev/Exp: Suggested option type, leverage, and max expiration horizon.\n\n"
-                )
-                html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
-                html_body += (
-                    "<pre style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;"
-                    "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
-                    + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
-                    + "</pre>"
-                )
-
-            option_rows = []
-            for r in summary_rows:
-                for opt in r.get("option_settlements", []) or []:
-                    option_rows.append(opt)
-            if option_rows:
-                body += "Option settlements:\n"
-                plain_tbl, html_tbl = _render_option_settlements(option_rows)
-                body += plain_tbl + "\n"
-                html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
-                    + html_tbl
-                )
-
-            if all_no_action:
-                from collections import defaultdict
-
-                exch_assets = defaultdict(list)
-                for exch, asset in all_no_action:
-                    exch_assets[exch].append(asset)
-                body += "No action recommended for the following assets today:\n"
-                for exch, assets in exch_assets.items():
-                    asset_list = ", ".join(sorted(set(assets)))
-                    body += f"- {exch}: {asset_list}\n"
-
-                html_body += "<div style=\"margin-top:12px;font-size:13px;color:#334155;\"><b>⚪ No action</b> for:</div><ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
-                for exch, assets in exch_assets.items():
-                    asset_list = ", ".join(sorted(set(assets)))
-                    html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
-                html_body += "</ul>"
-
-        else:
-            # Other recipients - crypto only
-            if not crypto_lines:
-                continue
-
-            summary_rows = sorted(
-                [r for r in best_summaries if r.get("asset_type") == "CRYPTO"],
-                key=lambda r: r.get("asset", ""),
-            )
-            if summary_rows:
-                body += "Best strategy summary (crypto only):\n"
-                plain_tbl, html_tbl = _render_best_table(summary_rows)
-                body += plain_tbl + "\n"
-                html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🪙 Best strategy summary (crypto)</h2>"
-                    + html_tbl
-                )
-
-            if crypto_lines:
-                header = (
-                    f"{'Time':<19} | {'Exchange':<8} | {'Asset':<8} | {'Action':<10} | "
-                    f"{'Buy %':<6} | {'Sell %':<6} | {'Option':<6} | {'Lev':<5} | {'Exp':<4}"
-                )
-                sep = "-" * len(header)
-                formatted_lines = []
-                for t, e, a, ac, b, s in crypto_lines:
-                    opt, lev, exp = _leverage_suggestion(ac)
-                    formatted_lines.append(
-                        f"{t:<19} | {e:<8} | {a:<8} | {ac:<10} | {b:<6} | {s:<6} | {opt:<6} | {lev:<5} | {exp:<4}"
-                    )
-                body += f"{header}\n{sep}\n" + "\n".join(formatted_lines) + "\n"
-                body += (
-                    "\nBuy %: Recommended proportion of available stablecoin to use for buying this asset.\n"
-                    "Sell %: Recommended proportion of current holdings of this asset to sell.\n"
-                    "Option/Lev/Exp: Suggested option type, leverage, and max expiration horizon.\n\n"
-                )
-                html_body += "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧭 Today's recommendations</h2>"
-                html_body += (
-                    "<pre style=\"font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;"
-                    "font-size:12px;white-space:pre;background:#0b1020;color:#e2e8f0;padding:12px;border-radius:10px;\">"
-                    + f"{header}\n{sep}\n" + "\n".join(formatted_lines)
-                    + "</pre>"
-                )
-
-            option_rows = []
-            for r in summary_rows:
-                for opt in r.get("option_settlements", []) or []:
-                    option_rows.append(opt)
-            if option_rows:
-                body += "Option settlements:\n"
-                plain_tbl, html_tbl = _render_option_settlements(option_rows)
-                body += plain_tbl + "\n"
-                html_body += (
-                    "<h2 style=\"margin:14px 0 6px 0;font-size:18px;color:#0f172a;\">🧾 Option settlements</h2>"
-                    + html_tbl
-                )
-
-            if crypto_no_action:
-                from collections import defaultdict
-
-                exch_assets = defaultdict(list)
-                for exch, asset in crypto_no_action:
-                    exch_assets[exch].append(asset)
-                body += "No action recommended for the following assets today:\n"
-                for exch, assets in exch_assets.items():
-                    asset_list = ", ".join(sorted(set(assets)))
-                    body += f"- {exch}: {asset_list}\n"
-
-                html_body += "<div style=\"margin-top:12px;font-size:13px;color:#334155;\"><b>⚪ No action</b> for:</div><ul style=\"margin:6px 0 0 18px;color:#334155;font-size:13px;\">"
-                for exch, assets in exch_assets.items():
-                    asset_list = ", ".join(sorted(set(assets)))
-                    html_body += f"<li><b>{exch}</b>: {asset_list}</li>"
-                html_body += "</ul>"
-
-        subject = f"Daily Trading Bot Recommendations ({today_str})"
-        html_body += "</div>"
-        send_email(
-            subject=subject,
-            body=body.strip(),
-            to_emails=[recipient],
-            from_email=from_email,
-            app_password=app_password,
-            html_body=html_body,
-        )
-
-    return
+def _send_daily_recommendations_with_ledger(best_summaries=None) -> bool:
+    """Send pending ledger signals and persist the admin delivery outcome."""
+    service = NotificationService(
+        signal_ledger_repository, send_daily_recommendations_email, logger
+    )
+    return service.send_daily(
+        log_file=LOG_FILE,
+        recipient_list=RECIPIENT_LIST,
+        from_email=GMAIL_ADDRESS,
+        app_password=GMAIL_APP_PASSWORD,
+        best_summaries=best_summaries,
+    )
 
 
 def main_defi():
@@ -589,457 +161,25 @@ def main_defi():
         logger.info(f"Sending DEFI event client email to {to_emails}")
         DefiEventClient().run_and_email(to_emails, from_email, app_password, top_n=3)
     else:
-        logger.warning("DEFI event client email not sent: missing credentials in secret.ini")
-
-
-def fetch_historical_data_with_fallback(
-    asset: str,
-    binance_client: BinanceClient,
-    coinbase_client: CBProClient,
-    exchange_configs: list,
-    interval_hours: int = DATA_INTERVAL_HOURS,
-    lookback_days: int = TIMESPAN,
-):
-    """
-    Fetch historical data for an asset, trying Binance first, then falling back to Coinbase.
-    
-    Args:
-        asset (str): The asset symbol (e.g., 'BTC', 'ETH')
-        binance_client (BinanceClient): Binance client instance
-        coinbase_client (CBProClient): Coinbase client instance
-        exchange_configs (list): List of exchange configurations
-        
-    Returns:
-        tuple: (data_stream, source_exchange_name) or (None, None) if both fail
-    """
-    def validate_and_format_data(data_stream):
-        """
-        Validate and format data to ensure it matches the expected format for trader_driver.
-        Expected format: (price, date, open, low, high)
-        """
-        if not data_stream:
-            return None
-            
-        formatted_data = []
-        for item in data_stream:
-            if len(item) >= 5:
-                # Take only the first 5 elements: (price, date, open, low, high)
-                formatted_item = (item[0], item[1], item[2], item[3], item[4])
-                formatted_data.append(formatted_item)
-            else:
-                logger.warning(f"Skipping data point with insufficient elements: {item}")
-                
-        return formatted_data if formatted_data else None
-    
-    # Try Binance first
-    binance_config = next((config for config in exchange_configs if config["name"] == ExchangeName.BINANCE), None)
-    if binance_config:
-        try:
-            binance_symbol = binance_config["symbol_format"](asset)
-            logger.info(f"Attempting to fetch {asset} data from Binance using symbol: {binance_symbol}")
-            data_stream = binance_client.get_historic_data(
-                binance_symbol,
-                interval_hours=interval_hours,
-                lookback_days=lookback_days,
-            )
-            
-            # Validate and format the data
-            formatted_data = validate_and_format_data(data_stream)
-            if formatted_data and len(formatted_data) >= 2:
-                logger.info(f"Successfully fetched {len(formatted_data)} data points from Binance for {asset}")
-                return formatted_data, ExchangeName.BINANCE
-            else:
-                logger.warning(f"Binance returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points")
-        except Exception as e:
-            logger.warning(f"Failed to fetch {asset} data from Binance: {e}")
-    
-    # Fall back to Coinbase
-    coinbase_config = next((config for config in exchange_configs if config["name"] == ExchangeName.COINBASE), None)
-    if coinbase_config:
-        try:
-            coinbase_symbol = coinbase_config["symbol_format"](asset)
-            logger.info(f"Attempting to fetch {asset} data from Coinbase using symbol: {coinbase_symbol}")
-            data_stream = coinbase_client.get_historic_data(
-                coinbase_symbol,
-                interval_hours=interval_hours,
-                lookback_days=lookback_days,
-            )
-            
-            # Validate and format the data
-            formatted_data = validate_and_format_data(data_stream)
-            if formatted_data and len(formatted_data) >= 2:
-                logger.info(f"Successfully fetched {len(formatted_data)} data points from Coinbase for {asset}")
-                return formatted_data, ExchangeName.COINBASE
-            else:
-                logger.warning(f"Coinbase returned insufficient data for {asset}: {len(formatted_data) if formatted_data else 0} points")
-        except Exception as e:
-            logger.warning(f"Failed to fetch {asset} data from Coinbase: {e}")
-    
-    logger.error(f"Both Binance and Coinbase failed to provide data for {asset}")
-    return None, None
-
-
-def fetch_intraday_data_with_fallback(
-    asset: str,
-    binance_client: BinanceClient,
-    coinbase_client: CBProClient,
-    exchange_configs: list,
-    source_exchange: Optional[ExchangeName] = None,
-    interval_hours: int = 1,
-):
-    """
-    Fetch intraday data for an asset, preferring the source exchange when provided.
-
-    Args:
-        asset (str): The asset symbol (e.g., 'BTC', 'ETH')
-        binance_client (BinanceClient): Binance client instance
-        coinbase_client (CBProClient): Coinbase client instance
-        exchange_configs (list): List of exchange configurations
-        source_exchange (Optional[ExchangeName]): Preferred exchange to pull intraday data from.
-        interval_hours (int): Intraday interval in hours. Defaults to 1.
-
-    Returns:
-        Optional[list]: Intraday data stream or None if not available.
-
-    Raises:
-        None
-    """
-    def validate_and_format_data(data_stream):
-        if not data_stream:
-            return None
-        formatted_data = []
-        for item in data_stream:
-            if len(item) >= 5:
-                formatted_item = (item[0], item[1], item[2], item[3], item[4])
-                formatted_data.append(formatted_item)
-        return formatted_data if formatted_data else None
-
-    def _fetch_from_exchange(exchange_name: ExchangeName):
-        if exchange_name == ExchangeName.BINANCE:
-            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.BINANCE), None)
-            if not cfg:
-                return None
-            symbol = cfg["symbol_format"](asset)
-            data = binance_client.get_historic_data(symbol, interval_hours=interval_hours)
-            return validate_and_format_data(data)
-        if exchange_name == ExchangeName.COINBASE:
-            cfg = next((c for c in exchange_configs if c["name"] == ExchangeName.COINBASE), None)
-            if not cfg:
-                return None
-            symbol = cfg["symbol_format"](asset)
-            data = coinbase_client.get_historic_data(symbol, interval_hours=interval_hours)
-            return validate_and_format_data(data)
-        return None
-
-    if source_exchange is not None:
-        data = _fetch_from_exchange(source_exchange)
-        if data:
-            return data
-
-    # Fallback: try both exchanges
-    data = _fetch_from_exchange(ExchangeName.BINANCE)
-    if data:
-        return data
-    return _fetch_from_exchange(ExchangeName.COINBASE)
-
-
-def _run_stock_simulation(all_actions: list, best_summaries: Optional[list] = None) -> None:
-    """
-    Run stock simulation only (daily candles).
-
-    Args:
-        all_actions (list): List to append formatted action lines for logging/email.
-
-    Returns:
-        None
-    """
-    logger.info("\n" + "=" * 50)
-    logger.info("STARTING STOCK TRADING SIMULATION")
-    logger.info("=" * 50)
-
-    # Check if it's a weekend day (Sunday or Monday) to skip stock simulation
-    # US stock market is closed on weekends, and there's a one-day delay in data
-    current_weekday = datetime.now().weekday()  # Monday=0, Sunday=6
-    if current_weekday in [6, 0]:  # Sunday (6) or Monday (0)
-        logger.info(
-            f"Skipping stock simulation - current day is {'Sunday' if current_weekday == 6 else 'Monday'}"
+        logger.warning(
+            "DEFI event client email not sent: missing credentials in secret.ini"
         )
-        logger.info("US stock market is closed on weekends, and data has one-day delay")
-        return
-
-    logger.info(
-        f"Proceeding with stock simulation - current day is {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][current_weekday]}"
-    )
-
-    # Initialize US Stock Client
-    stock_client = USStockClient(tickers=STOCKS)
-
-    # only 1 stock for debugging purposes
-    stock_list = STOCKS[:1] if DEBUG else STOCKS
-
-    # Simulate stock trading for each stock
-    for stock in stock_list:
-        logger.info(f"\n\n# --- Simulating for Stock: {stock} --- #")
-
-        try:
-            # Get historical data for the stock using TIMESPAN
-            end_date = datetime.now().strftime("%Y-%m-%d")
-            start_date = (datetime.now() - timedelta(days=TIMESPAN)).strftime("%Y-%m-%d")
-            data_stream = stock_client.get_historic_data(stock, start=start_date, end=end_date)
-            logger.info(f"Retrieved {len(data_stream)} data points for {stock} (last {TIMESPAN} days)")
-
-            # Validate data stream before creating trader driver
-            if not data_stream:
-                logger.error(f"No historical data available for stock {stock}")
-                continue
-
-            if len(data_stream) < 2:
-                logger.error(
-                    f"Insufficient historical data for stock {stock}: only {len(data_stream)} data points available"
-                )
-                continue
-
-            # For stock simulation, we'll use a fixed initial amount
-            # You can modify this based on your stock portfolio value
-            initial_stock_amount = 10000  # $10,000 initial investment
-            current_stock_amount = 0  # Assume no current holdings for simulation
-
-            # Run simulation for stocks
-            if DEBUG:
-                SIM_BUY_PCTS = [BUY_PCTS[0]]
-                SIM_SELL_PCTS = [SELL_PCTS[0]]
-            else:
-                SIM_BUY_PCTS = BUY_PCTS
-                SIM_SELL_PCTS = SELL_PCTS
-
-            trader_driver = TraderDriver(
-                name=stock,
-                init_amount=initial_stock_amount,
-                cur_coin=current_stock_amount,
-                # only test 1 strategy for debugging purposes
-                overall_stats=STOCK_STRATEGIES if DEBUG is not True else STOCK_STRATEGIES[:5],
-                tol_pcts=TOL_PCTS,
-                ma_lengths=MA_LENGTHS,
-                ema_lengths=EMA_LENGTHS,
-                bollinger_mas=BOLLINGER_MAS,
-                bollinger_tols=BOLLINGER_TOLS,
-                buy_pcts=SIM_BUY_PCTS,
-                sell_pcts=SIM_SELL_PCTS,
-                buy_stas=BUY_STAS,
-                sell_stas=SELL_STAS,
-                rsi_periods=RSI_PERIODS,
-                rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
-                rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
-                kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
-                kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
-                mode="normal",
-            )
-            trader_driver.feed_data(data_stream)
-            best_info = trader_driver.best_trader_info
-            best_t = trader_driver.traders[best_info["trader_index"]]
-            # Daily-close signals execute on the next daily open; inspect the latest two days.
-            try:
-                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=48)
-            except Exception:
-                signal = best_t.trade_signal
-            if best_summaries is not None:
-                # Signal frequency stats from the best trader's full trade history
-                th = getattr(best_t, "trade_history", []) or []
-                num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
-                num_sell = len([x for x in th if str(x.get("action", "")).upper() == "SELL"])
-                num_intervals = len(th)
-                signal_rate_pct = (
-                    100.0 * (num_buy + num_sell) / num_intervals if num_intervals > 0 else 0.0
-                )
-                # Time-based stats (more interpretable)
-                sig_dates = [
-                    x.get("date")
-                    for x in th
-                    if str(x.get("action", "")).upper() in ("BUY", "SELL")
-                ]
-                sig_dates_dt = []
-                for d0 in sig_dates:
-                    try:
-                        dt0 = d0 if isinstance(d0, datetime) else datetime.fromisoformat(str(d0))
-                    except Exception:
-                        dt0 = None
-                    if dt0 is not None:
-                        sig_dates_dt.append(dt0)
-                sig_dates_dt = sorted(sig_dates_dt)
-
-                span_days = 0.0
-                if th:
-                    try:
-                        d_start = th[0].get("date")
-                        d_end = th[-1].get("date")
-                        dt_start = d_start if isinstance(d_start, datetime) else datetime.fromisoformat(str(d_start))
-                        dt_end = d_end if isinstance(d_end, datetime) else datetime.fromisoformat(str(d_end))
-                        span_days = max(0.0, (dt_end - dt_start).total_seconds() / 86400.0)
-                    except Exception:
-                        span_days = float(num_intervals)
-
-                num_signals = num_buy + num_sell
-                signals_per_30d = (num_signals / span_days * 30.0) if span_days > 0 else 0.0
-                avg_days_between = ""
-                if len(sig_dates_dt) >= 2:
-                    deltas = [
-                        (sig_dates_dt[i] - sig_dates_dt[i - 1]).total_seconds() / 86400.0
-                        for i in range(1, len(sig_dates_dt))
-                    ]
-                    avg_days_between = float(np.mean(deltas)) if deltas else ""
-
-                def _fmt_last_dt(dt_obj) -> str:
-                    if dt_obj is None:
-                        return ""
-                    try:
-                        if dt_obj.time() == datetime.min.time():
-                            return dt_obj.strftime("%Y-%m-%d")
-                        return dt_obj.strftime("%Y-%m-%d %H:%M")
-                    except Exception:
-                        return str(dt_obj)
-
-                def _latest_action_dt(action: str):
-                    for evt in reversed(th):
-                        if str(evt.get("action", "")).upper() != action:
-                            continue
-                        d0 = evt.get("date")
-                        try:
-                            dt0 = (
-                                d0
-                                if isinstance(d0, datetime)
-                                else datetime.fromisoformat(str(d0).replace("Z", "+00:00"))
-                            )
-                        except Exception:
-                            try:
-                                dt0 = datetime.strptime(str(d0), "%Y-%m-%d %H:%M:%S")
-                            except Exception:
-                                dt0 = None
-                        if dt0 is not None:
-                            return dt0
-                    return None
-
-                last_buy_dt = _latest_action_dt("BUY")
-                last_sell_dt = _latest_action_dt("SELL")
-
-                opt_stats = compute_option_signal_win_rates(
-                    trade_history=th,
-                    hold_days=OPTION_SIGNAL_HOLD_DAYS,
-                )
-                opt_settlements = []
-                for opt in getattr(best_t, "option_history", []) or []:
-                    if not opt.get("settled"):
-                        continue
-                    settled_on = opt.get("settled_on")
-                    if isinstance(settled_on, datetime):
-                        settled_str = settled_on.strftime("%Y-%m-%d %H:%M:%S")
-                    else:
-                        settled_str = str(settled_on) if settled_on else ""
-                    opt_settlements.append(
-                        {
-                            "asset_type": "STOCK",
-                            "exchange": "STOCK",
-                            "asset": stock,
-                            "option_type": opt.get("option_type", ""),
-                            "leverage_multiple": opt.get("leverage_multiple", ""),
-                            "entry_price": opt.get("entry_price", ""),
-                            "exit_price": opt.get("exit_price", ""),
-                            "pnl": opt.get("pnl", ""),
-                            "settled_on": settled_str,
-                        }
-                    )
-                opt_settlements = opt_settlements[-5:]
-                best_summaries.append(
-                    {
-                        "asset_type": "STOCK",
-                        "exchange": "STOCK",
-                        "asset": stock,
-                        "best_strategy": best_t.high_strategy,
-                        "buy_pct": best_info.get("buy_pct", ""),
-                        "sell_pct": best_info.get("sell_pct", ""),
-                        "num_buy": num_buy,
-                        "num_sell": num_sell,
-                        "num_intervals": num_intervals,
-                        "signal_rate_pct": round(signal_rate_pct, 2),
-                        "signals_per_30d": round(signals_per_30d, 2),
-                        "avg_days_between_signals": round(avg_days_between, 2)
-                        if isinstance(avg_days_between, (int, float))
-                        else "",
-                        "last_buy_date": _fmt_last_dt(last_buy_dt),
-                        "last_sell_date": _fmt_last_dt(last_sell_dt),
-                        "call_win_rate_pct": opt_stats.get("call_win_rate_pct", ""),
-                        "put_win_rate_pct": opt_stats.get("put_win_rate_pct", ""),
-                        "call_trials": opt_stats.get("call_trials", 0),
-                        "put_trials": opt_stats.get("put_trials", 0),
-                        "call_wins": opt_stats.get("call_wins", 0),
-                        "put_wins": opt_stats.get("put_wins", 0),
-                        "option_settlements": opt_settlements,
-                    }
-                )
-
-            # Log best trader summary for stock
-            init_value = best_info.get("init_value", 0)
-            max_final_value = best_info.get("max_final_value", 0)
-            logger.info(
-                f"\n{'★'*10} BEST TRADER SUMMARY (STOCK: {stock}) {'★'*10}\n"
-                f"Best trader performance:\n"
-                f"  Strategy Parameters:\n"
-                f"    - Buy percentage: {best_info.get('buy_pct', 'N/A')}\n"
-                f"    - Sell percentage: {best_info.get('sell_pct', 'N/A')}\n"
-                f"    - Tolerance percentage: {best_info.get('tol_pct', 'N/A')}\n"
-                f"    - Bollinger sigma: {best_info.get('bollinger_sigma', 'N/A')}\n"
-                f"    - Buy strategy: {best_info.get('buy', 'N/A')}\n"
-                f"    - Sell strategy: {best_info.get('sell', 'N/A')}\n"
-                f"  Performance Metrics:\n"
-                f"    - Initial value: ${init_value:,.2f}\n"
-                f"    - Final value: ${max_final_value:,.2f}\n"
-                f"    - Rate of return: {best_info.get('rate_of_return', 'N/A')}\n"
-                f"    - Baseline rate of return: {best_info.get('baseline_rate_of_return', 'N/A')}\n"
-                f"    - Coin rate of return: {best_info.get('coin_rate_of_return', 'N/A')}\n"
-                f"  Trading Statistics:\n"
-                f"    - Max drawdown: {best_t.max_drawdown * 100:.2f}%\n"
-                f"    - Transactions: {best_t.num_transaction}\n"
-                f"    - Buys: {best_t.num_buy_action}, Sells: {best_t.num_sell_action}\n"
-                f"    - Strategy: {best_t.high_strategy}\n"
-                f"    - Today's signal: {signal} for stock={best_t.crypto_name}\n"
-                f"{'★'*36}\n"
-            )
-
-            # Save visualizations for stock
-            strategy_performance = trader_driver.get_all_strategy_performance()
-            dashboard_filename = (
-                f"app/visualization/plots/trading_dashboard_{stock}_STOCK_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-            )
-            create_comprehensive_dashboard(
-                trader_instance=best_t,
-                save_html=True,
-                filename=dashboard_filename,
-                strategy_performance=strategy_performance,
-            )
-
-            # Gather recommended action for email/log
-            action_line = (
-                f"{datetime.now()} | STOCK | {stock} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
-            )
-            all_actions.append(action_line)
-
-            # Log recommended action to log.txt
-            with open(LOG_FILE, "a") as outfile:
-                outfile.write(action_line + "\n")
-
-        except ValueError as e:
-            logger.error(f"Data validation failed for stock {stock}: {e}")
-            continue
-        except Exception as e:
-            logger.error(f"Stock simulation failed for {stock}: {e}")
-            continue
 
 
-def main(asset: str = "all"):
+def _run_stock_simulation(
+    all_actions: list, best_summaries: Optional[list] = None
+) -> None:
+    """Backward-compatible wrapper around StockSimulationRunner."""
+    return stock_simulation_runner.run(all_actions, best_summaries)
+
+
+def main(asset: str = "all", send_email: bool = True):
     """
     Run simulation and make trades.
 
     Args:
         asset (str): "crypto" | "stock" | "all" (default "all").
+        send_email (bool): Whether to send recommendation email after simulation.
 
     Returns:
         None
@@ -1064,14 +204,8 @@ def main(asset: str = "all"):
         _run_stock_simulation(all_actions, best_summaries)
 
         # Send daily recommendations email if not in debug mode
-        if DEBUG is False:
-            send_daily_recommendations_email(
-                LOG_FILE,
-                RECIPIENT_LIST,
-                GMAIL_ADDRESS,
-                GMAIL_APP_PASSWORD,
-                best_summaries=best_summaries,
-            )
+        if DEBUG is False and send_email:
+            _send_daily_recommendations_with_ledger(best_summaries)
 
         # write to log file
         now = datetime.now()
@@ -1080,10 +214,13 @@ def main(asset: str = "all"):
         return
 
     # initialise different clients
-    coinbase_client = CBProClient(key=CB_API_KEY, secret=CB_API_SECRET)
-    binance_client = BinanceClient(
-        api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET
+    market_clients = market_client_factory.crypto(
+        coinbase_key=CB_API_KEY,
+        coinbase_secret=CB_API_SECRET,
+        binance_key=BINANCE_API_KEY,
+        binance_secret=BINANCE_API_SECRET,
     )
+    coinbase_client, binance_client = market_clients.coinbase, market_clients.binance
 
     # Fear & Greed Index client for market sentiment data
     fear_greed_client = FearGreedClient()
@@ -1092,10 +229,12 @@ def main(asset: str = "all"):
     try:
         logger.info("Getting portfolio value (Coinbase)...")
         portfolio_result = coinbase_client.portfolio_value
-        
+
         if isinstance(portfolio_result, tuple) and len(portfolio_result) == 2:
             coinbase_crypto_value, coinbase_stablecoin_value = portfolio_result
-            logger.info(f"Coinbase portfolio: crypto=${coinbase_crypto_value}, stable=${coinbase_stablecoin_value}")
+            logger.info(
+                f"Coinbase portfolio: crypto=${coinbase_crypto_value}, stable=${coinbase_stablecoin_value}"
+            )
         else:
             logger.error(f"Unexpected portfolio result format")
             coinbase_crypto_value, coinbase_stablecoin_value = 0.0, 0.0
@@ -1111,9 +250,14 @@ def main(asset: str = "all"):
     try:
         logger.info("Getting portfolio value (Binance)...")
         binance_portfolio_result = binance_client.portfolio_value
-        if isinstance(binance_portfolio_result, tuple) and len(binance_portfolio_result) == 2:
+        if (
+            isinstance(binance_portfolio_result, tuple)
+            and len(binance_portfolio_result) == 2
+        ):
             binance_crypto_value, binance_stablecoin_value = binance_portfolio_result
-            logger.info(f"Binance portfolio: crypto=${binance_crypto_value}, stable=${binance_stablecoin_value}")
+            logger.info(
+                f"Binance portfolio: crypto=${binance_crypto_value}, stable=${binance_stablecoin_value}"
+            )
         else:
             logger.error(f"Unexpected Binance portfolio result format")
             binance_crypto_value, binance_stablecoin_value = 0.0, 0.0
@@ -1170,448 +314,33 @@ def main(asset: str = "all"):
         exch["stablecoin_value"] = exchange_stablecoin_value_map[name]
         exchanges.append(exch)
 
-    simulated_assets = set()
-
-    # Display portfolio information for both exchanges
-    logger.info("=== Portfolio Overview ===")
-    for exchange in exchanges:
-        logger.info(f"--- {exchange['name'].value} Portfolio ---")
-        display_port_msg(
-            v_c=exchange["crypto_value"], v_s=exchange["stablecoin_value"], before=True
-        )
-
-    configured_assets = CURS[:1] if DEBUG else CURS
-    asset_list = [
-        candidate
-        for candidate in configured_assets
-        if crypto_strategies_for_asset(candidate)
-    ]
-    for asset in asset_list:
-        asset_strategies = crypto_strategies_for_asset(asset)
-        # Only simulate each asset once, regardless of exchange
-        if asset in simulated_assets:
-            logger.info(f"Skipping duplicate simulation for asset: {asset}")
-            continue
-        simulated_assets.add(asset)
-
-        logger.info(
-            f"\n\n# --- Simulating for asset: {asset} --- #"
-        )
-        
-        # Use fallback approach: try Binance first, then Coinbase
-        data_stream, source_exchange = fetch_historical_data_with_fallback(
-            asset,
-            binance_client,
-            coinbase_client,
-            EXCHANGE_CONFIGS,
-            interval_hours=CRYPTO_SIGNAL_INTERVAL_HOURS,
-            lookback_days=CRYPTO_SIGNAL_LOOKBACK_DAYS,
-        )
-        
-        if data_stream is None:
-            logger.error(f"Failed to fetch historical data for {asset} from both exchanges")
-            continue
-            
-        logger.info(f"Using data from {source_exchange.value} for {asset}")
-
-        btc_data_stream = None
-        if SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY in asset_strategies:
-            btc_data_stream, btc_source_exchange = fetch_historical_data_with_fallback(
-                "BTC",
-                binance_client,
-                coinbase_client,
-                EXCHANGE_CONFIGS,
-                interval_hours=CRYPTO_SIGNAL_INTERVAL_HOURS,
-                lookback_days=CRYPTO_SIGNAL_LOOKBACK_DAYS,
-            )
-            if not btc_data_stream:
-                logger.error("SOL defensive strategy requires aligned BTC daily data")
-                continue
-            logger.info(
-                f"Using BTC regime data from {btc_source_exchange.value} for SOL"
-            )
-
-        intraday_stream = None
-        if "MA-BOLL-BANDS" in asset_strategies and MA_BOLL_ZOOM_IN:
-            try:
-                intraday_stream = fetch_intraday_data_with_fallback(
-                    asset=asset,
-                    binance_client=binance_client,
-                    coinbase_client=coinbase_client,
-                    exchange_configs=EXCHANGE_CONFIGS,
-                    source_exchange=source_exchange,
-                    interval_hours=MA_BOLL_ZOOM_IN_INTRADAY_HOURS,
-                )
-                if intraday_stream:
-                    logger.info(
-                        f"Fetched {len(intraday_stream)} intraday candles ({MA_BOLL_ZOOM_IN_INTRADAY_HOURS}h) "
-                        f"for {asset} from {source_exchange.value}"
-                    )
-            except Exception as e:
-                logger.warning(f"Intraday fetch failed for {asset}: {e}")
-        
-        # Use the source exchange for wallet and portfolio data
-        source_exchange_config = next((config for config in exchanges if config["name"] == source_exchange), None)
-        if not source_exchange_config:
-            logger.error(f"Could not find configuration for {source_exchange.value}")
-            continue
-
-        wallet = source_exchange_config["client"].get_wallets()
-        coin_amount = 0.0
-
-        for item in wallet:
-            if isinstance(item, dict):
-                asset_name = item.get(source_exchange_config["asset_key"])
-                if asset_name == asset:
-                    if source_exchange_config["coin_value_key"]:
-                        coin_amount = float(
-                            item[source_exchange_config["coin_key"]][source_exchange_config["coin_value_key"]]
-                        )
-                    else:
-                        coin_amount = float(item[source_exchange_config["coin_key"]])
-            else:
-                asset_name = getattr(item, source_exchange_config["asset_key"], None)
-                if asset_name == asset:
-                    balance = getattr(item, source_exchange_config["coin_key"])
-                    if source_exchange_config["coin_value_key"]:
-                        coin_amount = float(balance[source_exchange_config["coin_value_key"]])
-                    else:
-                        coin_amount = float(balance)
-        if coin_amount == 0.0:
-            logger.warning(f"No {asset} found in {source_exchange.value} wallet.")
-            # Set a default initial amount for simulation purposes
-            sim_coin_amount = DEFAULT_SIMULATION_COIN_AMOUNT
-            logger.info(f"Using simulation amount of {sim_coin_amount} {asset} for testing")
-        else:
-            sim_coin_amount = coin_amount
-
-        # Run simulation
-        # simulation configuration
-        if DEBUG:
-            SIM_BUY_PCTS = [BUY_PCTS[0]]
-            SIM_SELL_PCTS = [SELL_PCTS[0]]
-        else:
-            SIM_BUY_PCTS = BUY_PCTS
-            SIM_SELL_PCTS = SELL_PCTS
-        try:
-            # Validate data stream before creating trader driver
-            if not data_stream:
-                logger.error(f"No historical data available for {asset}")
-                continue
-            
-            if len(data_stream) < 200:
-                logger.error(f"Insufficient daily history for {asset}: {len(data_stream)} rows; SMA200 needs at least 200")
-                continue
-            
-            # The strategy was validated on daily candles. Use all fetched rows as one
-            # evaluation window so SMA200 receives a complete warmup period.
-            data_points_per_day = 24 / CRYPTO_SIGNAL_INTERVAL_HOURS
-            window_size_data_points = len(data_stream)
-            step_size_data_points = len(data_stream)
-            
-            logger.info(
-                f"Starting moving window simulation for {asset} using {source_exchange.value} data "
-                f"with {len(data_stream)} daily data points (single full-history evaluation window)"
-            )
-            logger.info(
-                f"Data interval configuration: {CRYPTO_SIGNAL_INTERVAL_HOURS}h intervals, "
-                f"~{data_points_per_day:.2f} data points per day, "
-                f"total data span covers ~{len(data_stream) / data_points_per_day:.1f} days"
-            )
-            
-            # Run moving window simulation
-            moving_window_results = run_moving_window_simulation(
-                trader_driver_class=TraderDriver,
-                data_stream=data_stream,
-                window_size=window_size_data_points,
-                step_size=step_size_data_points,
-                name=asset,
-                init_amount=source_exchange_config["stablecoin_value"],
-                cur_coin=sim_coin_amount,
-                # only test 1 strategy for debugging purposes
-                overall_stats=asset_strategies,
-                tol_pcts=TOL_PCTS,
-                ma_lengths=MA_LENGTHS,
-                ema_lengths=EMA_LENGTHS,
-                bollinger_mas=BOLLINGER_MAS,
-                bollinger_tols=BOLLINGER_TOLS,
-                buy_pcts=SIM_BUY_PCTS,
-                sell_pcts=SIM_SELL_PCTS,
-                buy_stas=BUY_STAS,
-                sell_stas=SELL_STAS,
-                rsi_periods=RSI_PERIODS,
-                rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
-                rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
-                kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
-                kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
-                mode="normal",
-                execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
-                slippage_bps=CRYPTO_SLIPPAGE_BPS,
-                enable_options=False,
-                btc_data_stream=btc_data_stream,
-            )
-            
-            # Get aggregated metrics for best strategy
-            best_strategy = moving_window_results["best_strategy"]
-            best_metrics = moving_window_results["best_strategy_metrics"]
-            best_window_result = moving_window_results["best_window_result"]
-            
-            # Create a TraderDriver with full data to get the current signal
-            # Use the most recent data for signal generation
-            trader_driver = TraderDriver(
-                name=asset,
-                init_amount=source_exchange_config["stablecoin_value"],
-                cur_coin=sim_coin_amount,
-                # only test 1 strategy for debugging purposes
-                overall_stats=asset_strategies,
-                tol_pcts=TOL_PCTS,
-                ma_lengths=MA_LENGTHS,
-                ema_lengths=EMA_LENGTHS,
-                bollinger_mas=BOLLINGER_MAS,
-                bollinger_tols=BOLLINGER_TOLS,
-                buy_pcts=SIM_BUY_PCTS,
-                sell_pcts=SIM_SELL_PCTS,
-                buy_stas=BUY_STAS,
-                sell_stas=SELL_STAS,
-                rsi_periods=RSI_PERIODS,
-                rsi_oversold_thresholds=RSI_OVERSOLD_THRESHOLDS,
-                rsi_overbought_thresholds=RSI_OVERBOUGHT_THRESHOLDS,
-                kdj_oversold_thresholds=KDJ_OVERSOLD_THRESHOLDS,
-                kdj_overbought_thresholds=KDJ_OVERBOUGHT_THRESHOLDS,
-                zoom_in=MA_BOLL_ZOOM_IN,
-                zoom_in_min_move_pct=MA_BOLL_ZOOM_IN_MIN_MOVE_PCT,
-                ma_boll_simplify=MA_BOLL_SIMPLIFY,
-                mode="normal",
-                execute_on_next_open=CRYPTO_EXECUTE_ON_NEXT_OPEN,
-                slippage_bps=CRYPTO_SLIPPAGE_BPS,
-                enable_options=False,
-                btc_data_stream=btc_data_stream,
-            )
-            trader_driver.feed_data(
-                data_stream,
-                intraday_stream=intraday_stream,
-                intraday_interval_hours=MA_BOLL_ZOOM_IN_INTRADAY_HOURS,
-            )
-            best_info = trader_driver.best_trader_info
-            best_t = trader_driver.traders[best_info["trader_index"]]
-            # Daily-close signals execute on the next daily open; inspect the latest two days.
-            try:
-                signal = best_t.get_trade_signal(lag_intervals=0, lookback_hours=48)
-            except Exception:
-                signal = best_t.trade_signal
-            th = getattr(best_t, "trade_history", []) or []
-            num_buy = len([x for x in th if str(x.get("action", "")).upper() == "BUY"])
-            num_sell = len([x for x in th if str(x.get("action", "")).upper() == "SELL"])
-            num_intervals = len(th)
-            signal_rate_pct = (
-                100.0 * (num_buy + num_sell) / num_intervals if num_intervals > 0 else 0.0
-            )
-
-            sig_dates = [
-                x.get("date")
-                for x in th
-                if str(x.get("action", "")).upper() in ("BUY", "SELL")
-            ]
-            sig_dates_dt = []
-            for d0 in sig_dates:
-                try:
-                    dt0 = d0 if isinstance(d0, datetime) else datetime.fromisoformat(str(d0))
-                except Exception:
-                    dt0 = None
-                if dt0 is not None:
-                    sig_dates_dt.append(dt0)
-            sig_dates_dt = sorted(sig_dates_dt)
-
-            span_days = 0.0
-            if th:
-                try:
-                    d_start = th[0].get("date")
-                    d_end = th[-1].get("date")
-                    dt_start = d_start if isinstance(d_start, datetime) else datetime.fromisoformat(str(d_start))
-                    dt_end = d_end if isinstance(d_end, datetime) else datetime.fromisoformat(str(d_end))
-                    span_days = max(0.0, (dt_end - dt_start).total_seconds() / 86400.0)
-                except Exception:
-                    span_days = float(num_intervals)
-
-            num_signals = num_buy + num_sell
-            signals_per_30d = (num_signals / span_days * 30.0) if span_days > 0 else 0.0
-            avg_days_between = ""
-            if len(sig_dates_dt) >= 2:
-                deltas = [
-                    (sig_dates_dt[i] - sig_dates_dt[i - 1]).total_seconds() / 86400.0
-                    for i in range(1, len(sig_dates_dt))
-                ]
-                avg_days_between = float(np.mean(deltas)) if deltas else ""
-
-            def _fmt_last_dt(dt_obj) -> str:
-                if dt_obj is None:
-                    return ""
-                try:
-                    if dt_obj.time() == datetime.min.time():
-                        return dt_obj.strftime("%Y-%m-%d")
-                    return dt_obj.strftime("%Y-%m-%d %H:%M")
-                except Exception:
-                    return str(dt_obj)
-
-            def _latest_action_dt(action: str):
-                for evt in reversed(th):
-                    if str(evt.get("action", "")).upper() != action:
-                        continue
-                    d0 = evt.get("date")
-                    try:
-                        dt0 = (
-                            d0
-                            if isinstance(d0, datetime)
-                            else datetime.fromisoformat(str(d0).replace("Z", "+00:00"))
-                        )
-                    except Exception:
-                        try:
-                            dt0 = datetime.strptime(str(d0), "%Y-%m-%d %H:%M:%S")
-                        except Exception:
-                            dt0 = None
-                    if dt0 is not None:
-                        return dt0
-                return None
-
-            last_buy_dt = _latest_action_dt("BUY")
-            last_sell_dt = _latest_action_dt("SELL")
-
-            opt_stats = compute_option_signal_win_rates(
-                trade_history=th,
-                hold_days=OPTION_SIGNAL_HOLD_DAYS,
-            )
-            opt_settlements = []
-            for opt in getattr(best_t, "option_history", []) or []:
-                if not opt.get("settled"):
-                    continue
-                settled_on = opt.get("settled_on")
-                if isinstance(settled_on, datetime):
-                    settled_str = settled_on.strftime("%Y-%m-%d %H:%M:%S")
-                else:
-                    settled_str = str(settled_on) if settled_on else ""
-                opt_settlements.append(
-                    {
-                        "asset_type": "CRYPTO",
-                        "exchange": source_exchange.value,
-                        "asset": asset,
-                        "option_type": opt.get("option_type", ""),
-                        "leverage_multiple": opt.get("leverage_multiple", ""),
-                        "entry_price": opt.get("entry_price", ""),
-                        "exit_price": opt.get("exit_price", ""),
-                        "pnl": opt.get("pnl", ""),
-                        "settled_on": settled_str,
-                    }
-                )
-            opt_settlements = opt_settlements[-5:]
-            best_summaries.append(
-                {
-                    "asset_type": "CRYPTO",
-                    "exchange": source_exchange.value,
-                    "asset": asset,
-                    "best_strategy": best_t.high_strategy,
-                    "buy_pct": best_info.get("buy_pct", ""),
-                    "sell_pct": best_info.get("sell_pct", ""),
-                    "num_buy": num_buy,
-                    "num_sell": num_sell,
-                    "num_intervals": num_intervals,
-                    "signal_rate_pct": round(signal_rate_pct, 2),
-                    "signals_per_30d": round(signals_per_30d, 2),
-                    "avg_days_between_signals": round(avg_days_between, 2)
-                    if isinstance(avg_days_between, (int, float))
-                    else "",
-                    "last_buy_date": _fmt_last_dt(last_buy_dt),
-                    "last_sell_date": _fmt_last_dt(last_sell_dt),
-                    "call_win_rate_pct": opt_stats.get("call_win_rate_pct", ""),
-                    "put_win_rate_pct": opt_stats.get("put_win_rate_pct", ""),
-                    "call_trials": opt_stats.get("call_trials", 0),
-                    "put_trials": opt_stats.get("put_trials", 0),
-                    "call_wins": opt_stats.get("call_wins", 0),
-                    "put_wins": opt_stats.get("put_wins", 0),
-                    "option_settlements": opt_settlements,
-                }
-            )
-
-            # Log aggregated best trader summary with exchange name
-            logger.info(
-                f"\n{'★'*10} MOVING WINDOW SIMULATION RESULTS ({source_exchange.value}) {'★'*10}\n"
-                f"Total windows analyzed: {moving_window_results['num_windows']}\n"
-                f"Window size: {MOVING_WINDOW_DAYS} days ({window_size_data_points} data points at {DATA_INTERVAL_HOURS}h intervals)\n"
-                f"Best strategy (aggregated): {best_strategy}\n"
-                f"\n--- Aggregated Performance Metrics ---\n"
-                f"Mean rate of return: {best_metrics['mean_rate_of_return']:.2f}%\n"
-                f"Std dev of return: {best_metrics['std_rate_of_return']:.2f}%\n"
-                f"Min rate of return: {best_metrics['min_rate_of_return']:.2f}%\n"
-                f"Max rate of return: {best_metrics['max_rate_of_return']:.2f}%\n"
-                f"Median rate of return: {best_metrics['median_rate_of_return']:.2f}%\n"
-                f"Risk-adjusted return (mean - std): {best_metrics['risk_adjusted_return']:.2f}%\n"
-                f"Win rate: {best_metrics['win_rate']*100:.1f}%\n"
-                f"Mean baseline rate: {best_metrics['mean_baseline_rate']:.2f}%\n"
-                f"Mean coin rate: {best_metrics['mean_coin_rate']:.2f}%\n"
-                f"Mean max drawdown: {best_metrics['mean_drawdown']:.2f}%\n"
-                f"Mean transactions: {best_metrics['mean_transactions']:.1f}\n"
-                f"\n--- Best Window Performance ---\n"
-                f"Best window period: {best_window_result['window_start_date']} to {best_window_result['window_end_date']}\n"
-                f"Best window rate of return: {best_window_result['rate_of_return']:.2f}%\n"
-                f"Today's signal: {signal} for crypto={best_t.crypto_name}\n"
-                f"{'★'*50}\n"
-            )
-
-            # Save visualizations
-            strategy_performance = trader_driver.get_all_strategy_performance()
-            dashboard_filename = f"app/visualization/plots/trading_dashboard_{asset}_{source_exchange.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-            create_comprehensive_dashboard(
-                trader_instance=best_t,
-                save_html=True,
-                filename=dashboard_filename,
-                strategy_performance=strategy_performance,
-            )
-
-            # Save moving-window buy/sell plots as a single stacked HTML per asset
-            try:
-                plots_dir = os.path.join("app", "visualization", "plots")
-                os.makedirs(plots_dir, exist_ok=True)
-                window_report_filename = os.path.join(
-                    plots_dir,
-                    f"moving_window_signals_{asset}_{source_exchange.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
-                )
-                create_moving_window_signals_report(
-                    asset_name=asset,
-                    window_chart_data=moving_window_results.get("window_chart_data", []),
-                    filename=window_report_filename,
-                    title=f"Moving Window Buy/Sell Signal Report - {asset} ({source_exchange.value})",
-                )
-            except Exception as e:
-                logger.error(f"Failed to create moving window signals report for {asset}: {e}")
-
-            # Gather recommended action for email/log
-            action_line = f"{datetime.now()} | {source_exchange.value} | {asset} | Action: {signal['action']} | Buy %: {signal.get('buy_percentage', '')} | Sell %: {signal.get('sell_percentage', '')}"
-            all_actions.append(action_line)
-
-            # Log recommended action to log.txt
-            with open(LOG_FILE, "a") as outfile:
-                outfile.write(action_line + "\n")
-
-        except ValueError as e:
-            logger.error(
-                f"Data validation failed for {asset} using {source_exchange.value}: {e}"
-            )
-        except Exception as e:
-            logger.error(
-                f"Simulation failed for {asset} using {source_exchange.value}: {e}"
-            )
+    crypto_simulation_runner.run(
+        all_actions=all_actions,
+        best_summaries=best_summaries,
+        binance_client=binance_client,
+        coinbase_client=coinbase_client,
+        exchanges=exchanges,
+    )
 
     # after
     try:
         portfolio_result_after = coinbase_client.portfolio_value
-        if isinstance(portfolio_result_after, tuple) and len(portfolio_result_after) == 2:
-            coinbase_crypto_value_after, coinbase_stablecoin_value_after = portfolio_result_after
+        if (
+            isinstance(portfolio_result_after, tuple)
+            and len(portfolio_result_after) == 2
+        ):
+            coinbase_crypto_value_after, coinbase_stablecoin_value_after = (
+                portfolio_result_after
+            )
         else:
-            logger.error(f"Unexpected portfolio result format after: {portfolio_result_after}")
+            logger.error(
+                f"Unexpected portfolio result format after: {portfolio_result_after}"
+            )
             coinbase_crypto_value_after, coinbase_stablecoin_value_after = 0.0, 0.0
     except Exception as e:
         logger.error(f"Error getting portfolio value after: {e}")
         coinbase_crypto_value_after, coinbase_stablecoin_value_after = 0.0, 0.0
-        
+
     display_port_msg(
         v_c=coinbase_crypto_value_after,
         v_s=coinbase_stablecoin_value_after,
@@ -1620,15 +349,22 @@ def main(asset: str = "all"):
 
     try:
         binance_portfolio_result_after = binance_client.portfolio_value
-        if isinstance(binance_portfolio_result_after, tuple) and len(binance_portfolio_result_after) == 2:
-            binance_crypto_value_after, binance_stablecoin_value_after = binance_portfolio_result_after
+        if (
+            isinstance(binance_portfolio_result_after, tuple)
+            and len(binance_portfolio_result_after) == 2
+        ):
+            binance_crypto_value_after, binance_stablecoin_value_after = (
+                binance_portfolio_result_after
+            )
         else:
-            logger.error(f"Unexpected Binance portfolio result format after: {binance_portfolio_result_after}")
+            logger.error(
+                f"Unexpected Binance portfolio result format after: {binance_portfolio_result_after}"
+            )
             binance_crypto_value_after, binance_stablecoin_value_after = 0.0, 0.0
     except Exception as e:
         logger.error(f"Error getting Binance portfolio value after: {e}")
         binance_crypto_value_after, binance_stablecoin_value_after = 0.0, 0.0
-        
+
     display_port_msg(
         v_c=binance_crypto_value_after, v_s=binance_stablecoin_value_after, before=False
     )
@@ -1638,25 +374,31 @@ def main(asset: str = "all"):
         _run_stock_simulation(all_actions, best_summaries)
 
     # Send daily recommendations email if not in debug mode
-    if DEBUG is False:
-        send_daily_recommendations_email(
-            LOG_FILE,
-            RECIPIENT_LIST,
-            GMAIL_ADDRESS,
-            GMAIL_APP_PASSWORD,
-            best_summaries=best_summaries,
-        )
+    if DEBUG is False and send_email:
+        _send_daily_recommendations_with_ledger(best_summaries)
 
     # Send DEFI report email based on configuration
     if DEFI_MONITORING_ENABLED:
         current_day = datetime.now().weekday()  # Monday=0, Sunday=6
-        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        
+        day_names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
+
         if current_day in DEFI_MONITORING_DAYS:
-            logger.info(f"DEFI monitoring day detected ({day_names[current_day]}) - running DEFI monitoring")
+            logger.info(
+                f"DEFI monitoring day detected ({day_names[current_day]}) - running DEFI monitoring"
+            )
             main_defi()
         else:
-            logger.info(f"DEFI monitoring skipped - today is {day_names[current_day]} (runs on: {[day_names[d] for d in DEFI_MONITORING_DAYS]})")
+            logger.info(
+                f"DEFI monitoring skipped - today is {day_names[current_day]} (runs on: {[day_names[d] for d in DEFI_MONITORING_DAYS]})"
+            )
     else:
         logger.info("DEFI monitoring disabled in configuration")
 
@@ -1675,6 +417,7 @@ if __name__ == "__main__":
     import sys
 
     asset_mode = "all"
+    send_email = "--no-email" not in sys.argv[1:]
     for arg in sys.argv[1:]:
         if arg.startswith("--asset="):
             asset_mode = arg.split("=", 1)[1].strip().lower()
@@ -1682,7 +425,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--cronjob":
         logger.info("Starting trading bot in schedule-based cronjob mode...")
         # Schedule the job for 1:00 PM UTC (9:00 PM SGT)
-        schedule.every().day.at("13:00").do(lambda: main(asset=asset_mode))
+        schedule.every().day.at("13:00").do(
+            lambda: main(asset=asset_mode, send_email=send_email)
+        )
         logger.info("Trading bot scheduled to run daily at 9:00 PM SGT (1:00 PM UTC)")
         logger.info("Press Ctrl+C to stop the bot")
         try:
@@ -1699,10 +444,8 @@ if __name__ == "__main__":
         logger.info(
             "Sending daily trading recommendations email only (no simulation)..."
         )
-        send_daily_recommendations_email(
-            LOG_FILE, RECIPIENT_LIST, GMAIL_ADDRESS, GMAIL_APP_PASSWORD
-        )
+        _send_daily_recommendations_with_ledger()
 
     else:
         logger.info("Starting trading bot in one-time mode...")
-        main(asset=asset_mode)
+        main(asset=asset_mode, send_email=send_email)

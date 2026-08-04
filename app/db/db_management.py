@@ -135,6 +135,56 @@ def backfill_daily_data(symbols=None, days: int = 1095):
         return False
 
 
+def backfill_stock_daily_data(symbols=None, days: int = 3 * 365):
+    """Fetch stock daily candles from Yahoo Finance and upsert them by ticker/date."""
+    logger = get_logger(__name__)
+    if days <= 0:
+        logger.error(f"Stock backfill days must be positive, got {days}")
+        return False
+
+    try:
+        from core.config import STOCKS
+        from trading.us_stock_client import USStockClient
+
+        requested_symbols = [symbol.upper() for symbol in (symbols or STOCKS)]
+        client = USStockClient(tickers=requested_symbols)
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        failures = []
+
+        for ticker in requested_symbols:
+            try:
+                data = client.get_historic_data(
+                    ticker,
+                    start=start_date,
+                    end=end_date,
+                    use_cache=False,
+                )
+                if not data:
+                    raise RuntimeError("Yahoo Finance returned no daily candles")
+
+                if not db_manager.store_historical_data(ticker, data):
+                    raise RuntimeError("database store operation failed")
+
+                print(
+                    f"{ticker}: stored {len(data)} rows "
+                    f"({data[0][1]} through {data[-1][1]})"
+                )
+            except Exception as exc:
+                failures.append(ticker)
+                logger.error(f"Failed to backfill stock {ticker}: {exc}")
+
+        if failures:
+            print(f"Stock backfill failed for: {', '.join(failures)}")
+            return False
+
+        print(f"Stock backfill completed for {len(requested_symbols)} symbols.")
+        return True
+    except Exception as exc:
+        logger.error(f"Failed to backfill stock daily data: {exc}")
+        return False
+
+
 def test_connection():
     """Test database connection."""
     logger = get_logger(__name__)
@@ -159,20 +209,28 @@ def main():
     )
     parser.add_argument(
         "command",
-        choices=["init", "drop", "stats", "clear", "test", "backfill"],
+        choices=[
+            "init",
+            "drop",
+            "stats",
+            "clear",
+            "test",
+            "backfill",
+            "backfill-stocks",
+        ],
         help="Command to execute",
     )
     parser.add_argument(
         "--days",
         type=int,
         default=None,
-        help="Number of days (clear default: 365; backfill default: 1095)",
+        help="Number of days (clear: 365; crypto/stock backfill: 1095)",
     )
 
     parser.add_argument(
         "--symbols",
         nargs="+",
-        help="Assets or USDT pairs to backfill (default: configured CURS)",
+        help="Tickers, assets, or USDT pairs to backfill (default: configured list)",
     )
 
     args = parser.parse_args()
@@ -204,6 +262,10 @@ def main():
 
     elif args.command == "backfill":
         success = backfill_daily_data(args.symbols, args.days or 1095)
+        sys.exit(0 if success else 1)
+
+    elif args.command == "backfill-stocks":
+        success = backfill_stock_daily_data(args.symbols, args.days or 3 * 365)
         sys.exit(0 if success else 1)
 
 

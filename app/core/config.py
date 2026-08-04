@@ -1,5 +1,55 @@
 from enum import Enum
 
+try:
+    from . import asset_strategy_registry as _asset_registry
+except ImportError:
+    import asset_strategy_registry as _asset_registry
+
+BTC_SMA200_DEFENSIVE_ASSETS = _asset_registry.BTC_SMA200_DEFENSIVE_ASSETS
+BTC_SMA200_DEFENSIVE_PARAMETERS = _asset_registry.BTC_SMA200_DEFENSIVE_PARAMETERS
+BTC_SMA200_DEFENSIVE_STRATEGY = _asset_registry.BTC_SMA200_DEFENSIVE_STRATEGY
+COIN_BTC_SMA200_DEFENSIVE_PARAMETERS = (
+    _asset_registry.COIN_BTC_SMA200_DEFENSIVE_PARAMETERS
+)
+COIN_BTC_SMA200_DEFENSIVE_STRATEGY = _asset_registry.COIN_BTC_SMA200_DEFENSIVE_STRATEGY
+CRYPTO_STRATEGIES = _asset_registry.CRYPTO_STRATEGIES
+CRYPTO_STRATEGY_ASSET_ALLOWLIST = _asset_registry.CRYPTO_STRATEGY_ASSET_ALLOWLIST
+ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS = (
+    _asset_registry.ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS
+)
+ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY = (
+    _asset_registry.ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY
+)
+MSFT_20D_BREAKOUT_DEFENSIVE_PARAMETERS = (
+    _asset_registry.MSFT_20D_BREAKOUT_DEFENSIVE_PARAMETERS
+)
+MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY = (
+    _asset_registry.MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY
+)
+SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS = (
+    _asset_registry.SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS
+)
+SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY = (
+    _asset_registry.SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY
+)
+STOCK_EXCLUSIVE_STRATEGIES_BY_ASSET = (
+    _asset_registry.STOCK_EXCLUSIVE_STRATEGIES_BY_ASSET
+)
+STOCK_STRATEGIES = _asset_registry.STOCK_STRATEGIES
+STOCK_STRATEGY_ASSET_ALLOWLIST = _asset_registry.STOCK_STRATEGY_ASSET_ALLOWLIST
+TCEHY_REGIME_DEFENSIVE_PARAMETERS = _asset_registry.TCEHY_REGIME_DEFENSIVE_PARAMETERS
+TCEHY_REGIME_DEFENSIVE_STRATEGY = _asset_registry.TCEHY_REGIME_DEFENSIVE_STRATEGY
+crypto_strategies_for_asset = _asset_registry.crypto_strategies_for_asset
+is_crypto_strategy_allowed_for_asset = (
+    _asset_registry.is_crypto_strategy_allowed_for_asset
+)
+is_stock_strategy_allowed_for_asset = (
+    _asset_registry.is_stock_strategy_allowed_for_asset
+)
+normalize_crypto_asset = _asset_registry.normalize_crypto_asset
+normalize_stock_symbol = _asset_registry.normalize_stock_symbol
+stock_strategies_for_asset = _asset_registry.stock_strategies_for_asset
+
 # numerical constants
 SECONDS_IN_ONE_DAY = 86400
 
@@ -17,14 +67,14 @@ DEBUG = False
 #
 # NOTE: We keep `STRATEGIES` as a backward-compatible alias to `CRYPTO_STRATEGIES` because many scripts/tests
 # pass it into `TraderDriver(overall_stats=...)`.
-BTC_SMA200_DEFENSIVE_STRATEGY = "BTC-SMA200-DEFENSIVE"
-ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY = "ETH-120D-BREAKOUT-DEFENSIVE"
-SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY = "SOL-30D-BREAKOUT-DEFENSIVE"
 
 SUPPORTED_STRATEGIES = [
     BTC_SMA200_DEFENSIVE_STRATEGY,
     ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
     SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+    TCEHY_REGIME_DEFENSIVE_STRATEGY,
+    COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
+    MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
     "SMA200",
     "MA-SELVES",
     "MA-SELVES-MACRO",
@@ -55,74 +105,23 @@ SUPPORTED_STRATEGIES = [
     "ECONOMIC-INDICATORS",
 ]
 
-# Enabled strategies (crypto)
-CRYPTO_STRATEGIES = [
-    BTC_SMA200_DEFENSIVE_STRATEGY,
-    ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
-    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
-]
-
-BTC_SMA200_DEFENSIVE_ASSETS = frozenset({"BTC"})
-BTC_SMA200_DEFENSIVE_PARAMETERS = {
-    "entry_band_pct": 0.05,
-    "exit_band_pct": 0.05,
-    "min_hold_days": 0,
-}
-ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS = {
-    "lookback_days": 120,
-    "trailing_stop_pct": 0.05,
-    "require_btc_regime": False,
-}
-SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS = {
-    "lookback_days": 30,
-    "trailing_stop_pct": 0.10,
-    "require_btc_regime": True,
-}
-CRYPTO_STRATEGY_ASSET_ALLOWLIST = {
-    BTC_SMA200_DEFENSIVE_STRATEGY: BTC_SMA200_DEFENSIVE_ASSETS,
-    ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY: frozenset({"ETH"}),
-    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY: frozenset({"SOL"}),
-}
 CRYPTO_EXECUTE_ON_NEXT_OPEN = True
 CRYPTO_SLIPPAGE_BPS = 10.0
 CRYPTO_SIGNAL_INTERVAL_HOURS = 24
-CRYPTO_SIGNAL_LOOKBACK_DAYS = 365
+# Keep the daily simulation on the same three-calendar-year history used by the
+# frozen-strategy validation. A one-year slice leaves only ~165 post-warmup
+# observations for SMA200 and can produce a misleading short-regime return.
+CRYPTO_SIGNAL_LOOKBACK_DAYS = 3 * 365
+CRYPTO_SIMULATION_INITIAL_CASH = 10000.0
+CRYPTO_SIMULATION_INITIAL_COIN = 0.0
+
+# Increment when deployed signal semantics change; it is part of the ledger key.
+SIGNAL_LEDGER_STRATEGY_VERSION = "v1"
+SIGNAL_LEDGER_BOOTSTRAP_DAYS = 2
 
 
-def normalize_crypto_asset(asset: str) -> str:
-    """Normalize exchange pairs and file-derived fixture names to a base asset."""
-    normalized = str(asset).replace("\\", "/").rsplit("/", 1)[-1].upper()
-    return normalized.replace("-USD", "").replace("USDT", "")
-
-
-def crypto_strategies_for_asset(asset: str):
-    """Return enabled crypto strategies that are allowed to trade the asset."""
-    normalized_asset = normalize_crypto_asset(asset)
-    return [
-        strategy
-        for strategy in CRYPTO_STRATEGIES
-        if normalized_asset in CRYPTO_STRATEGY_ASSET_ALLOWLIST.get(
-            strategy, {normalized_asset}
-        )
-    ]
-
-
-def is_crypto_strategy_allowed_for_asset(strategy: str, asset: str) -> bool:
-    """Enforce any asset allowlist attached to a registered crypto strategy."""
-    normalized_asset = normalize_crypto_asset(asset)
-    allowed_assets = CRYPTO_STRATEGY_ASSET_ALLOWLIST.get(strategy)
-    return allowed_assets is None or normalized_asset in allowed_assets
-
-# Enabled strategies (stocks) - daily candles only; keep separate from crypto
-STOCK_STRATEGIES = [
-    "MA-SELVES",  # Original moving average strategy
-    "DOUBLE-MA", # Double Moving Average Crossover strategy
-    "MA-BOLL-BANDS", # MA + Bollinger Bands strategy
-    "RSI", # RSI strategy
-    "KDJ", # KDJ strategy
-    # --------- #
-    "ADAPTIVE-MA-SELVES",  # Adaptive tolerance MA strategy
-]
+STOCK_EXECUTE_ON_NEXT_OPEN = True
+STOCK_SLIPPAGE_BPS = 10.0
 
 
 # Backward-compatible alias (treat as enabled crypto strategies)
@@ -245,7 +244,7 @@ TIMESPAN = 90
 # Data interval granularity (in hours)
 # Controls the frequency of data points fetched from exchanges
 # Options: 1 (hourly), 6 (6-hourly), 12 (12-hourly), 24 (daily), etc.
-DATA_INTERVAL_HOURS = 6 # 12-hour intervals for finer granularity
+DATA_INTERVAL_HOURS = 6  # 12-hour intervals for finer granularity
 
 # Moving window configuration for simulation
 # For a given TIMESPAN, use overlapping windows of MOVING_WINDOW_DAYS to run multiple simulations
@@ -257,12 +256,19 @@ MOVING_WINDOW_STEP = 3  # Step size for moving window (1 = overlapping windows, 
 SIMULATION_METHOD = (
     "PORTFOLIO_SCALED"  # Options: "FIXED", "PORTFOLIO_SCALED", "PERCENTAGE_BASED"
 )
-SIMULATION_BASE_AMOUNT = 10000  # Standard simulation amount for scaling
+SIMULATION_BASE_AMOUNT = int(
+    CRYPTO_SIMULATION_INITIAL_CASH
+)  # Standard simulation amount for scaling
 SIMULATION_PERCENTAGE = 0.1  # Use 10% of actual portfolio for percentage-based method
-DEFAULT_SIMULATION_COIN_AMOUNT = 1.0  # Default coin amount to use for simulation when asset is not found in wallet
+DEFAULT_SIMULATION_COIN_AMOUNT = (
+    1.0  # Default coin amount to use for simulation when asset is not found in wallet
+)
 
-# Log file path
-LOG_FILE = "./log.txt"
+# Runtime-only output is isolated from source and auditable research reports.
+RUNTIME_DIR = "./runtime"
+RUNTIME_LOG_DIR = f"{RUNTIME_DIR}/logs"
+LOCAL_ARTIFACT_DIR = f"{RUNTIME_DIR}/artifacts"
+LOG_FILE = f"{RUNTIME_LOG_DIR}/trading-bot.log"
 
 # DEFI Monitoring Configuration
 # Configure which days of the week DEFI monitoring should run
@@ -297,22 +303,35 @@ EXCHANGE_CONFIGS = [
     },
 ]
 
+# Stock simulations and backfills use three calendar years of daily prices.
+STOCK_HISTORY_LOOKBACK_DAYS = 3 * 365
+
 # List of US stock tickers to fetch via yfinance
 STOCKS = [
-    'AAPL',  # Apple
-    'TSLA',  # Tesla
-    'JD', # JD.com
-    'ORCL', # Oracle,
-    'META', # Meta,
-    'MSFT', # Microsoft
-    'NVDA', # Nvidia
-    'AMZN', # Amazon
-    'GOOGL', # Google
-    'NFLX', # Netflix
-    'SNAP', # Snapchat
-    'BIDU', # Baidu
-    'BABA', # Alibaba
-    'TECHY', # Tencent
-    'UBER', # Uber
-    'DASH' # Doordash
+    "AAPL",  # Apple
+    "TSLA",  # Tesla
+    "JD",  # JD.com
+    "ORCL",  # Oracle,
+    "META",  # Meta,
+    "MSFT",  # Microsoft
+    "COIN",  # Coinbase
+    "NVDA",  # Nvidia
+    "AMZN",  # Amazon
+    "GOOGL",  # Google
+    "NFLX",  # Netflix
+    "SNAP",  # Snapchat
+    "BIDU",  # Baidu
+    "BABA",  # Alibaba
+    "TCEHY",  # Tencent
+    "UBER",  # Uber
+    "DASH",  # Doordash
+]
+
+# Daily stock recommendations intentionally run only the three frozen,
+# asset-isolated strategies. STOCKS remains the broader research/backfill
+# universe and must not implicitly expand the scheduled simulation workload.
+STOCK_SIMULATION_ASSETS = [
+    "MSFT",
+    "TCEHY",
+    "COIN",
 ]

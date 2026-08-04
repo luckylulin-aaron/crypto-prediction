@@ -9,14 +9,18 @@ import numpy as np
 
 from app.core.config import (
     BTC_SMA200_DEFENSIVE_STRATEGY,
+    COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
     ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
+    MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
     SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+    TCEHY_REGIME_DEFENSIVE_STRATEGY,
     BUY_SIGNAL,
     NO_ACTION_SIGNAL,
     SELL_SIGNAL,
     STRATEGIES,
     SUPPORTED_STRATEGIES,
     is_crypto_strategy_allowed_for_asset,
+    is_stock_strategy_allowed_for_asset,
 )
 from app.core.logger import get_logger
 
@@ -80,9 +84,7 @@ def _intraday_momentum(
     return "FLAT"
 
 
-def _compute_atr(
-    candles: Optional[List[Tuple]], window: int = 14
-) -> Optional[float]:
+def _compute_atr(candles: Optional[List[Tuple]], window: int = 14) -> Optional[float]:
     """
     Compute a simple ATR from candle tuples.
 
@@ -295,9 +297,9 @@ def strategy_moving_average_w_tolerance(
     has_cash = _is_positive_number(cash_val)
     has_position = _is_positive_number(coin_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -404,11 +406,7 @@ def strategy_sma200(
             if r_buy:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        elif (
-            new_p < exit_threshold
-            and has_position
-            and holding_period_satisfied
-        ):
+        elif new_p < exit_threshold and has_position and holding_period_satisfied:
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell:
                 trader._record_history(new_p, today, SELL_SIGNAL)
@@ -540,6 +538,163 @@ def strategy_sol_30d_breakout_defensive(
         SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
     )
 
+
+def strategy_coin_btc_sma200_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+) -> Tuple[bool, bool]:
+    """Hold COIN only while the lagged, completed BTC daily regime is defensive-on."""
+    strat_name = COIN_BTC_SMA200_DEFENSIVE_STRATEGY
+    if not is_stock_strategy_allowed_for_asset(strat_name, trader.crypto_name):
+        raise ValueError(
+            f"{strat_name} is restricted to COIN; received {trader.crypto_name}"
+        )
+
+    market_context = getattr(trader, "market_context", {}) or {}
+    if "btc_defensive_ready" not in market_context:
+        raise ValueError(f"{strat_name} requires a lagged BTC daily market context")
+
+    ready = bool(market_context["btc_defensive_ready"])
+    desired_exposure = (
+        1.0
+        if not ready
+        else float(bool(market_context.get("btc_defensive_active", False)))
+    )
+    has_cash = _is_positive_number(getattr(trader, "cash", 0))
+    has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+    r_buy, r_sell = False, False
+
+    if desired_exposure == 1.0 and has_cash:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    elif desired_exposure == 0.0 and has_position:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    if not r_buy and not r_sell:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return r_buy, r_sell
+
+
+def strategy_msft_20d_breakout_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    lookback_days: int = 20,
+    trailing_stop_pct: float = 0.10,
+) -> Tuple[bool, bool]:
+    """Bootstrap MSFT exposure, then re-enter on breakouts and exit on a trailing stop."""
+    strat_name = MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY
+    if not is_stock_strategy_allowed_for_asset(strat_name, trader.crypto_name):
+        raise ValueError(
+            f"{strat_name} is restricted to MSFT; received {trader.crypto_name}"
+        )
+
+    if (
+        len(trader.crypto_prices) == 1
+        and _is_positive_number(getattr(trader, "cash", 0))
+        and not _is_positive_number(getattr(trader, "cur_coin", 0))
+    ):
+        trader.breakout_in_position = True
+        trader.breakout_peak = new_p
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+            return True, False
+
+    return strategy_breakout_defensive(
+        trader,
+        new_p,
+        today,
+        lookback_days,
+        trailing_stop_pct,
+        False,
+        strat_name,
+    )
+
+
+def strategy_tcehy_regime_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    trend_ma_days: int = 200,
+    trend_slope_days: int = 20,
+    range_ma_days: int = 20,
+    range_sigma: float = 2.0,
+) -> Tuple[bool, bool]:
+    """Trade TCEHY using trend exposure with Bollinger decisions in range regimes."""
+    strat_name = TCEHY_REGIME_DEFENSIVE_STRATEGY
+    if not is_stock_strategy_allowed_for_asset(strat_name, trader.crypto_name):
+        raise ValueError(
+            f"{strat_name} is restricted to TCEHY; received {trader.crypto_name}"
+        )
+    if min(trend_ma_days, trend_slope_days, range_ma_days) <= 0 or range_sigma <= 0:
+        raise ValueError("Invalid TCEHY regime strategy parameters")
+
+    trend_values = getattr(trader, "moving_averages", {}).get(str(trend_ma_days), [])
+    range_values = getattr(trader, "moving_averages", {}).get(str(range_ma_days), [])
+    r_buy, r_sell = False, False
+    has_cash = _is_positive_number(getattr(trader, "cash", 0))
+    has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+
+    enough_history = (
+        len(trend_values) > trend_slope_days
+        and trend_values[-1] is not None
+        and trend_values[-trend_slope_days - 1] is not None
+        and range_values
+        and range_values[-1] is not None
+        and len(trader.crypto_prices) >= range_ma_days
+    )
+
+    # Match buy-and-hold while indicators warm up, then apply the defensive regime.
+    desired_exposure = 1.0 if not enough_history else float(has_position)
+    if enough_history:
+        trend_ma = float(trend_values[-1])
+        prior_trend_ma = float(trend_values[-trend_slope_days - 1])
+        slope = trend_ma / prior_trend_ma - 1.0
+
+        if new_p > trend_ma and slope > 0.0:
+            desired_exposure = 1.0
+        elif new_p < trend_ma and slope < 0.0:
+            desired_exposure = 0.0
+        else:
+            recent_closes = np.asarray(
+                [float(item[0]) for item in trader.crypto_prices[-range_ma_days:]],
+                dtype=float,
+            )
+            range_ma = float(range_values[-1])
+            range_std = float(np.std(recent_closes))
+            lower_band = range_ma - float(range_sigma) * range_std
+            upper_band = range_ma + float(range_sigma) * range_std
+            if new_p < lower_band:
+                desired_exposure = 1.0
+            elif new_p > upper_band:
+                desired_exposure = 0.0
+
+    if desired_exposure == 1.0 and has_cash:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    elif desired_exposure == 0.0 and has_position:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    if not r_buy and not r_sell:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return r_buy, r_sell
+
+
 def strategy_double_moving_averages(
     trader,
     shorter_queue_name: str,
@@ -598,9 +753,9 @@ def strategy_double_moving_averages(
     has_position = _is_positive_number(coin_val)
 
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -687,7 +842,9 @@ def strategy_double_moving_averages(
             if len(vols) >= int(volume_window) + 1:
                 avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
                 if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
-                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+                    volume_ok = float(cur_vol) >= avg_vol * float(
+                        volume_ratio_threshold
+                    )
     except Exception:
         volume_ok = True
 
@@ -695,7 +852,12 @@ def strategy_double_moving_averages(
 
     if window["type"] == "BULLISH":
         # Buy on pullback to short MA within window
-        if has_cash and touch and volume_ok and new_p <= short_ma * (1.0 + touch_tol_pct):
+        if (
+            has_cash
+            and touch
+            and volume_ok
+            and new_p <= short_ma * (1.0 + touch_tol_pct)
+        ):
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
@@ -703,7 +865,12 @@ def strategy_double_moving_averages(
 
     elif window["type"] == "BEARISH":
         # Sell on rebound to short MA within window
-        if has_position and touch and volume_ok and new_p >= short_ma * (1.0 - touch_tol_pct):
+        if (
+            has_position
+            and touch
+            and volume_ok
+            and new_p >= short_ma * (1.0 - touch_tol_pct)
+        ):
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
@@ -761,9 +928,9 @@ def strategy_macd(
     has_position = _is_positive_number(coin_val)
 
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -884,9 +1051,9 @@ def strategy_bollinger_bands(
     has_position = _is_positive_number(coin_val)
 
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -1250,7 +1417,13 @@ def strategy_ma_boll_bands(
         boll_lower = mid - bollinger_sigma * std
 
     # If we can't compute bands, we can't meaningfully harvest volatility.
-    if boll_upper is None or boll_lower is None or mid is None or std is None or mid <= 0:
+    if (
+        boll_upper is None
+        or boll_lower is None
+        or mid is None
+        or std is None
+        or mid <= 0
+    ):
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
@@ -1283,7 +1456,9 @@ def strategy_ma_boll_bands(
         drawdown_pct = (peak_val - cur_val) / peak_val
         if drawdown_pct >= float(max_drawdown_pct):
             try:
-                cooldown_until = today + datetime.timedelta(days=int(drawdown_cooldown_days))
+                cooldown_until = today + datetime.timedelta(
+                    days=int(drawdown_cooldown_days)
+                )
             except Exception:
                 cooldown_until = None
             dd_state["cooldown_until"] = cooldown_until
@@ -1297,7 +1472,11 @@ def strategy_ma_boll_bands(
             block_buys = False
 
     # Volatility-scaled position sizing for buys.
-    base_buy_pct = buy_pct if _is_positive_number(buy_pct) else float(getattr(trader, "buy_pct", 0))
+    base_buy_pct = (
+        buy_pct
+        if _is_positive_number(buy_pct)
+        else float(getattr(trader, "buy_pct", 0))
+    )
     effective_buy_pct = base_buy_pct
     try:
         prices = getattr(trader, "price_history", None)
@@ -1327,9 +1506,9 @@ def strategy_ma_boll_bands(
     has_position = _is_positive_number(coin_val)
     has_cash = _is_positive_number(cash_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -1340,9 +1519,15 @@ def strategy_ma_boll_bands(
     if has_position and atr and _is_positive_number(atr):
         if getattr(trader, "last_buy_price", None):
             last_buy = float(trader.last_buy_price)
-            if _is_positive_number(atr_stop_mult) and new_p <= last_buy - float(atr_stop_mult) * atr:
+            if (
+                _is_positive_number(atr_stop_mult)
+                and new_p <= last_buy - float(atr_stop_mult) * atr
+            ):
                 atr_stop = True
-            if _is_positive_number(atr_take_profit_mult) and new_p >= last_buy + float(atr_take_profit_mult) * atr:
+            if (
+                _is_positive_number(atr_take_profit_mult)
+                and new_p >= last_buy + float(atr_take_profit_mult) * atr
+            ):
                 atr_take_profit = True
 
     # KDJ J-knob: very simple extreme reversion trigger.
@@ -1411,8 +1596,12 @@ def strategy_ma_boll_bands(
         r_sell = False
         r_buy = False
 
-        strong_uptrend = trending_up and abs(slope_pct) >= float(trend_min_abs_slope_pct)
-        strong_downtrend = trending_down and abs(slope_pct) >= float(trend_min_abs_slope_pct)
+        strong_uptrend = trending_up and abs(slope_pct) >= float(
+            trend_min_abs_slope_pct
+        )
+        strong_downtrend = trending_down and abs(slope_pct) >= float(
+            trend_min_abs_slope_pct
+        )
 
         buy_condition_simple = False
         sell_condition_simple = False
@@ -1429,9 +1618,7 @@ def strategy_ma_boll_bands(
             if len(ma_vals) >= 3:
                 keys = sorted(ma_vals.keys())
                 short_k, mid_k, long_k = keys[0], keys[len(keys) // 2], keys[-1]
-                ma_align_ok = (
-                    ma_vals[short_k] > ma_vals[mid_k] > ma_vals[long_k]
-                )
+                ma_align_ok = ma_vals[short_k] > ma_vals[mid_k] > ma_vals[long_k]
         except Exception:
             ma_align_ok = False
 
@@ -1442,13 +1629,19 @@ def strategy_ma_boll_bands(
                 and new_p >= mid
                 and new_p <= mid * (1 + tol_pct)
             )
-            sell_condition_simple = has_position and new_p >= boll_upper * (1 + band_breakout_pct)
+            sell_condition_simple = has_position and new_p >= boll_upper * (
+                1 + band_breakout_pct
+            )
         elif strong_downtrend:
             buy_condition_simple = False
             sell_condition_simple = has_position and new_p <= mid * (1 - tol_pct)
         else:
-            buy_condition_simple = has_cash and new_p <= boll_lower * (1 - band_breakout_pct)
-            sell_condition_simple = has_position and new_p >= boll_upper * (1 + band_breakout_pct)
+            buy_condition_simple = has_cash and new_p <= boll_lower * (
+                1 - band_breakout_pct
+            )
+            sell_condition_simple = has_position and new_p >= boll_upper * (
+                1 + band_breakout_pct
+            )
 
         if sell_condition_simple:
             r_sell = trader._execute_one_sell("by_percentage", new_p)
@@ -1515,10 +1708,18 @@ def strategy_ma_boll_bands(
 
     # Now that we know bandwidth, adjust cooldown and re-check it (only if we haven't traded yet).
     try:
-        if _is_positive_number(high_vol_bandwidth_pct) and bandwidth_pct >= float(high_vol_bandwidth_pct):
-            effective_cooldown_days = max(0, int(cooldown_days) - int(cooldown_high_vol_discount_days))
-        elif _is_positive_number(low_vol_bandwidth_pct) and bandwidth_pct <= float(low_vol_bandwidth_pct):
-            effective_cooldown_days = int(cooldown_days) + int(cooldown_low_vol_bonus_days)
+        if _is_positive_number(high_vol_bandwidth_pct) and bandwidth_pct >= float(
+            high_vol_bandwidth_pct
+        ):
+            effective_cooldown_days = max(
+                0, int(cooldown_days) - int(cooldown_high_vol_discount_days)
+            )
+        elif _is_positive_number(low_vol_bandwidth_pct) and bandwidth_pct <= float(
+            low_vol_bandwidth_pct
+        ):
+            effective_cooldown_days = int(cooldown_days) + int(
+                cooldown_low_vol_bonus_days
+            )
     except Exception:
         effective_cooldown_days = cooldown_days
 
@@ -1544,9 +1745,9 @@ def strategy_ma_boll_bands(
     has_position = _is_positive_number(coin_val)
     has_cash = _is_positive_number(cash_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -1563,7 +1764,9 @@ def strategy_ma_boll_bands(
             if len(vols) >= int(volume_window) + 1:
                 avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
                 if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
-                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+                    volume_ok = float(cur_vol) >= avg_vol * float(
+                        volume_ratio_threshold
+                    )
                     vol_ratio = float(cur_vol) / avg_vol
     except Exception:
         volume_ok = True
@@ -1592,8 +1795,12 @@ def strategy_ma_boll_bands(
     effective_exit_z = max(0.1, float(effective_exit_z))
 
     # Base conditions
-    buy_condition = (new_p <= boll_lower * (1.0 - band_breakout_pct)) or (z <= -effective_entry_z)
-    sell_condition = (new_p >= boll_upper * (1.0 + band_breakout_pct)) or (z >= effective_exit_z)
+    buy_condition = (new_p <= boll_lower * (1.0 - band_breakout_pct)) or (
+        z <= -effective_entry_z
+    )
+    sell_condition = (new_p >= boll_upper * (1.0 + band_breakout_pct)) or (
+        z >= effective_exit_z
+    )
 
     # In uptrends, require stronger confirmation to sell (harder exits).
     if trending_up and bull_require_stronger_sell:
@@ -1611,25 +1818,48 @@ def strategy_ma_boll_bands(
     if trending_down and capitulation_enabled and has_cash:
         cap_vol_ok = True
         try:
-            if vol_ratio is not None and _is_positive_number(capitulation_volume_ratio_threshold):
-                cap_vol_ok = float(vol_ratio) >= float(capitulation_volume_ratio_threshold)
-            elif _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)) and len(vols_attr) >= int(volume_window) + 1:
-                avg_vol = float(np.mean(list(vols_attr)[-(int(volume_window) + 1) : -1]))
+            if vol_ratio is not None and _is_positive_number(
+                capitulation_volume_ratio_threshold
+            ):
+                cap_vol_ok = float(vol_ratio) >= float(
+                    capitulation_volume_ratio_threshold
+                )
+            elif (
+                _is_positive_number(cur_vol)
+                and isinstance(vols_attr, (list, tuple))
+                and len(vols_attr) >= int(volume_window) + 1
+            ):
+                avg_vol = float(
+                    np.mean(list(vols_attr)[-(int(volume_window) + 1) : -1])
+                )
                 if avg_vol > 0:
-                    cap_vol_ok = float(cur_vol) / avg_vol >= float(capitulation_volume_ratio_threshold)
+                    cap_vol_ok = float(cur_vol) / avg_vol >= float(
+                        capitulation_volume_ratio_threshold
+                    )
         except Exception:
             cap_vol_ok = True
 
         reversal_ok = True
         try:
-            if _is_positive_number(open_p) and _is_positive_number(low_p) and _is_positive_number(high_p) and float(high_p) > float(low_p):
-                close_pos = (float(new_p) - float(low_p)) / (float(high_p) - float(low_p))
-                reversal_ok = float(new_p) >= float(open_p) and close_pos >= float(capitulation_close_near_high_pct)
+            if (
+                _is_positive_number(open_p)
+                and _is_positive_number(low_p)
+                and _is_positive_number(high_p)
+                and float(high_p) > float(low_p)
+            ):
+                close_pos = (float(new_p) - float(low_p)) / (
+                    float(high_p) - float(low_p)
+                )
+                reversal_ok = float(new_p) >= float(open_p) and close_pos >= float(
+                    capitulation_close_near_high_pct
+                )
         except Exception:
             reversal_ok = True
 
         if _is_positive_number(capitulation_z):
-            capitulation_buy = (z <= -float(capitulation_z)) and cap_vol_ok and reversal_ok
+            capitulation_buy = (
+                (z <= -float(capitulation_z)) and cap_vol_ok and reversal_ok
+            )
 
     # In downtrends, allow taking profit when reverting to midline (helps avoid being trapped).
     if trending_down and bear_midline_take_profit:
@@ -1639,7 +1869,12 @@ def strategy_ma_boll_bands(
     # Use z-score cross events to avoid repeated signals when price oscillates.
     scalp_buy = False
     scalp_sell = False
-    if neutral_scalp_enabled and (not trending_up) and (not trending_down) and bandwidth_pct >= float(neutral_scalp_min_bandwidth_pct):
+    if (
+        neutral_scalp_enabled
+        and (not trending_up)
+        and (not trending_down)
+        and bandwidth_pct >= float(neutral_scalp_min_bandwidth_pct)
+    ):
         prev_z_key = f"_ma_boll_prev_z:{queue_name}:{bollinger_sigma}"
         prev_z = getattr(trader, "__dict__", {}).get(prev_z_key, None)
         try:
@@ -1650,13 +1885,23 @@ def strategy_ma_boll_bands(
         scalp_vol_ok = True
         try:
             if vol_ratio is not None:
-                scalp_vol_ok = float(vol_ratio) >= float(neutral_scalp_volume_ratio_threshold)
+                scalp_vol_ok = float(vol_ratio) >= float(
+                    neutral_scalp_volume_ratio_threshold
+                )
         except Exception:
             scalp_vol_ok = True
 
         if prev_z_val is not None:
-            scalp_buy = prev_z_val > -float(neutral_scalp_entry_z) and z <= -float(neutral_scalp_entry_z) and scalp_vol_ok
-            scalp_sell = prev_z_val < float(neutral_scalp_exit_z) and z >= float(neutral_scalp_exit_z) and scalp_vol_ok
+            scalp_buy = (
+                prev_z_val > -float(neutral_scalp_entry_z)
+                and z <= -float(neutral_scalp_entry_z)
+                and scalp_vol_ok
+            )
+            scalp_sell = (
+                prev_z_val < float(neutral_scalp_exit_z)
+                and z >= float(neutral_scalp_exit_z)
+                and scalp_vol_ok
+            )
 
         # store current z for next step
         try:
@@ -1733,7 +1978,9 @@ def strategy_ma_boll_bands(
         pullback_vol_ok = True
         try:
             if vol_ratio is not None:
-                pullback_vol_ok = float(vol_ratio) >= float(bull_pullback_volume_ratio_threshold)
+                pullback_vol_ok = float(vol_ratio) >= float(
+                    bull_pullback_volume_ratio_threshold
+                )
         except Exception:
             pullback_vol_ok = True
         if prev_z_val is not None:
@@ -1744,7 +1991,9 @@ def strategy_ma_boll_bands(
             )
 
     # Prefer exits before entries (risk management) and be position-aware.
-    if has_position and (sell_condition or scalp_sell or bull_blowoff_sell or atr_stop or atr_take_profit):
+    if has_position and (
+        sell_condition or scalp_sell or bull_blowoff_sell or atr_stop or atr_take_profit
+    ):
         r_sell = trader._execute_one_sell("by_percentage", new_p)
         if r_sell is True:
             apply_signal_option_leverage(
@@ -1769,7 +2018,9 @@ def strategy_ma_boll_bands(
                 total = cash_val_f + pos_val
                 if total > 0:
                     cash_ratio = cash_val_f / total
-                    allow_add_buy = cash_ratio >= float(bull_additional_buy_min_cash_ratio)
+                    allow_add_buy = cash_ratio >= float(
+                        bull_additional_buy_min_cash_ratio
+                    )
             except Exception:
                 allow_add_buy = False
 
@@ -1809,7 +2060,12 @@ def strategy_ma_boll_bands(
             trader._record_history(new_p, today, SELL_SIGNAL)
             trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
 
-    if zoom_in_option and leverage_enabled and (r_buy is False and r_sell is False) and (not block_buys or zoom_in_option == SELL_SIGNAL):
+    if (
+        zoom_in_option
+        and leverage_enabled
+        and (r_buy is False and r_sell is False)
+        and (not block_buys or zoom_in_option == SELL_SIGNAL)
+    ):
         apply_signal_option_leverage(
             trader=trader,
             signal=zoom_in_option,
@@ -1897,9 +2153,9 @@ def strategy_rsi(
     has_position = _is_positive_number(coin_val)
     
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -1945,7 +2201,9 @@ def strategy_rsi(
                 # Exclude the current volume (last item) to avoid self-influence
                 avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
                 if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
-                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+                    volume_ok = float(cur_vol) >= avg_vol * float(
+                        volume_ratio_threshold
+                    )
     except Exception:
         volume_ok = True
 
@@ -2034,7 +2292,9 @@ def strategy_kdj(
 
     # Get the latest K value (KDJ indicator)
     current_k = trader.kdj_dct["K"][-1]
-    if not _is_positive_number(current_k) and not isinstance(current_k, (int, float, np.number)):
+    if not _is_positive_number(current_k) and not isinstance(
+        current_k, (int, float, np.number)
+    ):
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
         return False, False
@@ -2047,9 +2307,9 @@ def strategy_kdj(
     has_position = _is_positive_number(coin_val)
 
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -2094,7 +2354,9 @@ def strategy_kdj(
             if len(vols) >= int(volume_window) + 1:
                 avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
                 if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
-                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+                    volume_ok = float(cur_vol) >= avg_vol * float(
+                        volume_ratio_threshold
+                    )
     except Exception:
         volume_ok = True
 
@@ -2188,9 +2450,9 @@ def strategy_ma_macd_combined(
     has_cash = _is_positive_number(cash_val)
     has_position = _is_positive_number(coin_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -2295,7 +2557,9 @@ def strategy_ma_macd_combined(
             if len(vols) >= int(volume_window) + 1:
                 avg_vol = float(np.mean(vols[-(int(volume_window) + 1) : -1]))
                 if avg_vol > 0 and _is_positive_number(volume_ratio_threshold):
-                    volume_ok = float(cur_vol) >= avg_vol * float(volume_ratio_threshold)
+                    volume_ok = float(cur_vol) >= avg_vol * float(
+                        volume_ratio_threshold
+                    )
     except Exception:
         volume_ok = True
 
@@ -2393,9 +2657,9 @@ def strategy_macd_kdj_combined(
     has_cash = _is_positive_number(cash_val)
     has_position = _is_positive_number(coin_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -2418,7 +2682,9 @@ def strategy_macd_kdj_combined(
     days_since_trade = None
     try:
         last_trade_dt = None
-        for past_dt, past_sig in reversed(getattr(trader, "strat_dct", {}).get(strat_name, [])):
+        for past_dt, past_sig in reversed(
+            getattr(trader, "strat_dct", {}).get(strat_name, [])
+        ):
             if past_sig in (BUY_SIGNAL, SELL_SIGNAL):
                 last_trade_dt = past_dt
                 break
@@ -2444,18 +2710,18 @@ def strategy_macd_kdj_combined(
 
     if relax:
         hist_threshold = float(hist_threshold) * float(inactivity_relax_factor)
-        bull_buy_volume_ratio_threshold = float(bull_buy_volume_ratio_threshold) * float(
-            inactivity_relax_factor
-        )
-        bull_sell_volume_ratio_threshold = float(bull_sell_volume_ratio_threshold) * float(
-            inactivity_relax_factor
-        )
-        bear_buy_volume_ratio_threshold = float(bear_buy_volume_ratio_threshold) * float(
-            inactivity_relax_factor
-        )
-        bear_sell_volume_ratio_threshold = float(bear_sell_volume_ratio_threshold) * float(
-            inactivity_relax_factor
-        )
+        bull_buy_volume_ratio_threshold = float(
+            bull_buy_volume_ratio_threshold
+        ) * float(inactivity_relax_factor)
+        bull_sell_volume_ratio_threshold = float(
+            bull_sell_volume_ratio_threshold
+        ) * float(inactivity_relax_factor)
+        bear_buy_volume_ratio_threshold = float(
+            bear_buy_volume_ratio_threshold
+        ) * float(inactivity_relax_factor)
+        bear_sell_volume_ratio_threshold = float(
+            bear_sell_volume_ratio_threshold
+        ) * float(inactivity_relax_factor)
         bull_kdj_buy_max = min(90.0, float(bull_kdj_buy_max) + 10.0)
         bear_kdj_buy_max = min(70.0, float(bear_kdj_buy_max) + 10.0)
 
@@ -2501,8 +2767,12 @@ def strategy_macd_kdj_combined(
 
     k_prev = float(k_prev)
     k_cur = float(k_cur)
-    kdj_buy_cross = k_prev < float(oversold) and k_cur >= float(oversold)  # exit oversold
-    kdj_sell_cross = k_prev > float(overbought) and k_cur <= float(overbought)  # exit overbought
+    kdj_buy_cross = k_prev < float(oversold) and k_cur >= float(
+        oversold
+    )  # exit oversold
+    kdj_sell_cross = k_prev > float(overbought) and k_cur <= float(
+        overbought
+    )  # exit overbought
 
     # Track a short "opportunity window" after MACD cross so confirmations can come later.
     # This greatly increases trade frequency vs requiring cross+confirm to happen on the same bar.
@@ -2528,7 +2798,9 @@ def strategy_macd_kdj_combined(
             days_since_cross = (today.date() - window["start"].date()).days
         except Exception:
             days_since_cross = (today - window["start"]).days
-        if _is_positive_number(opportunity_days) and days_since_cross <= int(opportunity_days):
+        if _is_positive_number(opportunity_days) and days_since_cross <= int(
+            opportunity_days
+        ):
             in_window = True
 
     # Volume confirmation (always present in pipeline, but keep safe fallback for tests/mocks)
@@ -2570,20 +2842,34 @@ def strategy_macd_kdj_combined(
     # - Bullish regime: easier BUYs, harder SELLs
     # - Bearish regime: harder BUYs, easier SELLs
     if bullish_regime:
-        buy_confirm = (kdj_buy_cross or k_cur <= float(bull_kdj_buy_max)) and buy_volume_ok
+        buy_confirm = (
+            kdj_buy_cross or k_cur <= float(bull_kdj_buy_max)
+        ) and buy_volume_ok
         # Harder sells in bull: require KDJ sell-cross (confirmation), but allow it within MACD bear window.
         sell_confirm = kdj_sell_cross and sell_volume_ok
-        buy_condition = (macd_bull_cross or (in_window and window_type == "BULLISH")) and buy_confirm and has_cash
-        sell_condition = (macd_bear_cross or (in_window and window_type == "BEARISH")) and sell_confirm and has_position
+        buy_condition = (
+            (macd_bull_cross or (in_window and window_type == "BULLISH"))
+            and buy_confirm
+            and has_cash
+        )
+        sell_condition = (
+            (macd_bear_cross or (in_window and window_type == "BEARISH"))
+            and sell_confirm
+            and has_position
+        )
     else:
         # Still harder buys in bear, but allow "deep oversold" without requiring an exact cross event.
-        bear_oversold_ok = (kdj_buy_cross or k_cur <= float(oversold)) and k_cur <= float(
-            bear_kdj_buy_max
-        )
+        bear_oversold_ok = (
+            kdj_buy_cross or k_cur <= float(oversold)
+        ) and k_cur <= float(bear_kdj_buy_max)
         buy_confirm = bear_oversold_ok and buy_volume_ok
         # easier sell in bearish regime: allow MACD cross alone OR KDJ cross, but still cooldown'ed
         sell_confirm = sell_volume_ok and (macd_bear_cross or kdj_sell_cross)
-        buy_condition = (macd_bull_cross or (in_window and window_type == "BULLISH")) and buy_confirm and has_cash
+        buy_condition = (
+            (macd_bull_cross or (in_window and window_type == "BULLISH"))
+            and buy_confirm
+            and has_cash
+        )
         sell_condition = sell_confirm and has_position
 
     # Buy
@@ -3497,9 +3783,9 @@ def strategy_exponential_moving_average_w_tolerance(
     has_cash = _is_positive_number(cash_val)
     has_position = _is_positive_number(coin_val)
     if not has_cash and hasattr(trader, "wallet"):
-        has_cash = _is_positive_number(trader.wallet.get("USD", 0)) or _is_positive_number(
-            trader.wallet.get("USDT", 0)
-        )
+        has_cash = _is_positive_number(
+            trader.wallet.get("USD", 0)
+        ) or _is_positive_number(trader.wallet.get("USDT", 0))
     if not has_position and hasattr(trader, "wallet"):
         has_position = _is_positive_number(trader.wallet.get("crypto", 0))
 
@@ -3555,7 +3841,11 @@ def strategy_exponential_moving_average_w_tolerance(
 
     vol_ratio = None
     try:
-        if _is_positive_number(cur_vol) and isinstance(vols_attr, (list, tuple)) and len(vols_attr) >= int(volume_window) + 1:
+        if (
+            _is_positive_number(cur_vol)
+            and isinstance(vols_attr, (list, tuple))
+            and len(vols_attr) >= int(volume_window) + 1
+        ):
             avg_vol = float(np.mean(list(vols_attr)[-(int(volume_window) + 1) : -1]))
             if avg_vol > 0:
                 vol_ratio = float(cur_vol) / avg_vol
@@ -3574,7 +3864,11 @@ def strategy_exponential_moving_average_w_tolerance(
 
     buy_vol_ok = True
     if vol_ratio is not None:
-        buy_vol_ok = float(vol_ratio) >= (float(bull_buy_volume_ratio_threshold) if trending_up else float(bear_buy_volume_ratio_threshold))
+        buy_vol_ok = float(vol_ratio) >= (
+            float(bull_buy_volume_ratio_threshold)
+            if trending_up
+            else float(bear_buy_volume_ratio_threshold)
+        )
 
     # Pullback detection: use previous rel to trigger only on cross events (less churn)
     prev_rel_key = f"_exp_ma_prev_rel:{queue_name}"
@@ -3591,15 +3885,26 @@ def strategy_exponential_moving_average_w_tolerance(
     pullback_buy = False
     if trending_up and prev_rel_val is not None:
         # Buy on pullback cross: from above EMA to slightly below EMA (or below -buy_tol)
-        pullback_buy = (prev_rel_val > 0.0 and rel <= 0.0) or (prev_rel_val > -buy_tol and rel <= -buy_tol)
+        pullback_buy = (prev_rel_val > 0.0 and rel <= 0.0) or (
+            prev_rel_val > -buy_tol and rel <= -buy_tol
+        )
 
     # Bearish "rare chance": require reversal-style candle if OHLC is available
     reversal_ok = True
     if trending_down:
         try:
-            if _is_positive_number(open_p) and _is_positive_number(low_p) and _is_positive_number(high_p) and float(high_p) > float(low_p):
-                close_pos = (float(new_p) - float(low_p)) / (float(high_p) - float(low_p))
-                reversal_ok = float(new_p) >= float(open_p) and close_pos >= float(bear_reversal_close_near_high_pct)
+            if (
+                _is_positive_number(open_p)
+                and _is_positive_number(low_p)
+                and _is_positive_number(high_p)
+                and float(high_p) > float(low_p)
+            ):
+                close_pos = (float(new_p) - float(low_p)) / (
+                    float(high_p) - float(low_p)
+                )
+                reversal_ok = float(new_p) >= float(open_p) and close_pos >= float(
+                    bear_reversal_close_near_high_pct
+                )
         except Exception:
             reversal_ok = True
 
@@ -3626,7 +3931,9 @@ def strategy_exponential_moving_average_w_tolerance(
             peak = max(peak, float(new_p))
             state["peak"] = peak
             try:
-                if _is_positive_number(bull_trailing_stop_pct) and float(new_p) <= peak * (1.0 - float(bull_trailing_stop_pct)):
+                if _is_positive_number(bull_trailing_stop_pct) and float(
+                    new_p
+                ) <= peak * (1.0 - float(bull_trailing_stop_pct)):
                     bull_blowoff_sell = True
             except Exception:
                 bull_blowoff_sell = False
@@ -3873,13 +4180,16 @@ class EconomicIndicatorsStrategy:
         
         # Import here to avoid circular imports
         from app.data.economic_indicators_client import EconomicIndicatorsClient
+
         self.econ_client = EconomicIndicatorsClient()
         
         # Strategy parameters
         self.m2_bullish_threshold = 1.0  # M2 growth > 1% monthly = bullish
         self.m2_bearish_threshold = -0.5  # M2 contraction > 0.5% monthly = bearish
         self.rrp_bullish_threshold = -10  # ON RRP < 7-day avg by 10% = bullish (easing)
-        self.rrp_bearish_threshold = 10   # ON RRP > 7-day avg by 10% = bearish (tightening)
+        self.rrp_bearish_threshold = (
+            10  # ON RRP > 7-day avg by 10% = bearish (tightening)
+        )
         
     def get_macro_signal(self) -> Dict[str, any]:
         """
@@ -3895,11 +4205,11 @@ class EconomicIndicatorsStrategy:
             
             if not indicators or not signals:
                 return {
-                    'signal': 'NEUTRAL',
-                    'strength': 0.0,
-                    'reason': 'No economic data available',
-                    'indicators': {},
-                    'signals': {}
+                    "signal": "NEUTRAL",
+                    "strength": 0.0,
+                    "reason": "No economic data available",
+                    "indicators": {},
+                    "signals": {},
                 }
             
             # Calculate signal strength based on indicators
@@ -3907,8 +4217,8 @@ class EconomicIndicatorsStrategy:
             reasons = []
             
             # M2 contribution to signal strength
-            if 'm2_change_1m_pct' in indicators:
-                m2_change = indicators['m2_change_1m_pct']
+            if "m2_change_1m_pct" in indicators:
+                m2_change = indicators["m2_change_1m_pct"]
                 if m2_change > self.m2_bullish_threshold:
                     strength += 0.4  # Strong bullish
                     reasons.append(f"M2 growing {m2_change:.2f}% monthly")
@@ -3923,14 +4233,18 @@ class EconomicIndicatorsStrategy:
                     reasons.append(f"M2 contracting modestly {abs(m2_change):.2f}%")
             
             # ON RRP contribution to signal strength
-            if 'on_rrp_vs_7d_avg_pct' in indicators:
-                rrp_deviation = indicators['on_rrp_vs_7d_avg_pct']
+            if "on_rrp_vs_7d_avg_pct" in indicators:
+                rrp_deviation = indicators["on_rrp_vs_7d_avg_pct"]
                 if rrp_deviation < self.rrp_bullish_threshold:
                     strength += 0.3  # Strong bullish (easing)
-                    reasons.append(f"ON RRP {abs(rrp_deviation):.1f}% below average (easing)")
+                    reasons.append(
+                        f"ON RRP {abs(rrp_deviation):.1f}% below average (easing)"
+                    )
                 elif rrp_deviation > self.rrp_bearish_threshold:
                     strength -= 0.3  # Strong bearish (tightening)
-                    reasons.append(f"ON RRP {rrp_deviation:.1f}% above average (tightening)")
+                    reasons.append(
+                        f"ON RRP {rrp_deviation:.1f}% above average (tightening)"
+                    )
                 elif rrp_deviation < 0:
                     strength += 0.15  # Weak bullish
                     reasons.append(f"ON RRP slightly below average")
@@ -3940,32 +4254,33 @@ class EconomicIndicatorsStrategy:
             
             # Determine signal direction
             if strength > 0.3:
-                signal = 'BULLISH'
+                signal = "BULLISH"
             elif strength < -0.3:
-                signal = 'BEARISH'
+                signal = "BEARISH"
             else:
-                signal = 'NEUTRAL'
+                signal = "NEUTRAL"
             
             return {
-                'signal': signal,
-                'strength': abs(strength),
-                'reason': '; '.join(reasons),
-                'indicators': indicators,
-                'signals': signals
+                "signal": signal,
+                "strength": abs(strength),
+                "reason": "; ".join(reasons),
+                "indicators": indicators,
+                "signals": signals,
             }
             
         except Exception as e:
             self.logger.error(f"Error getting macro signal: {e}")
             return {
-                'signal': 'NEUTRAL',
-                'strength': 0.0,
-                'reason': f'Error: {e}',
-                'indicators': {},
-                'signals': {}
+                "signal": "NEUTRAL",
+                "strength": 0.0,
+                "reason": f"Error: {e}",
+                "indicators": {},
+                "signals": {},
             }
     
-    def adjust_technical_signal(self, technical_signal: Dict[str, any], 
-                               macro_signal: Dict[str, any]) -> Dict[str, any]:
+    def adjust_technical_signal(
+        self, technical_signal: Dict[str, any], macro_signal: Dict[str, any]
+    ) -> Dict[str, any]:
         """
         Adjust technical trading signal based on macroeconomic conditions.
         
@@ -3980,45 +4295,51 @@ class EconomicIndicatorsStrategy:
             adjusted_signal = technical_signal.copy()
             
             # If macro signal is strong, it can override weak technical signals
-            macro_strength = macro_signal.get('strength', 0.0)
-            macro_direction = macro_signal.get('signal', 'NEUTRAL')
+            macro_strength = macro_signal.get("strength", 0.0)
+            macro_direction = macro_signal.get("signal", "NEUTRAL")
             
             if macro_strength > 0.5:  # Strong macro signal
-                if macro_direction == 'BULLISH':
+                if macro_direction == "BULLISH":
                     # Boost bullish signals, reduce bearish signals
-                    if technical_signal.get('action') == 'BUY':
-                        adjusted_signal['buy_percentage'] = min(100, 
-                            technical_signal.get('buy_percentage', 0) + 20)
-                        adjusted_signal['sell_percentage'] = max(0,
-                            technical_signal.get('sell_percentage', 0) - 20)
-                    elif technical_signal.get('action') == 'SELL':
+                    if technical_signal.get("action") == "BUY":
+                        adjusted_signal["buy_percentage"] = min(
+                            100, technical_signal.get("buy_percentage", 0) + 20
+                        )
+                        adjusted_signal["sell_percentage"] = max(
+                            0, technical_signal.get("sell_percentage", 0) - 20
+                        )
+                    elif technical_signal.get("action") == "SELL":
                         # Reduce sell strength due to bullish macro
-                        adjusted_signal['sell_percentage'] = max(0,
-                            technical_signal.get('sell_percentage', 0) - 30)
-                        if adjusted_signal['sell_percentage'] < 20:
-                            adjusted_signal['action'] = 'HOLD'
+                        adjusted_signal["sell_percentage"] = max(
+                            0, technical_signal.get("sell_percentage", 0) - 30
+                        )
+                        if adjusted_signal["sell_percentage"] < 20:
+                            adjusted_signal["action"] = "HOLD"
                             
-                elif macro_direction == 'BEARISH':
+                elif macro_direction == "BEARISH":
                     # Boost bearish signals, reduce bullish signals
-                    if technical_signal.get('action') == 'SELL':
-                        adjusted_signal['sell_percentage'] = min(100,
-                            technical_signal.get('sell_percentage', 0) + 20)
-                        adjusted_signal['buy_percentage'] = max(0,
-                            technical_signal.get('buy_percentage', 0) - 20)
-                    elif technical_signal.get('action') == 'BUY':
+                    if technical_signal.get("action") == "SELL":
+                        adjusted_signal["sell_percentage"] = min(
+                            100, technical_signal.get("sell_percentage", 0) + 20
+                        )
+                        adjusted_signal["buy_percentage"] = max(
+                            0, technical_signal.get("buy_percentage", 0) - 20
+                        )
+                    elif technical_signal.get("action") == "BUY":
                         # Reduce buy strength due to bearish macro
-                        adjusted_signal['buy_percentage'] = max(0,
-                            technical_signal.get('buy_percentage', 0) - 30)
-                        if adjusted_signal['buy_percentage'] < 20:
-                            adjusted_signal['action'] = 'HOLD'
+                        adjusted_signal["buy_percentage"] = max(
+                            0, technical_signal.get("buy_percentage", 0) - 30
+                        )
+                        if adjusted_signal["buy_percentage"] < 20:
+                            adjusted_signal["action"] = "HOLD"
             
             # Add macro context to signal
-            adjusted_signal['macro_overlay'] = {
-                'macro_signal': macro_direction,
-                'macro_strength': macro_strength,
-                'macro_reason': macro_signal.get('reason', ''),
-                'original_action': technical_signal.get('action'),
-                'adjusted_action': adjusted_signal.get('action')
+            adjusted_signal["macro_overlay"] = {
+                "macro_signal": macro_direction,
+                "macro_strength": macro_strength,
+                "macro_reason": macro_signal.get("reason", ""),
+                "original_action": technical_signal.get("action"),
+                "adjusted_action": adjusted_signal.get("action"),
             }
             
             return adjusted_signal
@@ -4046,25 +4367,31 @@ class EconomicIndicatorsStrategy:
                 best_technical = technical_strategies[0]
                 technical_signal = best_technical.trade_signal
             else:
-                technical_signal = {'action': 'HOLD', 'buy_percentage': 0, 'sell_percentage': 0}
+                technical_signal = {
+                    "action": "HOLD",
+                    "buy_percentage": 0,
+                    "sell_percentage": 0,
+                }
             
             # Adjust technical signal with macro overlay
-            combined_signal = self.adjust_technical_signal(technical_signal, macro_signal)
+            combined_signal = self.adjust_technical_signal(
+                technical_signal, macro_signal
+            )
             
             # Add strategy metadata
-            combined_signal['strategy_name'] = f"{self.name} + Technical"
-            combined_signal['macro_indicators'] = macro_signal.get('indicators', {})
+            combined_signal["strategy_name"] = f"{self.name} + Technical"
+            combined_signal["macro_indicators"] = macro_signal.get("indicators", {})
             
             return combined_signal
             
         except Exception as e:
             self.logger.error(f"Error getting combined signal: {e}")
             return {
-                'action': 'HOLD',
-                'buy_percentage': 0,
-                'sell_percentage': 0,
-                'strategy_name': self.name,
-                'error': str(e)
+                "action": "HOLD",
+                "buy_percentage": 0,
+                "sell_percentage": 0,
+                "strategy_name": self.name,
+                "error": str(e),
             }
 
 
@@ -4100,8 +4427,8 @@ def strategy_ma_selves_macro_enhanced(
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
-    macro_direction = macro_signal.get('signal', 'NEUTRAL')
-    macro_strength = macro_signal.get('strength', 0.0)
+    macro_direction = macro_signal.get("signal", "NEUTRAL")
+    macro_strength = macro_signal.get("strength", 0.0)
     
     # retrieve the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
@@ -4114,13 +4441,13 @@ def strategy_ma_selves_macro_enhanced(
     r_buy, r_sell = False, False
     
     if original_buy_signal:
-        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+        if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+        elif macro_direction == "BEARISH" and macro_strength > 0.5:
             # Strong macro bearish - reduce buy signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4132,13 +4459,13 @@ def strategy_ma_selves_macro_enhanced(
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
     
     elif original_sell_signal:
-        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+        if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+        elif macro_direction == "BULLISH" and macro_strength > 0.5:
             # Strong macro bullish - reduce sell signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4188,8 +4515,8 @@ def strategy_exp_ma_selves_macro_enhanced(
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
-    macro_direction = macro_signal.get('signal', 'NEUTRAL')
-    macro_strength = macro_signal.get('strength', 0.0)
+    macro_direction = macro_signal.get("signal", "NEUTRAL")
+    macro_strength = macro_signal.get("strength", 0.0)
     
     # retrieve the most recent exponential moving average
     last_ema = trader.exponential_moving_averages[queue_name][-1]
@@ -4202,13 +4529,13 @@ def strategy_exp_ma_selves_macro_enhanced(
     r_buy, r_sell = False, False
     
     if original_buy_signal:
-        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+        if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+        elif macro_direction == "BEARISH" and macro_strength > 0.5:
             # Strong macro bearish - reduce buy signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4220,13 +4547,13 @@ def strategy_exp_ma_selves_macro_enhanced(
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
     
     elif original_sell_signal:
-        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+        if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+        elif macro_direction == "BULLISH" and macro_strength > 0.5:
             # Strong macro bullish - reduce sell signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4276,8 +4603,8 @@ def strategy_rsi_macro_enhanced(
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
-    macro_direction = macro_signal.get('signal', 'NEUTRAL')
-    macro_strength = macro_signal.get('strength', 0.0)
+    macro_direction = macro_signal.get("signal", "NEUTRAL")
+    macro_strength = macro_signal.get("strength", 0.0)
     
     # Original RSI logic
     if (
@@ -4296,13 +4623,13 @@ def strategy_rsi_macro_enhanced(
     r_buy, r_sell = False, False
     
     if original_buy_signal:
-        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+        if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+        elif macro_direction == "BEARISH" and macro_strength > 0.5:
             # Strong macro bearish - reduce buy signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4314,13 +4641,13 @@ def strategy_rsi_macro_enhanced(
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
     
     elif original_sell_signal:
-        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+        if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+        elif macro_direction == "BULLISH" and macro_strength > 0.5:
             # Strong macro bullish - reduce sell signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4370,8 +4697,8 @@ def strategy_adaptive_ma_selves_macro_enhanced(
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
-    macro_direction = macro_signal.get('signal', 'NEUTRAL')
-    macro_strength = macro_signal.get('strength', 0.0)
+    macro_direction = macro_signal.get("signal", "NEUTRAL")
+    macro_strength = macro_signal.get("strength", 0.0)
     
     # retrieve the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
@@ -4380,7 +4707,9 @@ def strategy_adaptive_ma_selves_macro_enhanced(
     price_history = trader.price_history[-30:]  # Last 30 days
     if len(price_history) >= 10:
         volatility = np.std(price_history) / np.mean(price_history)
-        adaptive_tol = tol_pct * (1 + volatility * 2)  # Increase tolerance with volatility
+        adaptive_tol = tol_pct * (
+            1 + volatility * 2
+        )  # Increase tolerance with volatility
     else:
         adaptive_tol = tol_pct
     
@@ -4392,13 +4721,13 @@ def strategy_adaptive_ma_selves_macro_enhanced(
     r_buy, r_sell = False, False
     
     if original_buy_signal:
-        if macro_direction == 'BULLISH' and macro_strength > 0.3:
+        if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
             r_buy = trader._execute_one_buy("by_percentage", new_p)
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-        elif macro_direction == 'BEARISH' and macro_strength > 0.5:
+        elif macro_direction == "BEARISH" and macro_strength > 0.5:
             # Strong macro bearish - reduce buy signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4410,13 +4739,13 @@ def strategy_adaptive_ma_selves_macro_enhanced(
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
     
     elif original_sell_signal:
-        if macro_direction == 'BEARISH' and macro_strength > 0.3:
+        if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
             r_sell = trader._execute_one_sell("by_percentage", new_p)
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-        elif macro_direction == 'BULLISH' and macro_strength > 0.5:
+        elif macro_direction == "BULLISH" and macro_strength > 0.5:
             # Strong macro bullish - reduce sell signal
             trader._record_history(new_p, today, NO_ACTION_SIGNAL)
             trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
@@ -4434,12 +4763,16 @@ def strategy_adaptive_ma_selves_macro_enhanced(
     
     return r_buy, r_sell
 
+
 # ---- Strategy registry for easy lookup ---- #
 STRATEGY_REGISTRY = {
     "ECONOMIC-INDICATORS": EconomicIndicatorsStrategy,
     BTC_SMA200_DEFENSIVE_STRATEGY: strategy_btc_sma200_defensive,
     ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY: strategy_eth_120d_breakout_defensive,
     SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY: strategy_sol_30d_breakout_defensive,
+    TCEHY_REGIME_DEFENSIVE_STRATEGY: strategy_tcehy_regime_defensive,
+    COIN_BTC_SMA200_DEFENSIVE_STRATEGY: strategy_coin_btc_sma200_defensive,
+    MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY: strategy_msft_20d_breakout_defensive,
     "SMA200": strategy_sma200,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "MA-SELVES-MACRO": strategy_ma_selves_macro_enhanced,
