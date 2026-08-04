@@ -1,0 +1,460 @@
+{
+  "configuration": {
+    "symbols": [
+      "ETH",
+      "BTC",
+      "SOL",
+      "UNI",
+      "LTC",
+      "ETC",
+      "DOGE",
+      "AAVE"
+    ],
+    "data_start": "2023-08-04 00:00:00",
+    "data_end": "2026-08-02 00:00:00",
+    "tradable_start_after_200_day_warmup": "2024-02-20 00:00:00",
+    "train": {
+      "start": "2024-02-20 00:00:00",
+      "end": "2024-08-02 00:00:00"
+    },
+    "validation": {
+      "start": "2024-08-03 00:00:00",
+      "end": "2024-10-31 00:00:00"
+    },
+    "purge_days": 7,
+    "test": {
+      "start": "2024-11-08 00:00:00",
+      "end": "2026-08-02 00:00:00"
+    },
+    "execution_friction_rate": 0.02,
+    "slippage_bps": 10.0,
+    "execution": "prior daily close signal, next daily open fill",
+    "profit_gate": "validation >= 0, test > 0, offline full > 0, and registered runtime full > 0"
+  },
+  "eth_120d_breakout_defensive": {
+    "registered_name": "ETH-120D-BREAKOUT-DEFENSIVE",
+    "asset": "ETH",
+    "parameters": {
+      "lookback_days": 120,
+      "trailing_stop_pct": 0.05,
+      "require_btc_regime": false,
+      "require_sma200": false
+    },
+    "registered_runtime": {
+      "return": 21.716,
+      "max_drawdown": 26.71,
+      "transactions": 16,
+      "final_value": 12171.568206992795,
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "trades": [
+        {
+          "date": "2023-12-03 00:00:00",
+          "action": "BUY",
+          "price": 2166.91475
+        },
+        {
+          "date": "2023-12-12 00:00:00",
+          "action": "SELL",
+          "price": 2222.8848900000003
+        },
+        {
+          "date": "2023-12-28 00:00:00",
+          "action": "BUY",
+          "price": 2380.72835
+        },
+        {
+          "date": "2024-01-04 00:00:00",
+          "action": "SELL",
+          "price": 2207.51028
+        },
+        {
+          "date": "2024-01-11 00:00:00",
+          "action": "BUY",
+          "price": 2586.9543699999995
+        },
+        {
+          "date": "2024-01-15 00:00:00",
+          "action": "SELL",
+          "price": 2470.39713
+        },
+        {
+          "date": "2024-02-13 00:00:00",
+          "action": "BUY",
+          "price": 2662.6499899999994
+        },
+        {
+          "date": "2024-03-16 00:00:00",
+          "action": "SELL",
+          "price": 3738.44781
+        },
+        {
+          "date": "2024-11-24 00:00:00",
+          "action": "BUY",
+          "price": 3397.3039099999996
+        },
+        {
+          "date": "2024-12-10 00:00:00",
+          "action": "SELL",
+          "price": 3708.288
+        },
+        {
+          "date": "2025-07-11 00:00:00",
+          "action": "BUY",
+          "price": 2954.2412899999995
+        },
+        {
+          "date": "2025-08-02 00:00:00",
+          "action": "SELL",
+          "price": 3484.72179
+        },
+        {
+          "date": "2025-08-08 00:00:00",
+          "action": "BUY",
+          "price": 3914.2102999999997
+        },
+        {
+          "date": "2025-08-16 00:00:00",
+          "action": "SELL",
+          "price": 4435.03053
+        },
+        {
+          "date": "2025-08-23 00:00:00",
+          "action": "BUY",
+          "price": 4836.902069999999
+        },
+        {
+          "date": "2025-08-26 00:00:00",
+          "action": "SELL",
+          "price": 4371.79383
+        }
+      ]
+    },
+    "train": {
+      "return": 21.801767803101548,
+      "max_drawdown": 9.868164391852012,
+      "transactions": 2,
+      "turnover": 2.0,
+      "mean_exposure": 0.15151515151515152,
+      "final_value": 12180.176780310154
+    },
+    "validation": {
+      "return": 0.0,
+      "max_drawdown": 0.0,
+      "transactions": 0,
+      "turnover": 0.0,
+      "mean_exposure": 0.0,
+      "final_value": 10000.0
+    },
+    "test": {
+      "return": 12.179796079236693,
+      "max_drawdown": 20.560296324299433,
+      "transactions": 8,
+      "turnover": 8.0,
+      "mean_exposure": 0.07740916271721959,
+      "final_value": 11217.97960792367
+    },
+    "full": {
+      "return": 36.636974742424734,
+      "max_drawdown": 20.56029632429941,
+      "transactions": 10,
+      "turnover": 10.0,
+      "mean_exposure": 0.08268156424581005,
+      "final_value": 13663.697474242474
+    },
+    "passes_profit_gate": true,
+    "buy_and_hold": {
+      "test": {
+        "return": -36.251904077507504,
+        "max_drawdown": 67.55345017766712,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0,
+        "final_value": 6374.809592249249
+      },
+      "full": {
+        "return": -37.31978426354955,
+        "max_drawdown": 67.55345017766713,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0,
+        "final_value": 6268.0215736450455
+      }
+    },
+    "reset_180_day_segments": [
+      {
+        "start": "2024-02-20 00:00:00",
+        "end": "2024-08-17 00:00:00",
+        "return": 21.801767803101548,
+        "max_drawdown": 9.868164391852012,
+        "transactions": 2,
+        "turnover": 2.0,
+        "mean_exposure": 0.1388888888888889,
+        "final_value": 12180.176780310154
+      },
+      {
+        "start": "2024-08-18 00:00:00",
+        "end": "2025-02-13 00:00:00",
+        "return": 4.831357145201665,
+        "max_drawdown": 9.241106352159639,
+        "transactions": 2,
+        "turnover": 2.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 10483.135714520165
+      },
+      {
+        "start": "2025-02-14 00:00:00",
+        "end": "2025-08-12 00:00:00",
+        "return": 30.202134129900248,
+        "max_drawdown": 11.804257271248145,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.15,
+        "final_value": 13020.213412990026
+      },
+      {
+        "start": "2025-08-13 00:00:00",
+        "end": "2026-02-08 00:00:00",
+        "return": -19.536793867220283,
+        "max_drawdown": 20.560296324299436,
+        "transactions": 4,
+        "turnover": 4.0,
+        "mean_exposure": 0.03333333333333333,
+        "final_value": 8046.320613277972
+      },
+      {
+        "start": "2026-02-09 00:00:00",
+        "end": "2026-08-02 00:00:00",
+        "return": 0.0,
+        "max_drawdown": 0.0,
+        "transactions": 0,
+        "turnover": 0.0,
+        "mean_exposure": 0.0,
+        "final_value": 10000.0
+      }
+    ]
+  },
+  "sol_30d_breakout_defensive": {
+    "registered_name": "SOL-30D-BREAKOUT-DEFENSIVE",
+    "asset": "SOL",
+    "parameters": {
+      "lookback_days": 30,
+      "trailing_stop_pct": 0.1,
+      "require_btc_regime": true,
+      "require_sma200": false
+    },
+    "registered_runtime": {
+      "return": 32.548,
+      "max_drawdown": 37.519999999999996,
+      "transactions": 20,
+      "final_value": 13254.775622272076,
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "trades": [
+        {
+          "date": "2024-02-29 00:00:00",
+          "action": "BUY",
+          "price": 119.14902999999998
+        },
+        {
+          "date": "2024-03-20 00:00:00",
+          "action": "SELL",
+          "price": 169.65018
+        },
+        {
+          "date": "2024-04-01 00:00:00",
+          "action": "BUY",
+          "price": 202.65244999999996
+        },
+        {
+          "date": "2024-04-03 00:00:00",
+          "action": "SELL",
+          "price": 181.34847
+        },
+        {
+          "date": "2024-05-16 00:00:00",
+          "action": "BUY",
+          "price": 158.67852
+        },
+        {
+          "date": "2024-05-25 00:00:00",
+          "action": "SELL",
+          "price": 167.5323
+        },
+        {
+          "date": "2024-07-16 00:00:00",
+          "action": "BUY",
+          "price": 159.52937
+        },
+        {
+          "date": "2024-08-03 00:00:00",
+          "action": "SELL",
+          "price": 152.62722
+        },
+        {
+          "date": "2024-10-20 00:00:00",
+          "action": "BUY",
+          "price": 159.94978999999998
+        },
+        {
+          "date": "2024-11-05 00:00:00",
+          "action": "SELL",
+          "price": 157.79205
+        },
+        {
+          "date": "2024-11-07 00:00:00",
+          "action": "BUY",
+          "price": 186.77658999999997
+        },
+        {
+          "date": "2024-11-27 00:00:00",
+          "action": "SELL",
+          "price": 230.45931
+        },
+        {
+          "date": "2025-01-18 00:00:00",
+          "action": "BUY",
+          "price": 219.73952
+        },
+        {
+          "date": "2025-01-28 00:00:00",
+          "action": "SELL",
+          "price": 234.6651
+        },
+        {
+          "date": "2025-04-23 00:00:00",
+          "action": "BUY",
+          "price": 148.92878
+        },
+        {
+          "date": "2025-05-31 00:00:00",
+          "action": "SELL",
+          "price": 156.04379999999998
+        },
+        {
+          "date": "2025-07-17 00:00:00",
+          "action": "BUY",
+          "price": 173.79361999999998
+        },
+        {
+          "date": "2025-07-25 00:00:00",
+          "action": "SELL",
+          "price": 182.69711999999998
+        },
+        {
+          "date": "2025-08-24 00:00:00",
+          "action": "BUY",
+          "price": 204.35414999999998
+        },
+        {
+          "date": "2025-09-23 00:00:00",
+          "action": "SELL",
+          "price": 220.16960999999998
+        }
+      ]
+    },
+    "train": {
+      "return": 11.837182917346123,
+      "max_drawdown": 32.64026258583763,
+      "transactions": 7,
+      "turnover": 7.0,
+      "mean_exposure": 0.296969696969697,
+      "final_value": 11183.718291734613
+    },
+    "validation": {
+      "return": 3.355059109486813,
+      "max_drawdown": 6.936057339578984,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 0.13333333333333333,
+      "final_value": 10335.505910948681
+    },
+    "test": {
+      "return": 21.408170841299025,
+      "max_drawdown": 24.57006606212891,
+      "transactions": 10,
+      "turnover": 10.0,
+      "mean_exposure": 0.16587677725118485,
+      "final_value": 12140.817084129903
+    },
+    "full": {
+      "return": 32.54775622272077,
+      "max_drawdown": 37.51525927331591,
+      "transactions": 20,
+      "turnover": 20.0,
+      "mean_exposure": 0.19106145251396647,
+      "final_value": 13254.775622272076
+    },
+    "passes_profit_gate": true,
+    "buy_and_hold": {
+      "test": {
+        "return": -63.28920621037142,
+        "max_drawdown": 76.2568233003779,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0,
+        "final_value": 3671.0793789628583
+      },
+      "full": {
+        "return": -35.366883631924416,
+        "max_drawdown": 76.2568233003779,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0,
+        "final_value": 6463.311636807558
+      }
+    },
+    "reset_180_day_segments": [
+      {
+        "start": "2024-02-20 00:00:00",
+        "end": "2024-08-17 00:00:00",
+        "return": 9.49800585769398,
+        "max_drawdown": 34.049153156872954,
+        "transactions": 8,
+        "turnover": 8.0,
+        "mean_exposure": 0.2722222222222222,
+        "final_value": 10949.800585769397
+      },
+      {
+        "start": "2024-08-18 00:00:00",
+        "end": "2025-02-13 00:00:00",
+        "return": 15.151618621296015,
+        "max_drawdown": 13.813282242782313,
+        "transactions": 6,
+        "turnover": 6.0,
+        "mean_exposure": 0.25555555555555554,
+        "final_value": 11515.161862129602
+      },
+      {
+        "start": "2025-02-14 00:00:00",
+        "end": "2025-08-12 00:00:00",
+        "return": 1.5944680271069434,
+        "max_drawdown": 17.466691373733962,
+        "transactions": 4,
+        "turnover": 4.0,
+        "mean_exposure": 0.25555555555555554,
+        "final_value": 10159.446802710694
+      },
+      {
+        "start": "2025-08-13 00:00:00",
+        "end": "2026-02-08 00:00:00",
+        "return": 3.472766980264419,
+        "max_drawdown": 12.821730181818184,
+        "transactions": 2,
+        "turnover": 2.0,
+        "mean_exposure": 0.16666666666666666,
+        "final_value": 10347.276698026442
+      },
+      {
+        "start": "2026-02-09 00:00:00",
+        "end": "2026-08-02 00:00:00",
+        "return": 0.0,
+        "max_drawdown": 0.0,
+        "transactions": 0,
+        "turnover": 0.0,
+        "mean_exposure": 0.0,
+        "final_value": 10000.0
+      }
+    ]
+  }
+}

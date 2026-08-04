@@ -738,6 +738,13 @@ class TraderDriver:
             """
             trader_process_time = time.perf_counter() - trader_start_time
 
+            if not math.isfinite(float(tmp_final_p)):
+                logger.warning(
+                    f"[{self.name}] Ignoring non-finite final portfolio value "
+                    f"for strategy {t.high_strategy}: {tmp_final_p}"
+                )
+                continue
+
             # Log trader performance summary (every 10 traders to avoid too much output)
             if (index + 1) % 10 == 0 or index == num_traders - 1:
                 logger.debug(
@@ -749,6 +756,11 @@ class TraderDriver:
             if tmp_final_p >= max_final_p:
                 max_final_p = tmp_final_p
                 self.best_trader = t
+
+        if self.best_trader is None:
+            raise ValueError(
+                f"[{self.name}] No strategy produced a finite final portfolio value"
+            )
 
         logger.info(
             f"[{self.name}] Completed feed_data: Best trader strategy={self.best_trader.high_strategy}, "

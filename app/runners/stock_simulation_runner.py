@@ -29,7 +29,7 @@ class StockSimulationRunner:
         self._trader_driver_factory = trader_driver_factory
         self._simulation_service = simulation_service
 
-    def run(all_actions: list, best_summaries: Optional[list] = None) -> None:
+    def run(self, all_actions: list, best_summaries: Optional[list] = None) -> None:
         """
         Run stock simulation only (daily candles).
 
@@ -154,7 +154,11 @@ class StockSimulationRunner:
                     asset=stock,
                     data_stream=data_stream,
                 )
-                best_t, signal = selection.trader, selection.signal
+                best_t, signal, best_info = (
+                    selection.trader,
+                    selection.signal,
+                    selection.best_info,
+                )
                 if best_summaries is not None:
                     # Signal frequency stats from the best trader's full trade history
                     th = getattr(best_t, "trade_history", []) or []

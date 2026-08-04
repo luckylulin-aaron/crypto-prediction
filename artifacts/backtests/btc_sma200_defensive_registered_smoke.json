@@ -1,0 +1,120 @@
+[
+  {
+    "symbol": "BTC",
+    "data_start": "2023-08-04 00:00:00",
+    "data_end": "2026-08-02 00:00:00",
+    "data_rows": 1095,
+    "folds": [
+      {
+        "fold": 1,
+        "train": {
+          "start": "2023-08-04 00:00:00",
+          "end": "2024-08-02 00:00:00",
+          "strategy_return": 16.289,
+          "buy_hold_return": 111.23291585935146,
+          "excess_return": -94.94391585935146,
+          "max_drawdown": 23.56,
+          "transactions": 1
+        },
+        "validation": {
+          "start": "2024-08-03 00:00:00",
+          "end": "2024-10-31 00:00:00",
+          "strategy_return": 2.599,
+          "buy_hold_return": 15.806157666835418,
+          "excess_return": -13.207157666835418,
+          "max_drawdown": 3.42,
+          "transactions": 1
+        },
+        "purge": {
+          "start": "2024-11-01 00:00:00",
+          "end": "2024-11-07 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 200,
+        "test": {
+          "start": "2024-11-08 00:00:00",
+          "end": "2024-12-07 00:00:00",
+          "strategy_return": 27.745,
+          "buy_hold_return": 30.48265202174154,
+          "excess_return": -2.737652021741539,
+          "max_drawdown": 7.000000000000001,
+          "transactions": 1
+        },
+        "frozen_parameters": {
+          "strategy": "BTC-SMA200-DEFENSIVE",
+          "tol_pct": 0.0,
+          "buy_pct": 1.0,
+          "sell_pct": 1.0,
+          "bollinger_sigma": 2.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null,
+          "sma200_entry_band_pct": 0.05,
+          "sma200_exit_band_pct": 0.05,
+          "sma200_min_hold_days": 0
+        }
+      },
+      {
+        "fold": 2,
+        "train": {
+          "start": "2023-09-03 00:00:00",
+          "end": "2024-09-01 00:00:00",
+          "strategy_return": -17.828,
+          "buy_hold_return": 120.63608126074988,
+          "excess_return": -138.46408126074988,
+          "max_drawdown": 22.009999999999998,
+          "transactions": 2
+        },
+        "validation": {
+          "start": "2024-09-02 00:00:00",
+          "end": "2024-11-30 00:00:00",
+          "strategy_return": 40.718,
+          "buy_hold_return": 63.03825010193276,
+          "excess_return": -22.320250101932757,
+          "max_drawdown": 7.000000000000001,
+          "transactions": 1
+        },
+        "purge": {
+          "start": "2024-12-01 00:00:00",
+          "end": "2024-12-07 00:00:00",
+          "days": 7
+        },
+        "indicator_warmup_days": 200,
+        "test": {
+          "start": "2024-12-08 00:00:00",
+          "end": "2025-01-06 00:00:00",
+          "strategy_return": -1.008,
+          "buy_hold_return": 1.1136530174833181,
+          "excess_return": -2.121653017483318,
+          "max_drawdown": 12.57,
+          "transactions": 1
+        },
+        "frozen_parameters": {
+          "strategy": "BTC-SMA200-DEFENSIVE",
+          "tol_pct": 0.0,
+          "buy_pct": 1.0,
+          "sell_pct": 1.0,
+          "bollinger_sigma": 2.0,
+          "rsi_period": null,
+          "rsi_oversold": null,
+          "rsi_overbought": null,
+          "kdj_oversold": null,
+          "kdj_overbought": null,
+          "sma200_entry_band_pct": 0.05,
+          "sma200_exit_band_pct": 0.05,
+          "sma200_min_hold_days": 0
+        }
+      }
+    ],
+    "summary": {
+      "fold_count": 2,
+      "compounded_strategy_return": 26.4573304,
+      "compounded_buy_hold_return": 31.93577601327393,
+      "compounded_excess_return": -5.47844561327393,
+      "mean_excess_return": -2.4296525196124286,
+      "excess_win_rate": 0.0
+    }
+  }
+]

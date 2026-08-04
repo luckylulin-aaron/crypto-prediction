@@ -230,6 +230,20 @@ def fetch_intraday_data_with_fallback(
     return _fetch_from_exchange(ExchangeName.COINBASE)
 
 
+def align_asset_stream_to_context(asset_stream, context_stream):
+    """Drop asset candles whose calendar date has no completed context candle."""
+    context_dates = {str(item[1])[:10] for item in context_stream or []}
+    aligned = []
+    dropped_dates = []
+    for item in asset_stream or []:
+        date_key = str(item[1])[:10]
+        if date_key in context_dates:
+            aligned.append(item)
+        else:
+            dropped_dates.append(date_key)
+    return aligned, dropped_dates
+
+
 class CryptoSimulationRunner:
     def __init__(self, *, logger, trader_driver_factory, simulation_service):
         self._logger = logger
@@ -306,6 +320,17 @@ class CryptoSimulationRunner:
                     f"Using BTC regime data from {btc_source_exchange.value} for SOL"
                 )
 
+                data_stream, dropped_dates = align_asset_stream_to_context(
+                    data_stream, btc_data_stream
+                )
+                if dropped_dates:
+                    self._logger.warning(
+                        f"Dropped {len(dropped_dates)} SOL candle(s) without same-day "
+                        f"completed BTC context; first dropped date: {dropped_dates[0]}"
+                    )
+                if len(data_stream) < 200:
+                    self._logger.error("Insufficient aligned SOL/BTC daily history")
+                    continue
             intraday_stream = None
             if "MA-BOLL-BANDS" in asset_strategies and MA_BOLL_ZOOM_IN:
                 try:
@@ -448,7 +473,11 @@ class CryptoSimulationRunner:
                     asset=asset,
                     data_stream=data_stream,
                 )
-                best_t, signal = selection.trader, selection.signal
+                best_t, signal, best_info = (
+                    selection.trader,
+                    selection.signal,
+                    selection.best_info,
+                )
                 th = getattr(best_t, "trade_history", []) or []
                 num_buy = len(
                     [x for x in th if str(x.get("action", "")).upper() == "BUY"]

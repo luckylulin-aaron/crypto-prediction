@@ -9,6 +9,8 @@ class SimulationSelection:
     trader: Any
     signal: Dict[str, Any]
 
+    best_info: Dict[str, Any]
+
 
 class SimulationService:
     def __init__(
@@ -59,4 +61,4 @@ class SimulationService:
             )
         except Exception as exc:
             self._logger.error(f"Failed to update signal ledger for {asset}: {exc}")
-        return SimulationSelection(trader=trader, signal=signal)
+        return SimulationSelection(trader=trader, signal=signal, best_info=best_info)

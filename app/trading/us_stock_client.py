@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -35,6 +36,14 @@ class USStockClient:
         """Filter cached rows to yfinance's inclusive-start/exclusive-end range."""
         filtered = []
         for row in data:
+            if len(row) < 5:
+                continue
+            try:
+                required_values = [float(row[index]) for index in (0, 2, 3, 4)]
+            except (TypeError, ValueError):
+                continue
+            if not all(math.isfinite(value) and value > 0 for value in required_values):
+                continue
             row_date = datetime.strptime(str(row[1])[:10], "%Y-%m-%d")
             if start <= row_date < end:
                 filtered.append(row)
@@ -112,16 +121,29 @@ class USStockClient:
 
         parsed = []
         for idx, row in df.iterrows():
+            close = self._row_value(row, "Close")
+            open_price = self._row_value(row, "Open")
+            low = self._row_value(row, "Low")
+            high = self._row_value(row, "High")
+            required_values = (close, open_price, low, high)
+            if not all(math.isfinite(value) and value > 0 for value in required_values):
+                continue
+            volume = self._row_value(row, "Volume")
+            if not math.isfinite(volume) or volume < 0:
+                volume = 0.0
             parsed.append(
                 [
-                    self._row_value(row, "Close"),
+                    close,
                     idx.strftime("%Y-%m-%d"),
-                    self._row_value(row, "Open"),
-                    self._row_value(row, "Low"),
-                    self._row_value(row, "High"),
-                    self._row_value(row, "Volume"),
+                    open_price,
+                    low,
+                    high,
+                    volume,
                 ]
             )
+
+        if not parsed:
+            raise ValueError(f"No valid OHLC data found for ticker: {ticker}")
 
         if use_cache and parsed:
             db_manager.store_historical_data(ticker, parsed)
