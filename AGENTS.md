@@ -31,8 +31,9 @@ that is “100% invested” means 100% of the amount the user assigned to that a
 not the user's entire portfolio.
 
 Known user-held / deliberately enabled strategy assets are BTC, ETH, SOL, TCEHY,
-COIN, and MSFT. The scheduled daily simulation is intentionally limited to these
-six assets. The user explicitly confirmed holdings in TCEHY, COIN, and MSFT.
+COIN, MSFT, and NFLX. The scheduled daily simulation is intentionally limited to
+these seven assets. The user explicitly confirmed holdings in TCEHY, COIN, and
+MSFT, and explicitly approved NFLX for daily simulation and email recommendations.
 Other assets in `CURS` or `STOCKS` are research/backfill scope only and must not
 silently enter the daily run or inherit an asset-specific strategy.
 
@@ -68,18 +69,20 @@ The source of truth is `app/core/config.py`; implementation registration is in
 | TCEHY | `TCEHY-REGIME-DEFENSIVE` | SMA200 trend, 20-day SMA200 slope, and SMA20 ±2 sigma decisions in range regimes. |
 | COIN | `COIN-BTC-SMA200-DEFENSIVE` | Follow BTC-USD SMA200 ±5%, using a one-calendar-day lag; bootstrap buy-and-hold during context warmup. |
 | MSFT | `MSFT-20D-BREAKOUT-DEFENSIVE` | Bootstrap invested; exit 10% below peak; re-enter on a 20-day high. |
+| NFLX | `NFLX-MONTHLY-SMA100-DEFENSIVE` | Bootstrap invested; on the first stock session of each month, enter above SMA100 +5% or exit below SMA100 -5%. |
 
 Important isolation behavior:
 
 - `CRYPTO_STRATEGIES` contains only the BTC, ETH, and SOL fixed strategies.
 - `crypto_strategies_for_asset()` plus `CRYPTO_STRATEGY_ASSET_ALLOWLIST` prevent
   any of those strategies from trading another crypto.
-- TCEHY, COIN, and MSFT have exclusive stock mappings. For these tickers,
+- TCEHY, COIN, MSFT, and NFLX have exclusive stock mappings. For these tickers,
   `stock_strategies_for_asset()` returns exactly one fixed strategy and excludes
   the legacy generic stock strategies.
 - Fixed strategies force `buy_pct = sell_pct = 1.0` inside their simulation
   bucket. The user controls the real per-asset allocation separately.
-- `STOCK_SIMULATION_ASSETS` limits the daily stock loop to MSFT, TCEHY, and COIN;
+- `STOCK_SIMULATION_ASSETS` limits the daily stock loop to MSFT, TCEHY, COIN,
+  and NFLX;
   `STOCKS` remains the broader research and historical-backfill universe.
 - Crypto daily performance uses about 1,095 daily rows with standardized
   `$10,000` cash and zero initial coin, independent of live wallet holdings.
@@ -149,6 +152,30 @@ Caveats that must survive account changes:
   the target. Continuing requires an explicit user decision to broaden the risk
   boundary (for example leverage, shorting, or cross-asset rotation), followed
   by a new validation design that discloses the prior holdout inspection.
+
+### NFLX research status (2026-08-06)
+
+- Local SQLite contains 2,512 adjusted daily rows from 2016-08-08 through
+  2026-08-05.
+- A predeclared set of 43 explainable long/cash candidates was ranked only on
+  training and validation history. The frozen candidate is monthly SMA100 with
+  a symmetric 5% band.
+- The untouched final test covers 750 stock sessions from 2023-08-09 through
+  2026-08-05. It returned 87.99% (23.51% annualized) versus 65.20% for same-cost
+  buy-and-hold, an excess of +22.79 percentage points. Maximum drawdown was
+  21.93% versus 49.52% for buy-and-hold, with four transactions.
+- The full history returned 1,355.01% versus 663.70% for buy-and-hold, with ten
+  transactions. Validation returned 81.24% but lagged buy-and-hold by 7.96
+  percentage points; disclose this subperiod weakness rather than claiming
+  uniform superiority.
+- The registered runtime exactly matches the offline full-history return and
+  transaction count. Evidence is stored in
+  `artifacts/backtests/nflx_monthly_sma100_defensive_validation.json`.
+- NFLX was explicitly added to `STOCK_SIMULATION_ASSETS` on 2026-08-06 and is
+  included in the daily simulation and admin email summary. The daily runner
+  loads ten years to reconstruct its monthly regime, suppresses trading during
+  warmup, and reports only the latest 750 stock sessions. This runtime path
+  matches the frozen offline test return and transaction count.
 
 ## Repository map
 
@@ -246,7 +273,7 @@ $env:DATABASE_URL = "sqlite:///./crypto_trading.db"
 poetry run python app/db/db_management.py test
 poetry run python app/db/db_management.py stats
 poetry run python app/db/db_management.py backfill --symbols BTC ETH SOL --days 1095
-poetry run python app/db/db_management.py backfill-stocks --symbols TCEHY COIN MSFT BTC-USD --days 1095
+poetry run python app/db/db_management.py backfill-stocks --symbols TCEHY COIN MSFT NFLX BTC-USD --days 1095
 ```
 
 Crypto daily cache keys use forms such as `BTCUSDT__1d`; stocks use their ticker.
@@ -291,6 +318,16 @@ poetry run pytest -q `
   tests/strategy/test_sma200_strategy.py
 ```
 
+NFLX strategy, runtime parity, and daily-scope checks (7 tests passed on
+2026-08-06):
+
+```powershell
+$env:DATABASE_URL = "sqlite:///./crypto_trading.db"
+poetry run pytest -q tests/strategy/test_nflx_monthly_sma100_strategy.py `
+  tests/backtesting/test_nflx_defensive_validation.py `
+  tests/core/test_daily_simulation_scope.py
+```
+
 Rebuild auditable reports:
 
 ```powershell
@@ -314,9 +351,9 @@ asset isolation merely to satisfy stale tests.
   settle on the branch the user requested (historically usually `dev`).
 - Never stage `secret.ini`, databases, generated dashboards, or unrelated user
   files.
-- Current continuity checkpoint (2026-08-03): `dev` and `origin/dev` point to
-  `0973c60 add defensive stock strategies`. `master`/`origin/master` point to
-  `96dc394` and do not yet include commits `d6c1bfb` or `0973c60`.
+- Current continuity checkpoint (2026-08-06): `dev`/`origin/dev` include the
+  registered and daily-enabled NFLX strategy plus its runtime-parity evidence.
+  `master`/`origin/master` remain at `eff5609` unless updated after this handoff.
 - Four old local research artifacts were explicitly left untracked and should
   not be deleted or committed without a new request:
   - `artifacts/backtests/altcoin_defensive_validation.json`

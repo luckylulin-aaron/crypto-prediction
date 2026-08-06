@@ -9,16 +9,17 @@ import numpy as np
 
 from app.core.config import (
     BTC_SMA200_DEFENSIVE_STRATEGY,
+    BUY_SIGNAL,
     COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
     ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
     MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
-    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
-    TCEHY_REGIME_DEFENSIVE_STRATEGY,
-    BUY_SIGNAL,
+    NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY,
     NO_ACTION_SIGNAL,
     SELL_SIGNAL,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
     STRATEGIES,
     SUPPORTED_STRATEGIES,
+    TCEHY_REGIME_DEFENSIVE_STRATEGY,
     is_crypto_strategy_allowed_for_asset,
     is_stock_strategy_allowed_for_asset,
 )
@@ -262,9 +263,9 @@ def strategy_moving_average_w_tolerance(
     tol_pct: float,
     buy_pct: float,
     sell_pct: float,
-    volatility_window: int=20,
-    volatility_multiplier: float=1.0,
-    cooldown_days: int=2,
+    volatility_window: int = 20,
+    volatility_multiplier: float = 1.0,
+    cooldown_days: int = 2,
 ) -> Tuple[bool, bool]:
     """
     For a new day's price, if beyond tolerance level, execute a buy or sell action.
@@ -620,6 +621,97 @@ def strategy_msft_20d_breakout_defensive(
     )
 
 
+def _nflx_monthly_sma_active_from_history(
+    trader, window_days: int, band_pct: float
+) -> bool:
+    """Replay completed monthly decisions so a warmed runtime starts in-state."""
+    prices = getattr(trader, "crypto_prices", [])
+    averages = getattr(trader, "moving_averages", {}).get(str(window_days), [])
+    if not prices:
+        return True
+
+    active = True
+    previous_date = prices[0][1]
+    for index in range(1, len(prices)):
+        current_date = prices[index][1]
+        first_session_of_month = (
+            previous_date.year != current_date.year
+            or previous_date.month != current_date.month
+        )
+        average = averages[index] if index < len(averages) else None
+        if index >= window_days - 1 and first_session_of_month and average is not None:
+            close = float(prices[index][0])
+            if close > float(average) * (1.0 + band_pct):
+                active = True
+            elif close < float(average) * (1.0 - band_pct):
+                active = False
+        previous_date = current_date
+    return active
+
+
+def strategy_nflx_monthly_sma100_defensive(
+    trader,
+    new_p: float,
+    today: datetime.datetime,
+    window_days: int = 100,
+    band_pct: float = 0.05,
+) -> Tuple[bool, bool]:
+    """Review NFLX only at month boundaries using a buffered SMA100 regime."""
+    strat_name = NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY
+    if not is_stock_strategy_allowed_for_asset(strat_name, trader.crypto_name):
+        raise ValueError(
+            f"{strat_name} is restricted to NFLX; received {trader.crypto_name}"
+        )
+    if window_days <= 0 or band_pct < 0:
+        raise ValueError("Invalid NFLX monthly SMA strategy parameters")
+
+    has_cash = _is_positive_number(getattr(trader, "cash", 0))
+    has_position = _is_positive_number(getattr(trader, "cur_coin", 0))
+    r_buy, r_sell = False, False
+
+    first_session_of_month = False
+    if len(trader.crypto_prices) >= 2:
+        previous_date = trader.crypto_prices[-2][1]
+        first_session_of_month = (
+            previous_date.year != today.year or previous_date.month != today.month
+        )
+
+    average_values = getattr(trader, "moving_averages", {}).get(str(window_days), [])
+    average = average_values[-1] if average_values else None
+    initialized = hasattr(trader, "monthly_sma_active")
+    if not initialized:
+        active = _nflx_monthly_sma_active_from_history(
+            trader, window_days=window_days, band_pct=band_pct
+        )
+    else:
+        active = bool(trader.monthly_sma_active)
+
+    if initialized and first_session_of_month and average is not None:
+        upper = float(average) * (1.0 + band_pct)
+        lower = float(average) * (1.0 - band_pct)
+        if new_p > upper:
+            active = True
+        elif new_p < lower:
+            active = False
+    trader.monthly_sma_active = active
+
+    if active and has_cash:
+        r_buy = trader._execute_one_buy("by_percentage", new_p)
+        if r_buy:
+            trader._record_history(new_p, today, BUY_SIGNAL)
+            trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
+    elif not active and has_position:
+        r_sell = trader._execute_one_sell("by_percentage", new_p)
+        if r_sell:
+            trader._record_history(new_p, today, SELL_SIGNAL)
+            trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
+
+    if not r_buy and not r_sell:
+        trader._record_history(new_p, today, NO_ACTION_SIGNAL)
+        trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
+    return r_buy, r_sell
+
+
 def strategy_tcehy_regime_defensive(
     trader,
     new_p: float,
@@ -701,9 +793,9 @@ def strategy_double_moving_averages(
     longer_queue_name: str,
     new_p: float,
     today: datetime.datetime,
-    opportunity_days: int=3,
-    touch_tol_pct: float=0.01,
-    cooldown_days: int=1,
+    opportunity_days: int = 3,
+    touch_tol_pct: float = 0.01,
+    cooldown_days: int = 1,
     volume: Optional[float] = None,
     volume_window: int = 20,
     volume_ratio_threshold: float = 1.2,
@@ -888,8 +980,8 @@ def strategy_macd(
     trader,
     new_p: float,
     today: datetime.datetime,
-    hist_threshold: float=0.0,
-    cooldown_days: int=1,
+    hist_threshold: float = 0.0,
+    cooldown_days: int = 1,
 ) -> Tuple[bool, bool]:
     """
     MACD-based trading strategy.
@@ -1015,10 +1107,10 @@ def strategy_bollinger_bands(
     new_p: float,
     today: datetime.datetime,
     bollinger_sigma: int,
-    band_breakout_pct: float=0.002,
-    min_bandwidth_pct: float=0.02,
-    cooldown_days: int=2,
-    avoid_lookahead: bool=True,
+    band_breakout_pct: float = 0.002,
+    min_bandwidth_pct: float = 0.02,
+    cooldown_days: int = 2,
+    avoid_lookahead: bool = True,
 ) -> Tuple[bool, bool]:
     """
     Trading with Bollinger Band strategy.
@@ -2151,7 +2243,7 @@ def strategy_rsi(
     coin_val = getattr(trader, "cur_coin", 0)
     has_cash = _is_positive_number(cash_val)
     has_position = _is_positive_number(coin_val)
-    
+
     if not has_cash and hasattr(trader, "wallet"):
         has_cash = _is_positive_number(
             trader.wallet.get("USD", 0)
@@ -4164,25 +4256,25 @@ class EconomicIndicatorsStrategy:
     """
     Trading strategy that incorporates macroeconomic indicators like M2 money supply
     and Federal Reserve overnight reverse repo data.
-    
+
     This strategy provides a macro overlay to other technical strategies.
     """
-    
+
     def __init__(self, name: str = "Economic Indicators"):
         """
         Initialize the economic indicators strategy.
-        
+
         Args:
             name (str): Strategy name
         """
         self.name = name
         self.logger = get_logger(__name__)
-        
+
         # Import here to avoid circular imports
         from app.data.economic_indicators_client import EconomicIndicatorsClient
 
         self.econ_client = EconomicIndicatorsClient()
-        
+
         # Strategy parameters
         self.m2_bullish_threshold = 1.0  # M2 growth > 1% monthly = bullish
         self.m2_bearish_threshold = -0.5  # M2 contraction > 0.5% monthly = bearish
@@ -4190,11 +4282,11 @@ class EconomicIndicatorsStrategy:
         self.rrp_bearish_threshold = (
             10  # ON RRP > 7-day avg by 10% = bearish (tightening)
         )
-        
+
     def get_macro_signal(self) -> Dict[str, any]:
         """
         Get macroeconomic trading signal based on economic indicators.
-        
+
         Returns:
             Dict[str, any]: Macro signal with direction, strength, and reasoning
         """
@@ -4202,7 +4294,7 @@ class EconomicIndicatorsStrategy:
             # Get economic indicators
             indicators = self.econ_client.get_liquidity_indicators()
             signals = self.econ_client.get_trading_signals()
-            
+
             if not indicators or not signals:
                 return {
                     "signal": "NEUTRAL",
@@ -4211,11 +4303,11 @@ class EconomicIndicatorsStrategy:
                     "indicators": {},
                     "signals": {},
                 }
-            
+
             # Calculate signal strength based on indicators
             strength = 0.0
             reasons = []
-            
+
             # M2 contribution to signal strength
             if "m2_change_1m_pct" in indicators:
                 m2_change = indicators["m2_change_1m_pct"]
@@ -4231,7 +4323,7 @@ class EconomicIndicatorsStrategy:
                 else:
                     strength -= 0.2  # Weak bearish
                     reasons.append(f"M2 contracting modestly {abs(m2_change):.2f}%")
-            
+
             # ON RRP contribution to signal strength
             if "on_rrp_vs_7d_avg_pct" in indicators:
                 rrp_deviation = indicators["on_rrp_vs_7d_avg_pct"]
@@ -4251,7 +4343,7 @@ class EconomicIndicatorsStrategy:
                 else:
                     strength -= 0.15  # Weak bearish
                     reasons.append(f"ON RRP slightly above average")
-            
+
             # Determine signal direction
             if strength > 0.3:
                 signal = "BULLISH"
@@ -4259,7 +4351,7 @@ class EconomicIndicatorsStrategy:
                 signal = "BEARISH"
             else:
                 signal = "NEUTRAL"
-            
+
             return {
                 "signal": signal,
                 "strength": abs(strength),
@@ -4267,7 +4359,7 @@ class EconomicIndicatorsStrategy:
                 "indicators": indicators,
                 "signals": signals,
             }
-            
+
         except Exception as e:
             self.logger.error(f"Error getting macro signal: {e}")
             return {
@@ -4277,27 +4369,27 @@ class EconomicIndicatorsStrategy:
                 "indicators": {},
                 "signals": {},
             }
-    
+
     def adjust_technical_signal(
         self, technical_signal: Dict[str, any], macro_signal: Dict[str, any]
     ) -> Dict[str, any]:
         """
         Adjust technical trading signal based on macroeconomic conditions.
-        
+
         Args:
             technical_signal (Dict): Original technical signal
             macro_signal (Dict): Macroeconomic signal
-            
+
         Returns:
             Dict[str, any]: Adjusted signal with macro overlay
         """
         try:
             adjusted_signal = technical_signal.copy()
-            
+
             # If macro signal is strong, it can override weak technical signals
             macro_strength = macro_signal.get("strength", 0.0)
             macro_direction = macro_signal.get("signal", "NEUTRAL")
-            
+
             if macro_strength > 0.5:  # Strong macro signal
                 if macro_direction == "BULLISH":
                     # Boost bullish signals, reduce bearish signals
@@ -4315,7 +4407,7 @@ class EconomicIndicatorsStrategy:
                         )
                         if adjusted_signal["sell_percentage"] < 20:
                             adjusted_signal["action"] = "HOLD"
-                            
+
                 elif macro_direction == "BEARISH":
                     # Boost bearish signals, reduce bullish signals
                     if technical_signal.get("action") == "SELL":
@@ -4332,7 +4424,7 @@ class EconomicIndicatorsStrategy:
                         )
                         if adjusted_signal["buy_percentage"] < 20:
                             adjusted_signal["action"] = "HOLD"
-            
+
             # Add macro context to signal
             adjusted_signal["macro_overlay"] = {
                 "macro_signal": macro_direction,
@@ -4341,27 +4433,27 @@ class EconomicIndicatorsStrategy:
                 "original_action": technical_signal.get("action"),
                 "adjusted_action": adjusted_signal.get("action"),
             }
-            
+
             return adjusted_signal
-            
+
         except Exception as e:
             self.logger.error(f"Error adjusting technical signal: {e}")
             return technical_signal
-    
+
     def get_combined_signal(self, technical_strategies: List[any]) -> Dict[str, any]:
         """
         Get combined signal from technical strategies with macroeconomic overlay.
-        
+
         Args:
             technical_strategies (List): List of technical strategy instances
-            
+
         Returns:
             Dict[str, any]: Combined signal with macro overlay
         """
         try:
             # Get macro signal
             macro_signal = self.get_macro_signal()
-            
+
             # Get best technical signal (assuming first strategy is best)
             if technical_strategies:
                 best_technical = technical_strategies[0]
@@ -4372,18 +4464,18 @@ class EconomicIndicatorsStrategy:
                     "buy_percentage": 0,
                     "sell_percentage": 0,
                 }
-            
+
             # Adjust technical signal with macro overlay
             combined_signal = self.adjust_technical_signal(
                 technical_signal, macro_signal
             )
-            
+
             # Add strategy metadata
             combined_signal["strategy_name"] = f"{self.name} + Technical"
             combined_signal["macro_indicators"] = macro_signal.get("indicators", {})
-            
+
             return combined_signal
-            
+
         except Exception as e:
             self.logger.error(f"Error getting combined signal: {e}")
             return {
@@ -4408,7 +4500,7 @@ def strategy_ma_selves_macro_enhanced(
     """
     Enhanced MA-SELVES strategy with macroeconomic overlay.
     Uses the original MA-SELVES logic but adjusts signals based on macro conditions.
-    
+
     Args:
         trader: The trader instance with necessary methods and attributes.
         queue_name (str): The name of the queue.
@@ -4417,29 +4509,29 @@ def strategy_ma_selves_macro_enhanced(
         tol_pct (float): Tolerance percentage.
         buy_pct (float): Buy percentage.
         sell_pct (float): Sell percentage.
-        
+
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
     strat_name = "MA-SELVES-MACRO"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
-    
+
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
     macro_direction = macro_signal.get("signal", "NEUTRAL")
     macro_strength = macro_signal.get("strength", 0.0)
-    
+
     # retrieve the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
-    
+
     # Original MA-SELVES logic
     original_buy_signal = new_p <= (1 - tol_pct) * last_ma
     original_sell_signal = new_p >= (1 + tol_pct) * last_ma
-    
+
     # Apply macro overlay
     r_buy, r_sell = False, False
-    
+
     if original_buy_signal:
         if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
@@ -4457,7 +4549,7 @@ def strategy_ma_selves_macro_enhanced(
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     elif original_sell_signal:
         if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
@@ -4475,12 +4567,12 @@ def strategy_ma_selves_macro_enhanced(
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -4496,7 +4588,7 @@ def strategy_exp_ma_selves_macro_enhanced(
     """
     Enhanced EXP-MA-SELVES strategy with macroeconomic overlay.
     Uses the original EXP-MA-SELVES logic but adjusts signals based on macro conditions.
-    
+
     Args:
         trader: The trader instance with necessary methods and attributes.
         queue_name (str): The name of the queue.
@@ -4505,29 +4597,29 @@ def strategy_exp_ma_selves_macro_enhanced(
         tol_pct (float): Tolerance percentage.
         buy_pct (float): Buy percentage.
         sell_pct (float): Sell percentage.
-        
+
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
     strat_name = "EXP-MA-SELVES-MACRO"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
-    
+
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
     macro_direction = macro_signal.get("signal", "NEUTRAL")
     macro_strength = macro_signal.get("strength", 0.0)
-    
+
     # retrieve the most recent exponential moving average
     last_ema = trader.exponential_moving_averages[queue_name][-1]
-    
+
     # Original EXP-MA-SELVES logic
     original_buy_signal = new_p <= (1 - tol_pct) * last_ema
     original_sell_signal = new_p >= (1 + tol_pct) * last_ema
-    
+
     # Apply macro overlay
     r_buy, r_sell = False, False
-    
+
     if original_buy_signal:
         if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
@@ -4545,7 +4637,7 @@ def strategy_exp_ma_selves_macro_enhanced(
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     elif original_sell_signal:
         if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
@@ -4563,12 +4655,12 @@ def strategy_exp_ma_selves_macro_enhanced(
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -4584,7 +4676,7 @@ def strategy_rsi_macro_enhanced(
     """
     Enhanced RSI strategy with macroeconomic overlay.
     Uses the original RSI logic but adjusts signals based on macro conditions.
-    
+
     Args:
         trader: The trader instance with necessary methods and attributes.
         queue_name (str): The name of the queue.
@@ -4593,19 +4685,19 @@ def strategy_rsi_macro_enhanced(
         rsi_period (int): RSI period.
         rsi_overbought (float): RSI overbought threshold.
         rsi_oversold (float): RSI oversold threshold.
-        
+
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
     strat_name = "RSI-MACRO"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
-    
+
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
     macro_direction = macro_signal.get("signal", "NEUTRAL")
     macro_strength = macro_signal.get("strength", 0.0)
-    
+
     # Original RSI logic
     if (
         hasattr(trader, "rsi_dct")
@@ -4618,10 +4710,10 @@ def strategy_rsi_macro_enhanced(
     else:
         original_buy_signal = False
         original_sell_signal = False
-    
+
     # Apply macro overlay
     r_buy, r_sell = False, False
-    
+
     if original_buy_signal:
         if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
@@ -4639,7 +4731,7 @@ def strategy_rsi_macro_enhanced(
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     elif original_sell_signal:
         if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
@@ -4657,12 +4749,12 @@ def strategy_rsi_macro_enhanced(
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -4678,7 +4770,7 @@ def strategy_adaptive_ma_selves_macro_enhanced(
     """
     Enhanced ADAPTIVE-MA-SELVES strategy with macroeconomic overlay.
     Uses the original ADAPTIVE-MA-SELVES logic but adjusts signals based on macro conditions.
-    
+
     Args:
         trader: The trader instance with necessary methods and attributes.
         queue_name (str): The name of the queue.
@@ -4687,22 +4779,22 @@ def strategy_adaptive_ma_selves_macro_enhanced(
         tol_pct (float): Tolerance percentage.
         buy_pct (float): Buy percentage.
         sell_pct (float): Sell percentage.
-        
+
     Returns:
         Tuple[bool, bool]: (buy_executed, sell_executed)
     """
     strat_name = "ADAPTIVE-MA-SELVES-MACRO"
     assert strat_name in STRATEGIES, "Unknown trading strategy name!"
-    
+
     # Get macro signal
     macro_strategy = EconomicIndicatorsStrategy()
     macro_signal = macro_strategy.get_macro_signal()
     macro_direction = macro_signal.get("signal", "NEUTRAL")
     macro_strength = macro_signal.get("strength", 0.0)
-    
+
     # retrieve the most recent moving average
     last_ma = trader.moving_averages[queue_name][-1]
-    
+
     # Adaptive tolerance based on volatility
     price_history = trader.price_history[-30:]  # Last 30 days
     if len(price_history) >= 10:
@@ -4712,14 +4804,14 @@ def strategy_adaptive_ma_selves_macro_enhanced(
         )  # Increase tolerance with volatility
     else:
         adaptive_tol = tol_pct
-    
+
     # Original ADAPTIVE-MA-SELVES logic with adaptive tolerance
     original_buy_signal = new_p <= (1 - adaptive_tol) * last_ma
     original_sell_signal = new_p >= (1 + adaptive_tol) * last_ma
-    
+
     # Apply macro overlay
     r_buy, r_sell = False, False
-    
+
     if original_buy_signal:
         if macro_direction == "BULLISH" and macro_strength > 0.3:
             # Strong macro bullish - enhance buy signal
@@ -4737,7 +4829,7 @@ def strategy_adaptive_ma_selves_macro_enhanced(
             if r_buy is True:
                 trader._record_history(new_p, today, BUY_SIGNAL)
                 trader.strat_dct[strat_name].append((today, BUY_SIGNAL))
-    
+
     elif original_sell_signal:
         if macro_direction == "BEARISH" and macro_strength > 0.3:
             # Strong macro bearish - enhance sell signal
@@ -4755,12 +4847,12 @@ def strategy_adaptive_ma_selves_macro_enhanced(
             if r_sell is True:
                 trader._record_history(new_p, today, SELL_SIGNAL)
                 trader.strat_dct[strat_name].append((today, SELL_SIGNAL))
-    
+
     # add history as well if nothing happens
     if r_buy is False and r_sell is False:
         trader._record_history(new_p, today, NO_ACTION_SIGNAL)
         trader.strat_dct[strat_name].append((today, NO_ACTION_SIGNAL))
-    
+
     return r_buy, r_sell
 
 
@@ -4773,6 +4865,7 @@ STRATEGY_REGISTRY = {
     TCEHY_REGIME_DEFENSIVE_STRATEGY: strategy_tcehy_regime_defensive,
     COIN_BTC_SMA200_DEFENSIVE_STRATEGY: strategy_coin_btc_sma200_defensive,
     MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY: strategy_msft_20d_breakout_defensive,
+    NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY: (strategy_nflx_monthly_sma100_defensive),
     "SMA200": strategy_sma200,
     "MA-SELVES": strategy_moving_average_w_tolerance,
     "MA-SELVES-MACRO": strategy_ma_selves_macro_enhanced,
