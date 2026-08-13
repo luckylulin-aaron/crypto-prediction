@@ -11,6 +11,7 @@ from coinbase.rest import RESTClient
 from core.config import CURS, DATA_INTERVAL_HOURS, STABLECOIN, TIMESPAN
 from core.logger import get_logger
 from db.database import db_manager
+from trading.cache_coverage import covers_latest_completed_utc_interval
 from utils.util import timer
 
 
@@ -68,14 +69,22 @@ class CBProClient:
         cache_key = f"{name}__{granularity}"
         if use_cache:
             cached_data = db_manager.get_historical_data(cache_key, requested_days)
-            if cached_data and db_manager.is_data_fresh(cache_key, max_age_hours=72):
+            metadata_is_fresh = bool(
+                cached_data
+                and db_manager.is_data_fresh(cache_key, max_age_hours=72)
+            )
+            coverage_is_current = covers_latest_completed_utc_interval(
+                cached_data or [], interval_base
+            )
+            if metadata_is_fresh and coverage_is_current:
                 self.logger.info(
                     f"Using cached data for {name} ({len(cached_data)} records, granularity: {granularity})"
                 )
                 return cached_data
             elif cached_data:
                 self.logger.info(
-                    f"Cached data for {name} is stale, fetching fresh data (granularity: {granularity})"
+                    f"Cached data for {name} is stale or missing the latest "
+                    f"completed candle, fetching fresh data (granularity: {granularity})"
                 )
             else:
                 self.logger.info(f"No cached data found for {name}, fetching from API")

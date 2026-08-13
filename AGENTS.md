@@ -280,6 +280,11 @@ Crypto daily cache keys use forms such as `BTCUSDT__1d`; stocks use their ticker
 Three calendar years are normally about 1,095 crypto rows and about 750 US
 stock sessions. Always set/check `DATABASE_URL` before interpreting `stats`;
 earlier “no data” incidents came from querying a different/default database.
+Crypto exchange cache reuse requires both fresh cache metadata and coverage of
+the latest fully completed UTC candle. A recent `last_updated` value alone must
+not suppress Binance/Coinbase refreshes when the newest daily candle is absent.
+Daily SQLite history queries normalize the rolling start boundary to UTC
+midnight so the first requested daily candle is not dropped by time-of-day.
 
 `clear` and `drop` are destructive. Never run them merely to troubleshoot an
 empty query. First check the URL, resolved database file, symbol keys, row count,

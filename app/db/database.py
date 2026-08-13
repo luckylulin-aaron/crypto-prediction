@@ -276,6 +276,10 @@ class DatabaseManager:
             # Calculate date range - use current time for sub-daily intervals
             end_date = datetime.utcnow()
             start_date = end_date - timedelta(days=days)
+            if symbol.endswith(("__1d", "__ONE_DAY")):
+                start_date = start_date.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
 
             # Query database
             records = (
