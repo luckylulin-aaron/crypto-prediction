@@ -198,7 +198,8 @@ Caveats that must survive account changes:
   next-open orders, slippage, and indicator state.
 - `app/trading/trader_driver.py`: fixed candidate construction, asset checks,
   BTC context alignment, and historical data feed.
-- `app/trading/us_stock_client.py`: Yahoo Finance daily data and SQLite cache.
+- `app/trading/stock_data_sources.py`: Alpaca, AKShare, and Yahoo normalized daily sources.
+- `app/trading/us_stock_client.py`: multi-source stock data and immutable SQLite cache refresh.
 - `app/db/database.py`: SQLAlchemy models and SQLite/PostgreSQL connection.
 - `migrations/`: non-destructive Alembic schema migrations.
 - `app/db/db_management.py`: init/test/stats/backfill/clear/drop CLI.
@@ -211,6 +212,9 @@ Caveats that must survive account changes:
 ## Windows and Poetry workflow
 
 The normal shell is PowerShell. Python is managed by Poetry.
+The project now requires Python 3.10 or newer because yfinance 1.6.x depends on
+curl_cffi 0.15+. Use Poetry for dependency updates; an external `pip install`
+does not update the locked environment used by the scheduled job.
 
 ```powershell
 poetry install
@@ -285,6 +289,16 @@ the latest fully completed UTC candle. A recent `last_updated` value alone must
 not suppress Binance/Coinbase refreshes when the newest daily candle is absent.
 Daily SQLite history queries normalize the rolling start boundary to UTC
 midnight so the first requested daily candle is not dropped by time-of-day.
+Stock daily refreshes use Alpaca first (when credentials are configured), then
+AKShare, then Yahoo Finance. Set `ALPACA_API_KEY` and `ALPACA_SECRET_KEY` in the
+environment or `secret.ini`; never commit their values. A tail refresh fetches
+a seven-day overlap but inserts only dates absent from SQLite, so switching
+providers cannot rewrite existing backtest history. A fresh cache is accepted
+only when it reaches the latest expected business session. If every provider
+fails, the client falls back to SQLite only when the cached range still covers
+the requested start and ends within seven calendar days of the latest expected
+session; short or older caches must fail rather than produce a misleading
+recommendation.
 
 `clear` and `drop` are destructive. Never run them merely to troubleshoot an
 empty query. First check the URL, resolved database file, symbol keys, row count,
