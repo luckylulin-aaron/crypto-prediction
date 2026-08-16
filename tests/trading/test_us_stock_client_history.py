@@ -86,3 +86,27 @@ class USStockClientHistoryTests(TestCase):
         start = datetime.strptime(call["start"], "%Y-%m-%d")
         end = datetime.strptime(call["end"], "%Y-%m-%d")
         self.assertEqual((end - start).days, STOCK_HISTORY_LOOKBACK_DAYS)
+
+    def test_download_drops_incomplete_non_finite_candles(self):
+        frame = pd.DataFrame(
+            {
+                "Open": [100.0, float("nan")],
+                "High": [110.0, float("nan")],
+                "Low": [90.0, float("nan")],
+                "Close": [105.0, float("nan")],
+                "Volume": [12345.0, float("nan")],
+            },
+            index=[pd.Timestamp("2026-08-01"), pd.Timestamp("2026-08-02")],
+        )
+
+        with patch.object(stock_module.yf, "download", return_value=frame):
+            rows = self.client.get_historic_data(
+                "AAPL",
+                start="2026-08-01",
+                end="2026-08-03",
+                use_cache=False,
+            )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1], "2026-08-01")
+        self.assertEqual(rows[0][0], 105.0)

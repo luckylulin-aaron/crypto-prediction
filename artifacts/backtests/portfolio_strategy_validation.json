@@ -1,0 +1,2012 @@
+{
+  "configuration": {
+    "symbols": [
+      "ETH",
+      "BTC",
+      "SOL",
+      "UNI",
+      "LTC",
+      "ETC",
+      "DOGE",
+      "AAVE"
+    ],
+    "data_start": "2023-08-04 00:00:00",
+    "data_end": "2026-08-02 00:00:00",
+    "data_rows": 1095,
+    "train": {
+      "start": "2023-08-04 00:00:00",
+      "end": "2024-08-02 00:00:00"
+    },
+    "validation": {
+      "start": "2024-08-03 00:00:00",
+      "end": "2024-10-31 00:00:00"
+    },
+    "purge_days": 7,
+    "test": {
+      "start": "2024-11-08 00:00:00",
+      "end": "2026-08-02 00:00:00"
+    },
+    "execution_friction_rate": 0.02,
+    "slippage_bps": 10.0,
+    "signal_time": "daily_close",
+    "execution_time": "next_daily_open"
+  },
+  "selected_parameters": {
+    "momentum_days": 90,
+    "top_n": 3,
+    "rebalance_days": 14,
+    "inverse_volatility": false,
+    "bollinger_pullback": false
+  },
+  "selected_train": {
+    "return": -36.85467855197101,
+    "max_drawdown": 47.93571016579896,
+    "transactions": 36,
+    "turnover": 8.654592491251238,
+    "mean_exposure": 0.9333333333333333,
+    "final_value": 6314.532144802899
+  },
+  "selected_validation": {
+    "return": -5.397694866219349,
+    "max_drawdown": 12.7204402990939,
+    "transactions": 9,
+    "turnover": 3.0000000000000004,
+    "mean_exposure": 0.08888888888888889,
+    "final_value": 9460.230513378065
+  },
+  "selected_btc_trend_parameters": {
+    "entry_band_pct": 0.0,
+    "exit_band_pct": 0.0,
+    "bollinger_entry_sigma": 1.0
+  },
+  "selected_btc_trend_train": {
+    "return": 7.250664840630927,
+    "max_drawdown": 23.564707144050693,
+    "transactions": 3,
+    "turnover": 3.0,
+    "mean_exposure": 0.9333333333333333,
+    "final_value": 10725.066484063093
+  },
+  "selected_btc_trend_validation": {
+    "return": -3.447176498589055,
+    "max_drawdown": 8.424209287409177,
+    "transactions": 3,
+    "turnover": 3.0,
+    "mean_exposure": 0.1111111111111111,
+    "final_value": 9655.282350141095
+  },
+  "recommended_strategy": {
+    "name": "BTC-SMA200-DEFENSIVE",
+    "parameters": {
+      "entry_band_pct": 0.05,
+      "exit_band_pct": 0.05,
+      "bollinger_entry_sigma": null
+    },
+    "rationale": "Fixed low-turnover BTC trend filter; rotation and Bollinger-entry ablations failed under the same cost model."
+  },
+  "long_horizon_results": {
+    "btc_sma5_defensive": {
+      "return": 25.897366426914093,
+      "max_drawdown": 28.83932847488132,
+      "transactions": 6,
+      "turnover": 6.0,
+      "mean_exposure": 0.5687150837988827,
+      "final_value": 12589.736642691409
+    },
+    "btc_buy_hold": {
+      "return": 20.206037995291993,
+      "max_drawdown": 52.971765913510616,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0,
+      "final_value": 12020.603799529199
+    }
+  },
+  "btc_trend_candidate_results": [
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": 7.405280578415496,
+        "max_drawdown": 23.564707144050697,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9454545454545454,
+        "final_value": 10740.52805784155
+      },
+      "validation": {
+        "return": -18.7252141092232,
+        "max_drawdown": 22.914706033059275,
+        "transactions": 9,
+        "turnover": 9.0,
+        "mean_exposure": 0.28888888888888886,
+        "final_value": 8127.47858907768
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -14.84186867732824,
+        "max_drawdown": 22.014645936330634,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.7878787878787878,
+        "final_value": 8515.813132267176
+      },
+      "validation": {
+        "return": -2.3937687945608244,
+        "max_drawdown": 6.836190275807422,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.07777777777777778,
+        "final_value": 9760.623120543918
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": 7.250664840630927,
+        "max_drawdown": 23.564707144050693,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 10725.066484063093
+      },
+      "validation": {
+        "return": -3.447176498589055,
+        "max_drawdown": 8.424209287409177,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.1111111111111111,
+        "final_value": 9655.282350141095
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": 6.6122514727631865,
+        "max_drawdown": 24.12906870623264,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9515151515151515,
+        "final_value": 10661.225147276318
+      },
+      "validation": {
+        "return": -23.868559923929155,
+        "max_drawdown": 27.792926501496527,
+        "transactions": 7,
+        "turnover": 7.0,
+        "mean_exposure": 0.3333333333333333,
+        "final_value": 7613.144007607085
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -15.470635497340712,
+        "max_drawdown": 22.59045240742808,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.793939393939394,
+        "final_value": 8452.936450265928
+      },
+      "validation": {
+        "return": -6.4734101880548405,
+        "max_drawdown": 10.730152063210571,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9352.658981194516
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": 6.458777343469357,
+        "max_drawdown": 24.129068706232623,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9393939393939394,
+        "final_value": 10645.877734346936
+      },
+      "validation": {
+        "return": -7.482788677754182,
+        "max_drawdown": 12.251796745905503,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.12222222222222222,
+        "final_value": 9251.721132224582
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": 16.28866749452582,
+        "max_drawdown": 23.558275962158643,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0,
+        "final_value": 11628.866749452582
+      },
+      "validation": {
+        "return": -13.674702480771517,
+        "max_drawdown": 25.913435040326622,
+        "transactions": 5,
+        "turnover": 5.0,
+        "mean_exposure": 0.4777777777777778,
+        "final_value": 8632.529751922848
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -7.798521967387694,
+        "max_drawdown": 22.008084333984915,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.8424242424242424,
+        "final_value": 9220.14780326123
+      },
+      "validation": {
+        "return": -6.4734101880548405,
+        "max_drawdown": 10.730152063210571,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9352.658981194516
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.0,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": 16.121263638553152,
+        "max_drawdown": 23.558275962158632,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.9878787878787879,
+        "final_value": 11612.126363855316
+      },
+      "validation": {
+        "return": -7.482788677754182,
+        "max_drawdown": 12.251796745905503,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.12222222222222222,
+        "final_value": 9251.721132224582
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": -1.7548759237705824,
+        "max_drawdown": 28.897723992448427,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 9824.512407622942
+      },
+      "validation": {
+        "return": -9.082979169227778,
+        "max_drawdown": 13.769501813798431,
+        "transactions": 5,
+        "turnover": 5.0,
+        "mean_exposure": 0.23333333333333334,
+        "final_value": 9091.702083077222
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -23.827538852831754,
+        "max_drawdown": 29.060338667392728,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.6848484848484848,
+        "final_value": 7617.246114716825
+      },
+      "validation": {
+        "return": -2.3937687945608244,
+        "max_drawdown": 6.836190275807422,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.07777777777777778,
+        "final_value": 9760.623120543918
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": -2.87462581868545,
+        "max_drawdown": 29.606778106382936,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.8666666666666667,
+        "final_value": 9712.537418131455
+      },
+      "validation": {
+        "return": -3.447176498589055,
+        "max_drawdown": 8.424209287409177,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.1111111111111111,
+        "final_value": 9655.282350141095
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": -2.4802708248526484,
+        "max_drawdown": 29.42270911467382,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9393939393939394,
+        "final_value": 9751.972917514735
+      },
+      "validation": {
+        "return": -16.353370948530888,
+        "max_drawdown": 20.665124871059643,
+        "transactions": 5,
+        "turnover": 5.0,
+        "mean_exposure": 0.25555555555555554,
+        "final_value": 8364.662905146912
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -24.38995979166789,
+        "max_drawdown": 29.584123120809807,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.6909090909090909,
+        "final_value": 7561.00402083321
+      },
+      "validation": {
+        "return": -6.4734101880548405,
+        "max_drawdown": 10.730152063210571,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9352.658981194516
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": -3.5917530233103623,
+        "max_drawdown": 30.12652791292548,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.8727272727272727,
+        "final_value": 9640.824697668964
+      },
+      "validation": {
+        "return": -7.482788677754182,
+        "max_drawdown": 12.251796745905503,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.12222222222222222,
+        "final_value": 9251.721132224582
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": 16.28866749452582,
+        "max_drawdown": 23.558275962158643,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0,
+        "final_value": 11628.866749452582
+      },
+      "validation": {
+        "return": -5.153243756672166,
+        "max_drawdown": 18.600102524171223,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.4,
+        "final_value": 9484.675624332784
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -7.798521967387694,
+        "max_drawdown": 22.008084333984915,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.8424242424242424,
+        "final_value": 9220.14780326123
+      },
+      "validation": {
+        "return": -6.4734101880548405,
+        "max_drawdown": 10.730152063210571,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9352.658981194516
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.03,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": 16.121263638553152,
+        "max_drawdown": 23.558275962158632,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.9878787878787879,
+        "final_value": 11612.126363855316
+      },
+      "validation": {
+        "return": -7.482788677754182,
+        "max_drawdown": 12.251796745905503,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.12222222222222222,
+        "final_value": 9251.721132224582
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": -1.7548759237705824,
+        "max_drawdown": 28.897723992448427,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 9824.512407622942
+      },
+      "validation": {
+        "return": -2.940661737379413,
+        "max_drawdown": 7.943803970575609,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.18888888888888888,
+        "final_value": 9705.933826262059
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -23.827538852831754,
+        "max_drawdown": 29.060338667392728,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.6848484848484848,
+        "final_value": 7617.246114716825
+      },
+      "validation": {
+        "return": -2.3937687945608244,
+        "max_drawdown": 6.836190275807422,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.07777777777777778,
+        "final_value": 9760.623120543918
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.0,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": -2.87462581868545,
+        "max_drawdown": 29.606778106382936,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.8666666666666667,
+        "final_value": 9712.537418131455
+      },
+      "validation": {
+        "return": -3.447176498589055,
+        "max_drawdown": 8.424209287409177,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.1111111111111111,
+        "final_value": 9655.282350141095
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": -2.4802708248526484,
+        "max_drawdown": 29.42270911467382,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.9393939393939394,
+        "final_value": 9751.972917514735
+      },
+      "validation": {
+        "return": -6.997444681573873,
+        "max_drawdown": 11.791470899327106,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.2,
+        "final_value": 9300.255531842613
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -24.38995979166789,
+        "max_drawdown": 29.584123120809807,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.6909090909090909,
+        "final_value": 7561.00402083321
+      },
+      "validation": {
+        "return": -6.4734101880548405,
+        "max_drawdown": 10.730152063210571,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9352.658981194516
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.03,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": -3.5917530233103623,
+        "max_drawdown": 30.12652791292548,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.8727272727272727,
+        "final_value": 9640.824697668964
+      },
+      "validation": {
+        "return": -7.482788677754182,
+        "max_drawdown": 12.251796745905503,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.12222222222222222,
+        "final_value": 9251.721132224582
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": null
+      },
+      "train": {
+        "return": 16.28866749452582,
+        "max_drawdown": 23.558275962158643,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0,
+        "final_value": 11628.866749452582
+      },
+      "validation": {
+        "return": -6.997444681573873,
+        "max_drawdown": 11.791470899327106,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.2,
+        "final_value": 9300.255531842613
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": 0.5
+      },
+      "train": {
+        "return": -7.798521967387694,
+        "max_drawdown": 22.008084333984915,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.8424242424242424,
+        "final_value": 9220.14780326123
+      },
+      "validation": {
+        "return": -6.4734101880548405,
+        "max_drawdown": 10.730152063210571,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9352.658981194516
+      }
+    },
+    {
+      "parameters": {
+        "entry_band_pct": 0.05,
+        "exit_band_pct": 0.05,
+        "bollinger_entry_sigma": 1.0
+      },
+      "train": {
+        "return": 16.121263638553152,
+        "max_drawdown": 23.558275962158632,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.9878787878787879,
+        "final_value": 11612.126363855316
+      },
+      "validation": {
+        "return": -7.482788677754182,
+        "max_drawdown": 12.251796745905503,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.12222222222222222,
+        "final_value": 9251.721132224582
+      }
+    }
+  ],
+  "candidate_results": [
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -58.63345339857043,
+        "max_drawdown": 63.87421720718255,
+        "transactions": 34,
+        "turnover": 14.858104299707893,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 4136.654660142956
+      },
+      "validation": {
+        "return": -4.381637475711719,
+        "max_drawdown": 14.40401418082678,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9561.836252428828
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -53.61567853361504,
+        "max_drawdown": 57.22373004398875,
+        "transactions": 24,
+        "turnover": 9.91468373504574,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 4638.432146638495
+      },
+      "validation": {
+        "return": -9.102045776100965,
+        "max_drawdown": 11.442865185603404,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9089.795422389903
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -59.054850294025684,
+        "max_drawdown": 64.2849558976043,
+        "transactions": 36,
+        "turnover": 15.917652848183916,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 4094.5149705974322
+      },
+      "validation": {
+        "return": -6.5145475540073665,
+        "max_drawdown": 14.606631772821018,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9348.545244599263
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -50.845532275001524,
+        "max_drawdown": 54.669062422905576,
+        "transactions": 28,
+        "turnover": 10.17174726841351,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 4915.446772499847
+      },
+      "validation": {
+        "return": -8.45861438705735,
+        "max_drawdown": 11.281923436310864,
+        "transactions": 6,
+        "turnover": 2.999999999999999,
+        "mean_exposure": 0.08888888888888888,
+        "final_value": 9154.138561294265
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -57.69589751952975,
+        "max_drawdown": 63.055441098828794,
+        "transactions": 22,
+        "turnover": 10.741553318532672,
+        "mean_exposure": 0.8,
+        "final_value": 4230.410248047026
+      },
+      "validation": {
+        "return": -9.756513396241385,
+        "max_drawdown": 14.40401418082678,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 9024.348660375861
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -53.74016505428667,
+        "max_drawdown": 53.74016505428667,
+        "transactions": 19,
+        "turnover": 10.72842590087712,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4625.983494571333
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -58.836686674318116,
+        "max_drawdown": 64.09465928481023,
+        "transactions": 22,
+        "turnover": 10.664882804198806,
+        "mean_exposure": 0.8,
+        "final_value": 4116.3313325681875
+      },
+      "validation": {
+        "return": -10.84752716025047,
+        "max_drawdown": 14.420394892967215,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8915.247283974953
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -52.274142177937065,
+        "max_drawdown": 52.27414217793708,
+        "transactions": 19,
+        "turnover": 10.134529857331062,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4772.585782206293
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -46.46216625426778,
+        "max_drawdown": 55.26957835054973,
+        "transactions": 42,
+        "turnover": 10.564707372355814,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 5353.783374573222
+      },
+      "validation": {
+        "return": -5.397694866219349,
+        "max_drawdown": 12.7204402990939,
+        "transactions": 9,
+        "turnover": 3.0000000000000004,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9460.230513378065
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -43.50337761094121,
+        "max_drawdown": 47.89802470930574,
+        "transactions": 30,
+        "turnover": 7.299954002395975,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5649.662238905879
+      },
+      "validation": {
+        "return": -9.102045776100965,
+        "max_drawdown": 11.442865185603404,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9089.795422389903
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -42.80242033137045,
+        "max_drawdown": 52.33139151568669,
+        "transactions": 47,
+        "turnover": 9.821923321879236,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 5719.757966862955
+      },
+      "validation": {
+        "return": -5.894794631615619,
+        "max_drawdown": 12.232686826432545,
+        "transactions": 9,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9410.520536838438
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -40.357535394469544,
+        "max_drawdown": 44.99688502165654,
+        "transactions": 38,
+        "turnover": 6.84295645771074,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5964.246460553045
+      },
+      "validation": {
+        "return": -8.45861438705735,
+        "max_drawdown": 11.281923436310864,
+        "transactions": 6,
+        "turnover": 2.999999999999999,
+        "mean_exposure": 0.08888888888888888,
+        "final_value": 9154.138561294265
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -56.171948572703734,
+        "max_drawdown": 62.60936037510958,
+        "transactions": 31,
+        "turnover": 9.580127973085323,
+        "mean_exposure": 0.8,
+        "final_value": 4382.805142729627
+      },
+      "validation": {
+        "return": -11.45189367946532,
+        "max_drawdown": 12.7204402990939,
+        "transactions": 9,
+        "turnover": 3.0000000000000004,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8854.810632053468
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -52.92676708185753,
+        "max_drawdown": 52.92676708185753,
+        "transactions": 24,
+        "turnover": 9.794519294130032,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4707.323291814248
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -57.24888670355409,
+        "max_drawdown": 63.50987717389403,
+        "transactions": 31,
+        "turnover": 9.64771321972313,
+        "mean_exposure": 0.8,
+        "final_value": 4275.111329644591
+      },
+      "validation": {
+        "return": -11.048222023383037,
+        "max_drawdown": 12.11506595170791,
+        "transactions": 9,
+        "turnover": 3.0000000000000004,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8895.177797661696
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 60,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -51.90859802921661,
+        "max_drawdown": 51.90859802921661,
+        "transactions": 24,
+        "turnover": 9.139247741831339,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4809.140197078339
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -33.693241592610526,
+        "max_drawdown": 48.32214720373511,
+        "transactions": 20,
+        "turnover": 8.993043275814902,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6630.675840738948
+      },
+      "validation": {
+        "return": -4.991482970948413,
+        "max_drawdown": 14.40401418082678,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9500.851702905158
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -48.34886984657364,
+        "max_drawdown": 52.366605414779265,
+        "transactions": 16,
+        "turnover": 5.904639326635995,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5165.113015342636
+      },
+      "validation": {
+        "return": -9.102045776100965,
+        "max_drawdown": 11.442865185603404,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9089.795422389903
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -34.489038770553805,
+        "max_drawdown": 46.219221125499146,
+        "transactions": 30,
+        "turnover": 9.600872089618765,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6551.096122944619
+      },
+      "validation": {
+        "return": -5.2864012814812344,
+        "max_drawdown": 14.467226174467942,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9471.359871851877
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -45.25700218293471,
+        "max_drawdown": 49.51524181460395,
+        "transactions": 24,
+        "turnover": 5.945914048453105,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5474.299781706529
+      },
+      "validation": {
+        "return": -8.45861438705735,
+        "max_drawdown": 11.281923436310864,
+        "transactions": 6,
+        "turnover": 2.999999999999999,
+        "mean_exposure": 0.08888888888888888,
+        "final_value": 9154.138561294265
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -36.702293807281464,
+        "max_drawdown": 50.75614220995296,
+        "transactions": 18,
+        "turnover": 8.912118412411386,
+        "mean_exposure": 0.8,
+        "final_value": 6329.770619271854
+      },
+      "validation": {
+        "return": -12.412418320530016,
+        "max_drawdown": 14.40401418082678,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8758.758167946999
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -54.18347398054648,
+        "max_drawdown": 54.18347398054648,
+        "transactions": 18,
+        "turnover": 9.808277354879312,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4581.652601945351
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -34.15540660426275,
+        "max_drawdown": 46.301404839473086,
+        "transactions": 20,
+        "turnover": 8.403240752087893,
+        "mean_exposure": 0.8,
+        "final_value": 6584.459339573725
+      },
+      "validation": {
+        "return": -12.505716978537206,
+        "max_drawdown": 14.420394892967215,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8749.42830214628
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -52.434951790804895,
+        "max_drawdown": 52.434951790804895,
+        "transactions": 18,
+        "turnover": 8.98768292183785,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4756.50482091951
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -36.85467855197101,
+        "max_drawdown": 47.93571016579896,
+        "transactions": 36,
+        "turnover": 8.654592491251238,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6314.532144802899
+      },
+      "validation": {
+        "return": -5.397694866219349,
+        "max_drawdown": 12.7204402990939,
+        "transactions": 9,
+        "turnover": 3.0000000000000004,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9460.230513378065
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -46.37209930980946,
+        "max_drawdown": 50.543599980001176,
+        "transactions": 33,
+        "turnover": 7.2733531231394535,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5362.7900690190545
+      },
+      "validation": {
+        "return": -9.102045776100965,
+        "max_drawdown": 11.442865185603404,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9089.795422389903
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -33.30867126210233,
+        "max_drawdown": 44.29917136896582,
+        "transactions": 44,
+        "turnover": 7.989867822812354,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6669.1328737897675
+      },
+      "validation": {
+        "return": -5.894794631615619,
+        "max_drawdown": 12.232686826432545,
+        "transactions": 9,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9410.520536838438
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -42.65689320586116,
+        "max_drawdown": 47.117384952583215,
+        "transactions": 38,
+        "turnover": 6.749062470782924,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5734.310679413885
+      },
+      "validation": {
+        "return": -8.45861438705735,
+        "max_drawdown": 11.281923436310864,
+        "transactions": 6,
+        "turnover": 2.999999999999999,
+        "mean_exposure": 0.08888888888888888,
+        "final_value": 9154.138561294265
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -41.87621580089994,
+        "max_drawdown": 52.736515317860956,
+        "transactions": 29,
+        "turnover": 8.420289177633745,
+        "mean_exposure": 0.8,
+        "final_value": 5812.3784199100055
+      },
+      "validation": {
+        "return": -11.02628635123274,
+        "max_drawdown": 12.7204402990939,
+        "transactions": 9,
+        "turnover": 3.0000000000000004,
+        "mean_exposure": 0.06666666666666665,
+        "final_value": 8897.371364876726
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -53.57167492553129,
+        "max_drawdown": 53.57167492553129,
+        "transactions": 23,
+        "turnover": 9.153221560603177,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4642.832507446871
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -40.23216881181205,
+        "max_drawdown": 49.76872521605186,
+        "transactions": 29,
+        "turnover": 8.022886780307893,
+        "mean_exposure": 0.8,
+        "final_value": 5976.783118818795
+      },
+      "validation": {
+        "return": -10.594891166359432,
+        "max_drawdown": 12.11506595170791,
+        "transactions": 9,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8940.510883364057
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 90,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -52.18739288890249,
+        "max_drawdown": 52.18739288890247,
+        "transactions": 23,
+        "turnover": 8.681922111067824,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4781.260711109752
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -39.45912242407108,
+        "max_drawdown": 53.86899153549153,
+        "transactions": 19,
+        "turnover": 7.80305608517069,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6054.087757592892
+      },
+      "validation": {
+        "return": -10.311635556610232,
+        "max_drawdown": 12.621305406588181,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 8968.836444338976
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -45.9421691721949,
+        "max_drawdown": 50.147112394381246,
+        "transactions": 17,
+        "turnover": 6.813546085170689,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5405.78308278051
+      },
+      "validation": {
+        "return": -9.102045776100965,
+        "max_drawdown": 11.442865185603404,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9089.795422389903
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -41.751389924913816,
+        "max_drawdown": 53.39430414656287,
+        "transactions": 29,
+        "turnover": 7.7855243408707295,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 5824.861007508618
+      },
+      "validation": {
+        "return": -9.53994268541235,
+        "max_drawdown": 12.329901529733798,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9046.005731458765
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -43.68162900830984,
+        "max_drawdown": 48.06241064086244,
+        "transactions": 25,
+        "turnover": 6.555448242024139,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5631.837099169015
+      },
+      "validation": {
+        "return": -8.45861438705735,
+        "max_drawdown": 11.281923436310864,
+        "transactions": 6,
+        "turnover": 2.999999999999999,
+        "mean_exposure": 0.08888888888888888,
+        "final_value": 9154.138561294265
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -57.392802316580635,
+        "max_drawdown": 66.85278330360596,
+        "transactions": 20,
+        "turnover": 10.723446342519608,
+        "mean_exposure": 0.8,
+        "final_value": 4260.719768341936
+      },
+      "validation": {
+        "return": -16.40476953043096,
+        "max_drawdown": 16.40476953043097,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8359.523046956903
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -55.29239489286718,
+        "max_drawdown": 55.29239489286718,
+        "transactions": 16,
+        "turnover": 9.753796805880963,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4470.760510713282
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -58.5728512191968,
+        "max_drawdown": 66.21469468776027,
+        "transactions": 22,
+        "turnover": 10.371455555251408,
+        "mean_exposure": 0.8,
+        "final_value": 4142.71487808032
+      },
+      "validation": {
+        "return": -15.955245083273951,
+        "max_drawdown": 15.955245083273951,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8404.475491672605
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 2,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -53.853822371783,
+        "max_drawdown": 53.853822371783,
+        "transactions": 18,
+        "turnover": 9.160278264816348,
+        "mean_exposure": 0.6181818181818182,
+        "final_value": 4614.6177628217
+      },
+      "validation": {
+        "return": -5.035957621290487,
+        "max_drawdown": 8.153599999999994,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.044444444444444446,
+        "final_value": 9496.404237870951
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -37.23614412551537,
+        "max_drawdown": 48.25023440492456,
+        "transactions": 35,
+        "turnover": 9.279369124209229,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6276.385587448463
+      },
+      "validation": {
+        "return": -11.243870614600414,
+        "max_drawdown": 12.7204402990939,
+        "transactions": 9,
+        "turnover": 3.0000000000000004,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 8875.612938539958
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -43.56560923551803,
+        "max_drawdown": 47.95541558381985,
+        "transactions": 29,
+        "turnover": 7.872646044629649,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5643.439076448197
+      },
+      "validation": {
+        "return": -9.102045776100965,
+        "max_drawdown": 11.442865185603404,
+        "transactions": 6,
+        "turnover": 3.0,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 9089.795422389903
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -36.880572429666415,
+        "max_drawdown": 47.28243558916751,
+        "transactions": 44,
+        "turnover": 8.747085942987308,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6311.942757033358
+      },
+      "validation": {
+        "return": -10.513457815550575,
+        "max_drawdown": 12.232686826432545,
+        "transactions": 9,
+        "turnover": 2.9999999999999996,
+        "mean_exposure": 0.08888888888888889,
+        "final_value": 8948.654218444943
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 14,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -42.34124544504778,
+        "max_drawdown": 46.82629017312528,
+        "transactions": 38,
+        "turnover": 7.406926860393352,
+        "mean_exposure": 0.8484848484848485,
+        "final_value": 5765.875455495222
+      },
+      "validation": {
+        "return": -8.45861438705735,
+        "max_drawdown": 11.281923436310864,
+        "transactions": 6,
+        "turnover": 2.999999999999999,
+        "mean_exposure": 0.08888888888888888,
+        "final_value": 9154.138561294265
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -35.210479492291846,
+        "max_drawdown": 48.109315710368115,
+        "transactions": 32,
+        "turnover": 8.443801192090644,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6478.952050770815
+      },
+      "validation": {
+        "return": -14.353422822430616,
+        "max_drawdown": 14.35342282243062,
+        "transactions": 7,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8564.657717756938
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": false,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -39.96925838122641,
+        "max_drawdown": 42.86623943765888,
+        "transactions": 24,
+        "turnover": 7.805562537844669,
+        "mean_exposure": 0.7515151515151515,
+        "final_value": 6003.074161877359
+      },
+      "validation": {
+        "return": -13.918222308629124,
+        "max_drawdown": 13.918222308629119,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8608.177769137088
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": false
+      },
+      "train": {
+        "return": -33.73005219520672,
+        "max_drawdown": 45.776418936440855,
+        "transactions": 32,
+        "turnover": 7.769835645710719,
+        "mean_exposure": 0.9333333333333333,
+        "final_value": 6626.994780479328
+      },
+      "validation": {
+        "return": -13.069659667242451,
+        "max_drawdown": 13.069659667242451,
+        "transactions": 7,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8693.034033275755
+      }
+    },
+    {
+      "parameters": {
+        "momentum_days": 120,
+        "top_n": 3,
+        "rebalance_days": 30,
+        "inverse_volatility": true,
+        "bollinger_pullback": true
+      },
+      "train": {
+        "return": -38.266772957333686,
+        "max_drawdown": 41.42437711650361,
+        "transactions": 24,
+        "turnover": 7.262138543378158,
+        "mean_exposure": 0.7515151515151515,
+        "final_value": 6173.322704266631
+      },
+      "validation": {
+        "return": -13.918222308629124,
+        "max_drawdown": 13.918222308629119,
+        "transactions": 3,
+        "turnover": 3.0,
+        "mean_exposure": 0.06666666666666667,
+        "final_value": 8608.177769137088
+      }
+    }
+  ],
+  "test_results": {
+    "cash": {
+      "return": 0.0,
+      "max_drawdown": 0.0,
+      "transactions": 0,
+      "turnover": 0.0,
+      "mean_exposure": 0.0,
+      "final_value": 10000.0
+    },
+    "equal_buy_hold": {
+      "return": -49.17366745843189,
+      "max_drawdown": 73.62613236283211,
+      "transactions": 8,
+      "turnover": 1.0,
+      "mean_exposure": 1.0,
+      "final_value": 5082.633254156811
+    },
+    "sma5_equal": {
+      "return": -52.276507706213984,
+      "max_drawdown": 74.51240609935043,
+      "transactions": 137,
+      "turnover": 22.35033853526841,
+      "mean_exposure": 0.5339652448657188,
+      "final_value": 4772.349229378602
+    },
+    "btc_gate_sma5_equal": {
+      "return": -42.52520832468848,
+      "max_drawdown": 65.13097060416875,
+      "transactions": 127,
+      "turnover": 17.310032696030465,
+      "mean_exposure": 0.5039494470774092,
+      "final_value": 5747.479167531152
+    },
+    "btc_gate_top2_momentum": {
+      "return": -52.7179651765914,
+      "max_drawdown": 77.30326536632288,
+      "transactions": 36,
+      "turnover": 15.905689064096542,
+      "mean_exposure": 0.49921011058451814,
+      "final_value": 4728.20348234086
+    },
+    "btc_gate_top2_momentum_bollinger": {
+      "return": -75.00027927668918,
+      "max_drawdown": 76.62980673420287,
+      "transactions": 25,
+      "turnover": 12.910592327410297,
+      "mean_exposure": 0.40442338072669826,
+      "final_value": 2499.9720723310816
+    },
+    "selected_rotation": {
+      "return": -51.032648653315135,
+      "max_drawdown": 66.23913835791069,
+      "transactions": 70,
+      "turnover": 17.599109278070355,
+      "mean_exposure": 0.49921011058451814,
+      "final_value": 4896.735134668485
+    },
+    "selected_btc_trend": {
+      "return": -29.5484700658303,
+      "max_drawdown": 48.571426797881614,
+      "transactions": 18,
+      "turnover": 18.0,
+      "mean_exposure": 0.48973143759873616,
+      "final_value": 7045.152993416969
+    },
+    "btc_sma5_defensive": {
+      "return": 3.3888011333777612,
+      "max_drawdown": 28.83932847488133,
+      "transactions": 4,
+      "turnover": 4.0,
+      "mean_exposure": 0.5039494470774092,
+      "final_value": 10338.880113337776
+    },
+    "btc_buy_hold": {
+      "return": -17.95663755429574,
+      "max_drawdown": 52.971765913510616,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0,
+      "final_value": 8204.336244570426
+    }
+  }
+}

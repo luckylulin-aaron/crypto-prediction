@@ -16,19 +16,21 @@ from app.core.config import (
     COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
     ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS,
     ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
-    MSFT_20D_BREAKOUT_DEFENSIVE_PARAMETERS,
-    MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
-    SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS,
-    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
-    TCEHY_REGIME_DEFENSIVE_PARAMETERS,
-    TCEHY_REGIME_DEFENSIVE_STRATEGY,
     KDJ_OVERBOUGHT_THRESHOLDS,
     KDJ_OVERSOLD_THRESHOLDS,
+    MSFT_20D_BREAKOUT_DEFENSIVE_PARAMETERS,
+    MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
+    NFLX_MONTHLY_SMA100_DEFENSIVE_PARAMETERS,
+    NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY,
     ROUND_PRECISION,
     RSI_OVERBOUGHT_THRESHOLDS,
     RSI_OVERSOLD_THRESHOLDS,
     RSI_PERIODS,
     SMA200_VARIANTS,
+    SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+    TCEHY_REGIME_DEFENSIVE_PARAMETERS,
+    TCEHY_REGIME_DEFENSIVE_STRATEGY,
     is_crypto_strategy_allowed_for_asset,
     is_stock_strategy_allowed_for_asset,
 )
@@ -96,6 +98,7 @@ class TraderDriver:
                 TCEHY_REGIME_DEFENSIVE_STRATEGY,
                 COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
                 MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
+                NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY,
             }:
                 fixed_strategy_count += 1
             elif s == "SMA200":
@@ -207,6 +210,18 @@ class TraderDriver:
                     "breakout_lookback_days": int(params["lookback_days"]),
                     "breakout_trailing_stop_pct": float(params["trailing_stop_pct"]),
                     "breakout_require_btc_regime": False,
+                }
+                continue
+            if stat == NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY:
+                params = NFLX_MONTHLY_SMA100_DEFENSIVE_PARAMETERS
+                yield {
+                    "stat": stat,
+                    "tol_pct": 0.0,
+                    "buy_pct": 1.0,
+                    "sell_pct": 1.0,
+                    "bollinger_sigma": bollinger_tols[0] if bollinger_tols else 2,
+                    "monthly_sma_window_days": int(params["window_days"]),
+                    "monthly_sma_band_pct": float(params["band_pct"]),
                 }
                 continue
             if stat == TCEHY_REGIME_DEFENSIVE_STRATEGY:
@@ -338,6 +353,7 @@ class TraderDriver:
             TCEHY_REGIME_DEFENSIVE_STRATEGY,
             COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
             MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
+            NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY,
         }
         for strategy in overall_stats:
             if strategy in fixed_stock_strategies:
@@ -363,6 +379,11 @@ class TraderDriver:
         if MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY in disallowed:
             raise ValueError(
                 f"{MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY} is restricted to MSFT; "
+                f"received {name}"
+            )
+        if NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY in disallowed:
+            raise ValueError(
+                f"{NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY} is restricted to NFLX; "
                 f"received {name}"
             )
         if disallowed:
@@ -424,6 +445,8 @@ class TraderDriver:
                 regime_trend_slope_days=spec.get("regime_trend_slope_days", 20),
                 regime_range_ma_days=spec.get("regime_range_ma_days", 20),
                 regime_range_sigma=spec.get("regime_range_sigma", 2.0),
+                monthly_sma_window_days=spec.get("monthly_sma_window_days", 100),
+                monthly_sma_band_pct=spec.get("monthly_sma_band_pct", 0.05),
             )
             self.traders.append(t)
 
@@ -475,6 +498,7 @@ class TraderDriver:
         btc_data_stream: Optional[List[tuple]] = None,
         intraday_interval_hours: int = 1,
         warmup_points: int = 0,
+        performance_start_index: Optional[int] = None,
     ):
         """
         Feed in historic data, where data_stream consists of tuples of (price, date, open, low, high).
@@ -508,6 +532,12 @@ class TraderDriver:
             )
         if warmup_points < 0 or warmup_points >= len(data_stream):
             raise ValueError("warmup_points must be >= 0 and smaller than data_stream")
+        if performance_start_index is None:
+            performance_start_index = 0
+        if not 0 <= performance_start_index < len(data_stream):
+            raise ValueError(
+                "performance_start_index must reference a row in data_stream"
+            )
 
         # Log data feed details
         logger.info(
@@ -652,6 +682,7 @@ class TraderDriver:
         )
 
         for index, t in enumerate(self.traders):
+            t.performance_start_index = int(performance_start_index)
             trader_start_time = time.perf_counter()
 
             intraday_idx = 0
@@ -738,6 +769,13 @@ class TraderDriver:
             """
             trader_process_time = time.perf_counter() - trader_start_time
 
+            if not math.isfinite(float(tmp_final_p)):
+                logger.warning(
+                    f"[{self.name}] Ignoring non-finite final portfolio value "
+                    f"for strategy {t.high_strategy}: {tmp_final_p}"
+                )
+                continue
+
             # Log trader performance summary (every 10 traders to avoid too much output)
             if (index + 1) % 10 == 0 or index == num_traders - 1:
                 logger.debug(
@@ -749,6 +787,11 @@ class TraderDriver:
             if tmp_final_p >= max_final_p:
                 max_final_p = tmp_final_p
                 self.best_trader = t
+
+        if self.best_trader is None:
+            raise ValueError(
+                f"[{self.name}] No strategy produced a finite final portfolio value"
+            )
 
         logger.info(
             f"[{self.name}] Completed feed_data: Best trader strategy={self.best_trader.high_strategy}, "

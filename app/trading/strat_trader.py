@@ -12,31 +12,33 @@ import numpy as np
 from app.core.config import (
     BTC_SMA200_DEFENSIVE_PARAMETERS,
     BTC_SMA200_DEFENSIVE_STRATEGY,
+    BUY_SIGNAL,
     COIN_BTC_SMA200_DEFENSIVE_PARAMETERS,
     COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
+    CRYPTO_EXECUTE_ON_NEXT_OPEN,
+    CRYPTO_SLIPPAGE_BPS,
+    DEA_NUM_OF_DAYS,
+    DEPOSIT_CST,
     ETH_120D_BREAKOUT_DEFENSIVE_PARAMETERS,
     ETH_120D_BREAKOUT_DEFENSIVE_STRATEGY,
     MSFT_20D_BREAKOUT_DEFENSIVE_PARAMETERS,
     MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
-    SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS,
-    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
-    STOCK_EXECUTE_ON_NEXT_OPEN,
-    STOCK_SLIPPAGE_BPS,
-    TCEHY_REGIME_DEFENSIVE_PARAMETERS,
-    TCEHY_REGIME_DEFENSIVE_STRATEGY,
-    CRYPTO_EXECUTE_ON_NEXT_OPEN,
-    CRYPTO_SLIPPAGE_BPS,
-    is_crypto_strategy_allowed_for_asset,
-    is_stock_strategy_allowed_for_asset,
-    BUY_SIGNAL,
-    DEA_NUM_OF_DAYS,
-    DEPOSIT_CST,
+    NFLX_MONTHLY_SMA100_DEFENSIVE_PARAMETERS,
+    NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY,
     NO_ACTION_SIGNAL,
     OPTION_SETTLE,
     ROUND_PRECISION,
     SELL_SIGNAL,
+    SOL_30D_BREAKOUT_DEFENSIVE_PARAMETERS,
+    SOL_30D_BREAKOUT_DEFENSIVE_STRATEGY,
+    STOCK_EXECUTE_ON_NEXT_OPEN,
+    STOCK_SLIPPAGE_BPS,
     SUPPORTED_STRATEGIES,
+    TCEHY_REGIME_DEFENSIVE_PARAMETERS,
+    TCEHY_REGIME_DEFENSIVE_STRATEGY,
     WITHDRAW_CST,
+    is_crypto_strategy_allowed_for_asset,
+    is_stock_strategy_allowed_for_asset,
 )
 from app.trading.strategies import STRATEGY_REGISTRY
 from app.utils.util import ema_helper, max_drawdown_helper
@@ -81,6 +83,8 @@ class StratTrader:
         regime_trend_slope_days: int = 20,
         regime_range_ma_days: int = 20,
         regime_range_sigma: float = 2.0,
+        monthly_sma_window_days: int = 100,
+        monthly_sma_band_pct: float = 0.05,
         mode: str = "normal",
     ):
         """
@@ -127,6 +131,7 @@ class StratTrader:
             TCEHY_REGIME_DEFENSIVE_STRATEGY,
             COIN_BTC_SMA200_DEFENSIVE_STRATEGY,
             MSFT_20D_BREAKOUT_DEFENSIVE_STRATEGY,
+            NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY,
         }
         fixed_asset_strategies = (
             fixed_crypto_asset_strategies | fixed_stock_asset_strategies
@@ -181,6 +186,11 @@ class StratTrader:
                 "trailing_stop_pct"
             ]
             breakout_require_btc_regime = False
+        elif stat == NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY:
+            monthly_sma_window_days = NFLX_MONTHLY_SMA100_DEFENSIVE_PARAMETERS[
+                "window_days"
+            ]
+            monthly_sma_band_pct = NFLX_MONTHLY_SMA100_DEFENSIVE_PARAMETERS["band_pct"]
         elif stat == TCEHY_REGIME_DEFENSIVE_STRATEGY:
             regime_trend_ma_days = TCEHY_REGIME_DEFENSIVE_PARAMETERS["trend_ma_days"]
             regime_trend_slope_days = TCEHY_REGIME_DEFENSIVE_PARAMETERS[
@@ -197,6 +207,11 @@ class StratTrader:
         ma_lengths = list(ma_lengths)
         if stat in {"SMA200", BTC_SMA200_DEFENSIVE_STRATEGY} and 200 not in ma_lengths:
             ma_lengths.append(200)
+        if (
+            stat == NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY
+            and monthly_sma_window_days not in ma_lengths
+        ):
+            ma_lengths.append(monthly_sma_window_days)
         if stat == TCEHY_REGIME_DEFENSIVE_STRATEGY:
             for required_ma in (regime_trend_ma_days, regime_range_ma_days):
                 if required_ma not in ma_lengths:
@@ -272,6 +287,8 @@ class StratTrader:
         self.regime_trend_slope_days = int(regime_trend_slope_days)
         self.regime_range_ma_days = int(regime_range_ma_days)
         self.regime_range_sigma = float(regime_range_sigma)
+        self.monthly_sma_window_days = int(monthly_sma_window_days)
+        self.monthly_sma_band_pct = float(monthly_sma_band_pct)
         self.breakout_in_position = cur_coin > 0
         self.breakout_peak = None
         self.market_context = {}
@@ -305,6 +322,10 @@ class StratTrader:
             or self.regime_range_sigma <= 0
         ):
             raise ValueError("Invalid fixed TCEHY regime strategy parameters")
+        if stat == NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY and (
+            self.monthly_sma_window_days <= 0 or self.monthly_sma_band_pct < 0
+        ):
+            raise ValueError("Invalid fixed NFLX monthly SMA strategy parameters")
         self.execute_on_next_open = execute_on_next_open
         self.slippage_bps = float(slippage_bps)
         if self.slippage_bps < 0:
@@ -395,6 +416,15 @@ class StratTrader:
                     today=d,
                     lookback_days=self.breakout_lookback_days,
                     trailing_stop_pct=self.breakout_trailing_stop_pct,
+                )
+
+            elif self.high_strategy == NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY:
+                strategy_func(
+                    trader=self,
+                    new_p=new_p,
+                    today=d,
+                    window_days=self.monthly_sma_window_days,
+                    band_pct=self.monthly_sma_band_pct,
                 )
 
             elif self.high_strategy == TCEHY_REGIME_DEFENSIVE_STRATEGY:
@@ -1181,18 +1211,16 @@ class StratTrader:
     @property
     def baseline_rate_of_return(self):
         """Computes for baseline gain percentage (i.e. hold all coins, have 0 transaction)."""
-        if (
-            self.init_coin == 0
-            and self.init_cash > 0
-            and len(self.crypto_prices) >= 2
-        ):
-            entry_price = float(self.crypto_prices[0][0])
+        if self.init_coin == 0 and self.init_cash > 0 and len(self.crypto_prices) >= 2:
+            start_index = min(
+                int(getattr(self, "performance_start_index", 0)),
+                len(self.crypto_prices) - 1,
+            )
+            entry_price = float(self.crypto_prices[start_index][0])
             if self.execute_on_next_open:
                 slip = self.slippage_bps / 10_000.0
-                entry_price = float(self.crypto_prices[0][2]) * (1.0 + slip)
-            baseline_coin = (
-                self.init_cash * (1.0 - self.broker_pct) / entry_price
-            )
+                entry_price = float(self.crypto_prices[start_index][2]) * (1.0 + slip)
+            baseline_coin = self.init_cash * (1.0 - self.broker_pct) / entry_price
             final_value = baseline_coin * float(self.crypto_prices[-1][0])
             return np.round(
                 100 * (final_value - self.init_cash) / self.init_cash, ROUND_PRECISION
@@ -1254,6 +1282,17 @@ class StratTrader:
     @property
     def coin_rate_of_return(self):
         """How much the price of the currency has gone up."""
+        performance_start_index = int(getattr(self, "performance_start_index", 0))
+        if performance_start_index > 0 and len(self.crypto_prices) >= 2:
+            start_index = min(performance_start_index, len(self.crypto_prices) - 1)
+            init_price = float(self.crypto_prices[start_index][0])
+            final_price = float(self.crypto_prices[-1][0])
+            if init_price == 0:
+                return float("inf") if final_price > 0 else 0.0
+            return np.round(
+                100 * (final_price - init_price) / init_price, ROUND_PRECISION
+            )
+
         if len(self.all_history) == 0:
             # No trades made, compute return using price data
             if len(self.crypto_prices) < 2:
@@ -1456,6 +1495,13 @@ class StratTrader:
                     "breakout_lookback_days": self.breakout_lookback_days,
                     "breakout_trailing_stop_pct": self.breakout_trailing_stop_pct,
                     "breakout_require_btc_regime": self.breakout_require_btc_regime,
+                }
+            )
+        elif self.high_strategy == NFLX_MONTHLY_SMA100_DEFENSIVE_STRATEGY:
+            basic.update(
+                {
+                    "monthly_sma_window_days": self.monthly_sma_window_days,
+                    "monthly_sma_band_pct": self.monthly_sma_band_pct,
                 }
             )
         return {**basic, **self.strategies}

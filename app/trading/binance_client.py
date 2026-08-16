@@ -7,6 +7,7 @@ from binance.spot import Spot
 from core.config import CURS, DATA_INTERVAL_HOURS, STABLECOIN, TIMESPAN
 from core.logger import get_logger
 from db.database import db_manager
+from trading.cache_coverage import covers_latest_completed_utc_interval
 from utils.util import timer
 
 
@@ -111,14 +112,22 @@ class BinanceClient:
 
         if use_cache and cache_allowed:
             cached_data = db_manager.get_historical_data(cache_key, requested_days)
-            if cached_data and db_manager.is_data_fresh(cache_key, max_age_hours=72):
+            metadata_is_fresh = bool(
+                cached_data
+                and db_manager.is_data_fresh(cache_key, max_age_hours=72)
+            )
+            coverage_is_current = covers_latest_completed_utc_interval(
+                cached_data or [], interval_base
+            )
+            if metadata_is_fresh and coverage_is_current:
                 self.logger.info(
                     f"Using cached data for {symbol} ({len(cached_data)} records, interval={interval_str})"
                 )
                 return cached_data
             elif cached_data:
                 self.logger.info(
-                    f"Cached data for {symbol} is stale, fetching fresh data (interval={interval_str})"
+                    f"Cached data for {symbol} is stale or missing the latest "
+                    f"completed candle, fetching fresh data (interval={interval_str})"
                 )
             else:
                 self.logger.info(

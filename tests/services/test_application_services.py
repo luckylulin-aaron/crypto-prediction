@@ -63,6 +63,7 @@ def test_simulation_service_is_shared_selection_and_ledger_boundary():
 
     assert result.trader is trader
     assert result.signal == {"action": "BUY"}
+    assert result.best_info == {"trader_index": 0}
     assert ledger.record_calls[0]["asset"] == "BTC"
     assert ledger.record_calls[0]["strategy_version"] == "v1"
 

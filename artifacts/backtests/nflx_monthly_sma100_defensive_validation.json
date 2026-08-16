@@ -1,0 +1,2315 @@
+{
+  "configuration": {
+    "asset": "NFLX",
+    "strategy": "NFLX-MONTHLY-SMA100-DEFENSIVE",
+    "parameters": {
+      "window_days": 100,
+      "band_pct": 0.05
+    },
+    "data_start": "2016-08-08",
+    "data_end": "2026-08-05",
+    "data_rows": 2512,
+    "train_end": "2022-07-22",
+    "validation_end": "2023-07-25",
+    "purge_days": 10,
+    "test_start": "2023-08-09",
+    "candidate_count": 43,
+    "selection_rule": "maximize minimum train/validation excess on long pre-test history",
+    "execution_friction_rate": 0.02,
+    "slippage_bps": 10.0,
+    "execution": "prior close signal, next stock-session open fill",
+    "profit_objective": "final-test excess return > 0 or annualized return >= 10%"
+  },
+  "selection": {
+    "candidate": {
+      "family": "monthly_sma",
+      "parameters": {
+        "window_days": 100,
+        "band_pct": 0.05
+      }
+    },
+    "train": {
+      "start": "2016-08-09",
+      "end": "2022-07-22",
+      "strategy": {
+        "return": 306.6329121658613,
+        "max_drawdown": 47.99693231469827,
+        "transactions": 6,
+        "turnover": 6.0,
+        "mean_exposure": 0.781854569713142
+      },
+      "buy_and_hold": {
+        "return": 126.88749877641459,
+        "max_drawdown": 75.94731825161351,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": 179.7454133894467
+    },
+    "validation": {
+      "start": "2022-07-25",
+      "end": "2023-07-25",
+      "strategy": {
+        "return": 81.24367640285992,
+        "max_drawdown": 20.4370096531659,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 0.8849206349206349
+      },
+      "buy_and_hold": {
+        "return": 89.20395255207455,
+        "max_drawdown": 20.43700965316591,
+        "transactions": 1,
+        "turnover": 1.0,
+        "mean_exposure": 1.0
+      },
+      "excess_return": -7.960276149214636
+    }
+  },
+  "selection_evidence": [
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 100,
+          "band_pct": 0.05
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 306.6329121658613,
+          "max_drawdown": 47.99693231469827,
+          "transactions": 6,
+          "turnover": 6.0,
+          "mean_exposure": 0.781854569713142
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 179.7454133894467
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 81.24367640285992,
+          "max_drawdown": 20.4370096531659,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.8849206349206349
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -7.960276149214636
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 100,
+          "band_pct": 0.03
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 199.35548472098841,
+          "max_drawdown": 48.54429130430414,
+          "transactions": 10,
+          "turnover": 10.0,
+          "mean_exposure": 0.7538358905937291
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 72.46798594457383
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 81.24367640285992,
+          "max_drawdown": 20.4370096531659,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.8849206349206349
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -7.960276149214636
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 150,
+          "band_pct": 0.03
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 141.10719171710423,
+          "max_drawdown": 57.29965847104614,
+          "transactions": 16,
+          "turnover": 16.0,
+          "mean_exposure": 0.752501667778519
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 14.21969294068964
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 67.62501396402696,
+          "max_drawdown": 20.4370096531659,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7619047619047619
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -21.578938588047592
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 20,
+          "trailing_stop_pct": 0.2
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 116.48537412095395,
+          "max_drawdown": 65.49867520615797,
+          "transactions": 13,
+          "turnover": 13.0,
+          "mean_exposure": 0.8472314876584389
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -10.40212465546064
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 59.08609628516304,
+          "max_drawdown": 27.437289188642882,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.9603174603174603
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -30.117856266911517
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 150,
+          "band_pct": 0.05
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 220.75784667547578,
+          "max_drawdown": 44.555717927233715,
+          "transactions": 10,
+          "turnover": 10.0,
+          "mean_exposure": 0.7625083388925951
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 93.87034789906119
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 53.50365828972032,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.753968253968254
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -35.700294262354234
+      }
+    },
+    {
+      "candidate": {
+        "family": "donchian",
+        "parameters": {
+          "entry_days": 120,
+          "exit_days": 60
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 191.820126198796,
+          "max_drawdown": 42.29199472893165,
+          "transactions": 10,
+          "turnover": 10.0,
+          "mean_exposure": 0.5910607071380921
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 64.93262742238142
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 53.50365828972032,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.753968253968254
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -35.700294262354234
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 60,
+          "trailing_stop_pct": 0.16
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 227.27304625962995,
+          "max_drawdown": 38.74735746688348,
+          "transactions": 11,
+          "turnover": 11.0,
+          "mean_exposure": 0.704469646430954
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 100.38554748321536
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 51.64995696920693,
+          "max_drawdown": 22.455813160377417,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.7976190476190477
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -37.55399558286762
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 100,
+          "band_pct": 0.03
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 100.68848498492109,
+          "max_drawdown": 58.60055871150058,
+          "transactions": 24,
+          "turnover": 24.0,
+          "mean_exposure": 0.7138092061374249
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -26.1990137914935
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 49.17953006840594,
+          "max_drawdown": 24.770540900985345,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.9047619047619048
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -40.024422483668616
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 150,
+          "band_pct": 0.05
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 256.39880664977454,
+          "max_drawdown": 47.99693231469828,
+          "transactions": 6,
+          "turnover": 6.0,
+          "mean_exposure": 0.7971981320880587
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 129.51130787335995
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 46.20366135909164,
+          "max_drawdown": 20.437009653165898,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7182539682539683
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -43.000291192982914
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 200,
+          "band_pct": 0.03
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 222.6149915869378,
+          "max_drawdown": 49.054205279876896,
+          "transactions": 6,
+          "turnover": 6.0,
+          "mean_exposure": 0.7831887925283523
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 95.72749281052322
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 46.20366135909164,
+          "max_drawdown": 20.437009653165898,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7182539682539683
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -43.000291192982914
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 150,
+          "band_pct": 0.03
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 192.52204941404054,
+          "max_drawdown": 49.64839663838742,
+          "transactions": 8,
+          "turnover": 8.0,
+          "mean_exposure": 0.7538358905937291
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 65.63455063762595
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 46.20366135909164,
+          "max_drawdown": 20.437009653165898,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7182539682539683
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -43.000291192982914
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 150,
+          "band_pct": 0.0
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 188.98328207962643,
+          "max_drawdown": 52.624896980291446,
+          "transactions": 10,
+          "turnover": 10.0,
+          "mean_exposure": 0.7671781187458305
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 62.095783303211846
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 46.20366135909164,
+          "max_drawdown": 20.437009653165898,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7182539682539683
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -43.000291192982914
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 200,
+          "band_pct": 0.05
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 168.15246028128564,
+          "max_drawdown": 57.654664068811755,
+          "transactions": 6,
+          "turnover": 6.0,
+          "mean_exposure": 0.8118745830553702
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 41.26496150487105
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 46.20366135909164,
+          "max_drawdown": 20.437009653165898,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7182539682539683
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -43.000291192982914
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 200,
+          "band_pct": 0.0
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 154.90099972871545,
+          "max_drawdown": 52.624896980291446,
+          "transactions": 12,
+          "turnover": 12.0,
+          "mean_exposure": 0.7538358905937291
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 28.01350095230086
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 46.20366135909164,
+          "max_drawdown": 20.437009653165898,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7182539682539683
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -43.000291192982914
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 200,
+          "band_pct": 0.05
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 165.26185577743698,
+          "max_drawdown": 52.58995961010846,
+          "transactions": 10,
+          "turnover": 10.0,
+          "mean_exposure": 0.7625083388925951
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 38.37435700102239
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 44.36880478360645,
+          "max_drawdown": 20.437009653165916,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7380952380952381
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -44.835147768468104
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 20,
+          "trailing_stop_pct": 0.16
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 80.57473536110629,
+          "max_drawdown": 65.47300735803725,
+          "transactions": 17,
+          "turnover": 17.0,
+          "mean_exposure": 0.808539026017345
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -46.3127634153083
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 71.2387462926684,
+          "max_drawdown": 21.894194922846307,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.9484126984126984
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -17.96520625940616
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 60,
+          "trailing_stop_pct": 0.2
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 258.69782271913573,
+          "max_drawdown": 39.0398784218614,
+          "transactions": 9,
+          "turnover": 9.0,
+          "mean_exposure": 0.7565043362241495
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 131.81032394272114
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 40.887504600219174,
+          "max_drawdown": 27.959049917132887,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.8095238095238095
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -48.31644795185538
+      }
+    },
+    {
+      "candidate": {
+        "family": "monthly_sma",
+        "parameters": {
+          "window_days": 100,
+          "band_pct": 0.0
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 136.60662514486836,
+          "max_drawdown": 50.36564692363177,
+          "transactions": 18,
+          "turnover": 18.0,
+          "mean_exposure": 0.7124749833222148
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 9.719126368453772
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 40.13392369033157,
+          "max_drawdown": 20.4370096531659,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.7976190476190477
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -49.07002886174298
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 100,
+          "band_pct": 0.05
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 161.94449265181404,
+          "max_drawdown": 47.250175974228,
+          "transactions": 14,
+          "turnover": 14.0,
+          "mean_exposure": 0.7124749833222148
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 35.056993875399456
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 36.59755997755845,
+          "max_drawdown": 30.14983277138367,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.8888888888888888
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -52.60639257451611
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 200,
+          "band_pct": 0.03
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 170.79050790076397,
+          "max_drawdown": 54.22789731798079,
+          "transactions": 12,
+          "turnover": 12.0,
+          "mean_exposure": 0.7685123415610406
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 43.90300912434938
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 34.01176807510375,
+          "max_drawdown": 20.437009653165898,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.7420634920634921
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -55.1921844769708
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 200,
+          "band_pct": 0.0
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 77.84194618665583,
+          "max_drawdown": 62.66881758769682,
+          "transactions": 38,
+          "turnover": 38.0,
+          "mean_exposure": 0.7545030020013342
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -49.045552589758756
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 31.527922688479727,
+          "max_drawdown": 20.4370096531659,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.7301587301587301
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -57.67602986359483
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.05,
+          "reentry_days": 60
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 102.72648566550293,
+          "max_drawdown": 56.46227740766193,
+          "transactions": 20,
+          "turnover": 20.0,
+          "mean_exposure": 0.7384923282188125
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -24.161013110911654
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 27.12054121734777,
+          "max_drawdown": 24.31022638389978,
+          "transactions": 11,
+          "turnover": 11.0,
+          "mean_exposure": 0.7738095238095238
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -62.08341133472678
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 120,
+          "trailing_stop_pct": 0.16
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 167.8273467773405,
+          "max_drawdown": 45.13950940712,
+          "transactions": 10,
+          "turnover": 10.0,
+          "mean_exposure": 0.6424282855236825
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 40.939848000925906
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 23.03560713323316,
+          "max_drawdown": 22.455813160377414,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.5515873015873016
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -66.1683454188414
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.05,
+          "reentry_days": 20
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 111.45872442798685,
+          "max_drawdown": 59.290958355419875,
+          "transactions": 34,
+          "turnover": 34.0,
+          "mean_exposure": 0.7871914609739826
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -15.428774348427737
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 15.651732522823213,
+          "max_drawdown": 31.138953869025244,
+          "transactions": 15,
+          "turnover": 15.0,
+          "mean_exposure": 0.7817460317460317
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -73.55222002925134
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 120,
+          "trailing_stop_pct": 0.2
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 196.6154224716637,
+          "max_drawdown": 48.36293027102267,
+          "transactions": 8,
+          "turnover": 8.0,
+          "mean_exposure": 0.6971314209472982
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 69.7279236952491
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 14.30388779796301,
+          "max_drawdown": 27.959049917132877,
+          "transactions": 3,
+          "turnover": 3.0,
+          "mean_exposure": 0.5634920634920635
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -74.90006475411154
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 150,
+          "band_pct": 0.0
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 49.99888510190553,
+          "max_drawdown": 65.21556462978361,
+          "transactions": 40,
+          "turnover": 40.0,
+          "mean_exposure": 0.7391594396264176
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -76.88861367450906
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 67.62501396402696,
+          "max_drawdown": 20.4370096531659,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 0.7619047619047619
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -21.578938588047592
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.03,
+          "reentry_days": 60
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 126.59700916158059,
+          "max_drawdown": 53.054212330234364,
+          "transactions": 20,
+          "turnover": 20.0,
+          "mean_exposure": 0.733155436957972
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -0.2904896148340015
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -6.902517044789924,
+          "max_drawdown": 39.731516135021124,
+          "transactions": 15,
+          "turnover": 15.0,
+          "mean_exposure": 0.757936507936508
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -96.10646959686449
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.0,
+          "reentry_days": 60
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 171.71920793346501,
+          "max_drawdown": 47.16407012400354,
+          "transactions": 22,
+          "turnover": 22.0,
+          "mean_exposure": 0.6724482988659106
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": 44.831709157050426
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -8.628035309835191,
+          "max_drawdown": 40.84856427009949,
+          "transactions": 15,
+          "turnover": 15.0,
+          "mean_exposure": 0.746031746031746
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -97.83198786190974
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 120,
+          "trailing_stop_pct": 0.12
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 39.39022958187015,
+          "max_drawdown": 45.33024922550689,
+          "transactions": 20,
+          "turnover": 20.0,
+          "mean_exposure": 0.4536357571714476
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -87.49726919454443
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -14.550166845680701,
+          "max_drawdown": 33.63923381542999,
+          "transactions": 7,
+          "turnover": 7.0,
+          "mean_exposure": 0.4642857142857143
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -103.75411939775526
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.03,
+          "reentry_days": 20
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 85.34186163356875,
+          "max_drawdown": 65.57879799088118,
+          "transactions": 38,
+          "turnover": 38.0,
+          "mean_exposure": 0.7751834556370913
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -41.545637142845834
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -15.301767171718728,
+          "max_drawdown": 45.16893565146789,
+          "transactions": 19,
+          "turnover": 19.0,
+          "mean_exposure": 0.7658730158730159
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -104.50571972379328
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.0,
+          "reentry_days": 20
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 40.150449702464016,
+          "max_drawdown": 68.38924165850648,
+          "transactions": 50,
+          "turnover": 50.0,
+          "mean_exposure": 0.7204803202134756
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -86.73704907395057
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -16.87160926758473,
+          "max_drawdown": 46.18520376121673,
+          "transactions": 19,
+          "turnover": 19.0,
+          "mean_exposure": 0.753968253968254
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -106.07556181965928
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 60,
+          "trailing_stop_pct": 0.12
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 70.32863000361627,
+          "max_drawdown": 42.32327307651062,
+          "transactions": 21,
+          "turnover": 21.0,
+          "mean_exposure": 0.5156771180787192
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -56.55886877279832
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -18.50503680418001,
+          "max_drawdown": 38.49420080953516,
+          "transactions": 9,
+          "turnover": 9.0,
+          "mean_exposure": 0.5873015873015873
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -107.70898935625456
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.05,
+          "reentry_days": 10
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 17.773205535531567,
+          "max_drawdown": 73.43640104480319,
+          "transactions": 58,
+          "turnover": 58.0,
+          "mean_exposure": 0.80920613742495
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -109.11429324088303
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 6.282433977105728,
+          "max_drawdown": 36.71759662082495,
+          "transactions": 19,
+          "turnover": 19.0,
+          "mean_exposure": 0.7896825396825397
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -82.92151857496883
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 20,
+          "trailing_stop_pct": 0.12
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 23.749662380137426,
+          "max_drawdown": 59.677941841562685,
+          "transactions": 33,
+          "turnover": 33.0,
+          "mean_exposure": 0.6837891927951968
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -103.13783639627717
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -21.364983887909293,
+          "max_drawdown": 47.06101660701132,
+          "transactions": 11,
+          "turnover": 11.0,
+          "mean_exposure": 0.8015873015873016
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -110.56893643998384
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.03,
+          "reentry_days": 10
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": 0.011466492499101477,
+          "max_drawdown": 77.44253903298618,
+          "transactions": 64,
+          "turnover": 64.0,
+          "mean_exposure": 0.7938625750500333
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -126.87603228391549
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -22.163428578358292,
+          "max_drawdown": 49.610966914246106,
+          "transactions": 23,
+          "turnover": 23.0,
+          "mean_exposure": 0.7738095238095238
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -111.36738113043285
+      }
+    },
+    {
+      "candidate": {
+        "family": "donchian",
+        "parameters": {
+          "entry_days": 60,
+          "exit_days": 20
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -5.961882011327502,
+          "max_drawdown": 41.231056860703774,
+          "transactions": 31,
+          "turnover": 31.0,
+          "mean_exposure": 0.418945963975984
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -132.8493807877421
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 9.726123072483706,
+          "max_drawdown": 19.217993020591827,
+          "transactions": 7,
+          "turnover": 7.0,
+          "mean_exposure": 0.5873015873015873
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -79.47782947959085
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 60,
+          "trailing_stop_pct": 0.08
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -9.118341929977126,
+          "max_drawdown": 43.85332702242054,
+          "transactions": 33,
+          "turnover": 33.0,
+          "mean_exposure": 0.39026017344896596
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -136.00584070639172
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -17.33326323658202,
+          "max_drawdown": 37.68181479848781,
+          "transactions": 12,
+          "turnover": 12.0,
+          "mean_exposure": 0.46031746031746035
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -106.53721578865657
+      }
+    },
+    {
+      "candidate": {
+        "family": "donchian",
+        "parameters": {
+          "entry_days": 120,
+          "exit_days": 20
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -21.569815703819085,
+          "max_drawdown": 39.86400176402407,
+          "transactions": 28,
+          "turnover": 28.0,
+          "mean_exposure": 0.34222815210140095
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -148.45731448023366
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 11.609625036748161,
+          "max_drawdown": 19.217993020591774,
+          "transactions": 5,
+          "turnover": 5.0,
+          "mean_exposure": 0.4801587301587302
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -77.5943275153264
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 120,
+          "trailing_stop_pct": 0.08
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -33.137515977665764,
+          "max_drawdown": 52.25151571514044,
+          "transactions": 32,
+          "turnover": 32.0,
+          "mean_exposure": 0.3095396931287525
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -160.02501475408036
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -15.713740800179243,
+          "max_drawdown": 34.61838302113265,
+          "transactions": 10,
+          "turnover": 10.0,
+          "mean_exposure": 0.376984126984127
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -104.91769335225379
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_band",
+        "parameters": {
+          "window_days": 100,
+          "band_pct": 0.0
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -38.83291473562049,
+          "max_drawdown": 84.44430365512589,
+          "transactions": 72,
+          "turnover": 72.0,
+          "mean_exposure": 0.7011340893929286
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -165.72041351203507
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": 22.791928387825287,
+          "max_drawdown": 35.23242909720706,
+          "transactions": 11,
+          "turnover": 11.0,
+          "mean_exposure": 0.873015873015873
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -66.41202416424926
+      }
+    },
+    {
+      "candidate": {
+        "family": "sma_exit_breakout_reentry",
+        "parameters": {
+          "window_days": 200,
+          "exit_band_pct": 0.0,
+          "reentry_days": 10
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -39.025545956911586,
+          "max_drawdown": 86.247288283038,
+          "transactions": 84,
+          "turnover": 84.0,
+          "mean_exposure": 0.7464976651100734
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -165.91304473332616
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -23.6060929921874,
+          "max_drawdown": 50.544904053978115,
+          "transactions": 23,
+          "turnover": 23.0,
+          "mean_exposure": 0.7619047619047619
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -112.81004554426195
+      }
+    },
+    {
+      "candidate": {
+        "family": "breakout",
+        "parameters": {
+          "lookback_days": 20,
+          "trailing_stop_pct": 0.08
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -39.06651199094675,
+          "max_drawdown": 72.72036020190427,
+          "transactions": 53,
+          "turnover": 53.0,
+          "mean_exposure": 0.5323549032688459
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -165.95401076736135
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -37.31406493934666,
+          "max_drawdown": 52.74430969956382,
+          "transactions": 18,
+          "turnover": 18.0,
+          "mean_exposure": 0.6111111111111112
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -126.5180174914212
+      }
+    },
+    {
+      "candidate": {
+        "family": "donchian",
+        "parameters": {
+          "entry_days": 20,
+          "exit_days": 10
+        }
+      },
+      "train": {
+        "start": "2016-08-09",
+        "end": "2022-07-22",
+        "strategy": {
+          "return": -60.64236395460881,
+          "max_drawdown": 76.32719733191918,
+          "transactions": 75,
+          "turnover": 75.0,
+          "mean_exposure": 0.44229486324216144
+        },
+        "buy_and_hold": {
+          "return": 126.88749877641459,
+          "max_drawdown": 75.94731825161351,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -187.5298627310234
+      },
+      "validation": {
+        "start": "2022-07-25",
+        "end": "2023-07-25",
+        "strategy": {
+          "return": -40.509595686572865,
+          "max_drawdown": 50.67603115990858,
+          "transactions": 18,
+          "turnover": 18.0,
+          "mean_exposure": 0.5674603174603174
+        },
+        "buy_and_hold": {
+          "return": 89.20395255207455,
+          "max_drawdown": 20.43700965316591,
+          "transactions": 1,
+          "turnover": 1.0,
+          "mean_exposure": 1.0
+        },
+        "excess_return": -129.71354823864743
+      }
+    }
+  ],
+  "train": {
+    "start": "2016-08-09",
+    "end": "2022-07-22",
+    "strategy": {
+      "return": 306.6329121658613,
+      "max_drawdown": 47.99693231469827,
+      "transactions": 6,
+      "turnover": 6.0,
+      "mean_exposure": 0.781854569713142,
+      "annualized_return": 26.589641446205615
+    },
+    "buy_and_hold": {
+      "return": 126.88749877641459,
+      "max_drawdown": 75.94731825161351,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0,
+      "annualized_return": 14.764252224977481
+    },
+    "excess_return": 179.7454133894467
+  },
+  "validation": {
+    "start": "2022-07-25",
+    "end": "2023-07-25",
+    "strategy": {
+      "return": 81.24367640285992,
+      "max_drawdown": 20.4370096531659,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 0.8849206349206349,
+      "annualized_return": 81.31751375362998
+    },
+    "buy_and_hold": {
+      "return": 89.20395255207455,
+      "max_drawdown": 20.43700965316591,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0,
+      "annualized_return": 89.28660547319845
+    },
+    "excess_return": -7.960276149214636
+  },
+  "test": {
+    "start": "2023-08-09",
+    "end": "2026-08-05",
+    "strategy": {
+      "return": 87.99073146316994,
+      "max_drawdown": 21.932816909015813,
+      "transactions": 4,
+      "turnover": 4.0,
+      "mean_exposure": 0.692,
+      "annualized_return": 23.507295947404415
+    },
+    "buy_and_hold": {
+      "return": 65.19615060914494,
+      "max_drawdown": 49.51946315240376,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0,
+      "annualized_return": 18.281325601437825
+    },
+    "excess_return": 22.794580854025
+  },
+  "full": {
+    "start": "2016-08-09",
+    "end": "2026-08-05",
+    "strategy": {
+      "return": 1355.0118714454104,
+      "max_drawdown": 47.99693231469827,
+      "transactions": 10,
+      "turnover": 10.0,
+      "mean_exposure": 0.7662285941855834,
+      "annualized_return": 30.746508270660723
+    },
+    "buy_and_hold": {
+      "return": 663.702197379072,
+      "max_drawdown": 75.94731825161351,
+      "transactions": 1,
+      "turnover": 1.0,
+      "mean_exposure": 1.0,
+      "annualized_return": 22.574835010848805
+    },
+    "excess_return": 691.3096740663384
+  },
+  "registered_runtime": {
+    "return": 1355.0118714454104,
+    "max_drawdown": 48.0,
+    "transactions": 10,
+    "final_value": 145501.18714454104,
+    "parameters": {
+      "buy_pct": 1.0,
+      "sell_pct": 1.0,
+      "tol_pct": 0.0,
+      "bollinger_sigma": 2,
+      "monthly_sma_window_days": 100,
+      "monthly_sma_band_pct": 0.05,
+      "buy": [
+        "by_percentage",
+        "fixed_amount",
+        "market_order"
+      ],
+      "sell": [
+        "by_percentage",
+        "stop_loss",
+        "take_profit"
+      ]
+    },
+    "trades": [
+      {
+        "date": "2016-08-09 00:00:00",
+        "action": "BUY",
+        "price": 9.521512084007263
+      },
+      {
+        "date": "2018-11-02 00:00:00",
+        "action": "SELL",
+        "price": 31.768199237823485
+      },
+      {
+        "date": "2019-02-04 00:00:00",
+        "action": "BUY",
+        "price": 34.294258319854734
+      },
+      {
+        "date": "2019-06-04 00:00:00",
+        "action": "SELL",
+        "price": 34.4655
+      },
+      {
+        "date": "2020-01-03 00:00:00",
+        "action": "BUY",
+        "price": 32.710679405212396
+      },
+      {
+        "date": "2022-02-02 00:00:00",
+        "action": "SELL",
+        "price": 44.78017576217651
+      },
+      {
+        "date": "2022-09-02 00:00:00",
+        "action": "BUY",
+        "price": 23.126103641510007
+      },
+      {
+        "date": "2023-10-03 00:00:00",
+        "action": "SELL",
+        "price": 37.673287536621096
+      },
+      {
+        "date": "2023-12-04 00:00:00",
+        "action": "BUY",
+        "price": 46.145098022460935
+      },
+      {
+        "date": "2025-11-04 00:00:00",
+        "action": "SELL",
+        "price": 109.88900154876708
+      }
+    ],
+    "excess_return": 691.3096740663384
+  },
+  "registered_test_runtime": {
+    "return": 87.99073146316994,
+    "max_drawdown": 21.93,
+    "transactions": 4,
+    "final_value": 18799.073146316994,
+    "parameters": {
+      "buy_pct": 1.0,
+      "sell_pct": 1.0,
+      "tol_pct": 0.0,
+      "bollinger_sigma": 2,
+      "monthly_sma_window_days": 100,
+      "monthly_sma_band_pct": 0.05,
+      "buy": [
+        "by_percentage",
+        "fixed_amount",
+        "market_order"
+      ],
+      "sell": [
+        "by_percentage",
+        "stop_loss",
+        "take_profit"
+      ]
+    },
+    "trades": [
+      {
+        "date": "2023-08-09 00:00:00",
+        "action": "BUY",
+        "price": 44.017973022460936
+      },
+      {
+        "date": "2023-10-03 00:00:00",
+        "action": "SELL",
+        "price": 37.673287536621096
+      },
+      {
+        "date": "2023-12-04 00:00:00",
+        "action": "BUY",
+        "price": 46.145098022460935
+      },
+      {
+        "date": "2025-11-04 00:00:00",
+        "action": "SELL",
+        "price": 109.88900154876708
+      }
+    ],
+    "excess_return": 22.794580854025
+  },
+  "full_runtime_matches_offline": true,
+  "test_runtime_matches_offline": true,
+  "runtime_matches_offline": true,
+  "passes_return_objective": true,
+  "passes_profit_gate": true
+}

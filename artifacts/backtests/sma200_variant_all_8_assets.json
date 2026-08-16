@@ -1,0 +1,443 @@
+{
+  "configuration": {
+    "symbols": [
+      "ETH",
+      "BTC",
+      "SOL",
+      "UNI",
+      "LTC",
+      "ETC",
+      "DOGE",
+      "AAVE"
+    ],
+    "train_days": 365,
+    "validation_days": 90,
+    "purge_days": 7,
+    "warmup_days": 200,
+    "test_days": 633,
+    "execution_friction_rate": 0.02,
+    "slippage_bps": 10.0,
+    "signal_time": "daily_close",
+    "execution_time": "next_daily_open",
+    "options_enabled": false,
+    "selection_scope": "one shared variant across all assets"
+  },
+  "selected_sma200_candidate": {
+    "strategy": "SMA200",
+    "tol_pct": 0.0,
+    "buy_pct": 1.0,
+    "sell_pct": 1.0,
+    "bollinger_sigma": 2.0,
+    "rsi_period": null,
+    "rsi_oversold": null,
+    "rsi_overbought": null,
+    "kdj_oversold": null,
+    "kdj_overbought": null,
+    "sma200_entry_band_pct": 0.05,
+    "sma200_exit_band_pct": 0.05,
+    "sma200_min_hold_days": 0
+  },
+  "candidate_selection": [
+    {
+      "candidate": {
+        "strategy": "SMA200",
+        "tol_pct": 0.0,
+        "buy_pct": 1.0,
+        "sell_pct": 1.0,
+        "bollinger_sigma": 2.0,
+        "rsi_period": null,
+        "rsi_oversold": null,
+        "rsi_overbought": null,
+        "kdj_oversold": null,
+        "kdj_overbought": null,
+        "sma200_entry_band_pct": 0.05,
+        "sma200_exit_band_pct": 0.05,
+        "sma200_min_hold_days": 0
+      },
+      "train": {
+        "median_return": -8.655999999999999,
+        "median_excess_return": -67.20033447476975,
+        "positive_return_assets": 3,
+        "positive_excess_assets": 1,
+        "median_transactions": 3.0,
+        "asset_count": 8
+      },
+      "validation": {
+        "median_return": 0.0,
+        "median_excess_return": -14.035297559839918,
+        "positive_return_assets": 3,
+        "positive_excess_assets": 2,
+        "median_transactions": 0.5,
+        "asset_count": 8
+      },
+      "train_by_asset": {
+        "ETH": {
+          "strategy_return": -19.838,
+          "buy_hold_return": 63.34613682433356,
+          "excess_return": -83.18413682433356,
+          "max_drawdown": 36.99,
+          "transactions": 3
+        },
+        "BTC": {
+          "strategy_return": 16.289,
+          "buy_hold_return": 111.23291585935146,
+          "excess_return": -94.94391585935146,
+          "max_drawdown": 23.56,
+          "transactions": 1
+        },
+        "SOL": {
+          "strategy_return": 11.291,
+          "buy_hold_return": 570.0438596491229,
+          "excess_return": -558.7528596491228,
+          "max_drawdown": 38.17,
+          "transactions": 3
+        },
+        "UNI": {
+          "strategy_return": -42.205,
+          "buy_hold_return": 9.011532125205935,
+          "excess_return": -51.21653212520593,
+          "max_drawdown": 70.5,
+          "transactions": 6
+        },
+        "LTC": {
+          "strategy_return": -5.849,
+          "buy_hold_return": -20.851581508515814,
+          "excess_return": 15.002581508515814,
+          "max_drawdown": 34.77,
+          "transactions": 2
+        },
+        "ETC": {
+          "strategy_return": -11.463,
+          "buy_hold_return": 12.827663134411615,
+          "excess_return": -24.290663134411616,
+          "max_drawdown": 34.89,
+          "transactions": 2
+        },
+        "DOGE": {
+          "strategy_return": 9.176,
+          "buy_hold_return": 51.817068191098414,
+          "excess_return": -42.64106819109841,
+          "max_drawdown": 54.67999999999999,
+          "transactions": 4
+        },
+        "AAVE": {
+          "strategy_return": -31.356,
+          "buy_hold_return": 71.85358255451713,
+          "excess_return": -103.20958255451714,
+          "max_drawdown": 54.910000000000004,
+          "transactions": 5
+        }
+      },
+      "validation_by_asset": {
+        "ETH": {
+          "strategy_return": 0.0,
+          "buy_hold_return": -13.260252648399929,
+          "excess_return": 13.260252648399929,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "BTC": {
+          "strategy_return": 2.599,
+          "buy_hold_return": 15.806157666835418,
+          "excess_return": -13.207157666835418,
+          "max_drawdown": 3.42,
+          "transactions": 1
+        },
+        "SOL": {
+          "strategy_return": -27.483,
+          "buy_hold_return": 18.36233511086163,
+          "excess_return": -45.845335110861626,
+          "max_drawdown": 29.84,
+          "transactions": 5
+        },
+        "UNI": {
+          "strategy_return": 0.0,
+          "buy_hold_return": 14.863437452844419,
+          "excess_return": -14.863437452844419,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "LTC": {
+          "strategy_return": 0.0,
+          "buy_hold_return": 7.238979118329447,
+          "excess_return": -7.238979118329447,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "ETC": {
+          "strategy_return": 0.0,
+          "buy_hold_return": -5.343511450381666,
+          "excess_return": 5.343511450381666,
+          "max_drawdown": 0.0,
+          "transactions": 0
+        },
+        "DOGE": {
+          "strategy_return": 15.359,
+          "buy_hold_return": 49.51438349828878,
+          "excess_return": -34.15538349828878,
+          "max_drawdown": 8.649999999999999,
+          "transactions": 1
+        },
+        "AAVE": {
+          "strategy_return": 12.302,
+          "buy_hold_return": 35.938240030311654,
+          "excess_return": -23.636240030311654,
+          "max_drawdown": 19.689999999999998,
+          "transactions": 3
+        }
+      }
+    }
+  ],
+  "test_by_asset": {
+    "ETH": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": -18.778,
+        "buy_hold_return": -36.34304043217692,
+        "excess_return": 17.56504043217692,
+        "max_drawdown": 45.31,
+        "transactions": 6
+      },
+      "sma200_baseline": {
+        "strategy_return": -17.283,
+        "buy_hold_return": -36.34304043217692,
+        "excess_return": 19.06004043217692,
+        "max_drawdown": 46.400000000000006,
+        "transactions": 14
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -34.318,
+        "buy_hold_return": -36.34304043217692,
+        "excess_return": 2.0250404321769224,
+        "max_drawdown": 43.87,
+        "transactions": 121
+      }
+    },
+    "BTC": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": 2.508,
+        "buy_hold_return": -16.91258294037703,
+        "excess_return": 19.420582940377027,
+        "max_drawdown": 28.84,
+        "transactions": 4
+      },
+      "sma200_baseline": {
+        "strategy_return": -29.525,
+        "buy_hold_return": -16.91258294037703,
+        "excess_return": -12.61241705962297,
+        "max_drawdown": 48.11,
+        "transactions": 18
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -41.882,
+        "buy_hold_return": -16.91258294037703,
+        "excess_return": -24.96941705962297,
+        "max_drawdown": 45.69,
+        "transactions": 86
+      }
+    },
+    "SOL": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": -25.559,
+        "buy_hold_return": -63.157368026019526,
+        "excess_return": 37.59836802601953,
+        "max_drawdown": 43.45,
+        "transactions": 4
+      },
+      "sma200_baseline": {
+        "strategy_return": -31.783,
+        "buy_hold_return": -63.157368026019526,
+        "excess_return": 31.374368026019525,
+        "max_drawdown": 46.839999999999996,
+        "transactions": 8
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -52.948,
+        "buy_hold_return": -63.157368026019526,
+        "excess_return": 10.209368026019526,
+        "max_drawdown": 56.88999999999999,
+        "transactions": 132
+      }
+    },
+    "UNI": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": -51.556,
+        "buy_hold_return": -52.91393720352383,
+        "excess_return": 1.3579372035238322,
+        "max_drawdown": 79.25999999999999,
+        "transactions": 7
+      },
+      "sma200_baseline": {
+        "strategy_return": -67.348,
+        "buy_hold_return": -52.91393720352383,
+        "excess_return": -14.43406279647617,
+        "max_drawdown": 86.02,
+        "transactions": 19
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -43.211,
+        "buy_hold_return": -52.91393720352383,
+        "excess_return": 9.702937203523831,
+        "max_drawdown": 54.50000000000001,
+        "transactions": 145
+      }
+    },
+    "LTC": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": -35.56,
+        "buy_hold_return": -38.59576806815059,
+        "excess_return": 3.0357680681505883,
+        "max_drawdown": 63.22,
+        "transactions": 8
+      },
+      "sma200_baseline": {
+        "strategy_return": -23.14,
+        "buy_hold_return": -38.59576806815059,
+        "excess_return": 15.45576806815059,
+        "max_drawdown": 58.3,
+        "transactions": 14
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -44.848,
+        "buy_hold_return": -38.59576806815059,
+        "excess_return": -6.252231931849408,
+        "max_drawdown": 61.75000000000001,
+        "transactions": 116
+      }
+    },
+    "ETC": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": -51.665,
+        "buy_hold_return": -67.6283618581907,
+        "excess_return": 15.963361858190702,
+        "max_drawdown": 68.57,
+        "transactions": 4
+      },
+      "sma200_baseline": {
+        "strategy_return": -45.509,
+        "buy_hold_return": -67.6283618581907,
+        "excess_return": 22.1193618581907,
+        "max_drawdown": 63.65,
+        "transactions": 8
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -30.12,
+        "buy_hold_return": -67.6283618581907,
+        "excess_return": 37.508361858190696,
+        "max_drawdown": 39.28,
+        "transactions": 84
+      }
+    },
+    "DOGE": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": -31.933,
+        "buy_hold_return": -64.94033767391197,
+        "excess_return": 33.00733767391197,
+        "max_drawdown": 69.89,
+        "transactions": 6
+      },
+      "sma200_baseline": {
+        "strategy_return": -38.856,
+        "buy_hold_return": -64.94033767391197,
+        "excess_return": 26.084337673911968,
+        "max_drawdown": 72.95,
+        "transactions": 10
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -43.75,
+        "buy_hold_return": -64.94033767391197,
+        "excess_return": 21.19033767391197,
+        "max_drawdown": 46.28,
+        "transactions": 113
+      }
+    },
+    "AAVE": {
+      "data_start": "2023-08-04 00:00:00",
+      "data_end": "2026-08-02 00:00:00",
+      "data_rows": 1095,
+      "test_start": "2024-11-08 00:00:00",
+      "test_end": "2026-08-02 00:00:00",
+      "sma200_selected": {
+        "strategy_return": -21.206,
+        "buy_hold_return": -49.34044190392437,
+        "excess_return": 28.134441903924372,
+        "max_drawdown": 61.809999999999995,
+        "transactions": 6
+      },
+      "sma200_baseline": {
+        "strategy_return": -53.978,
+        "buy_hold_return": -49.34044190392437,
+        "excess_return": -4.6375580960756295,
+        "max_drawdown": 77.7,
+        "transactions": 18
+      },
+      "ma_boll_fixed": {
+        "strategy_return": -15.535,
+        "buy_hold_return": -49.34044190392437,
+        "excess_return": 33.805441903924375,
+        "max_drawdown": 31.75,
+        "transactions": 162
+      }
+    }
+  },
+  "aggregate_test": {
+    "sma200_selected": {
+      "median_return": -28.746000000000002,
+      "median_excess_return": 18.492811686276973,
+      "positive_return_assets": 1,
+      "positive_excess_assets": 8,
+      "median_transactions": 6.0,
+      "asset_count": 8
+    },
+    "sma200_baseline": {
+      "median_return": -35.319500000000005,
+      "median_excess_return": 17.257904250163755,
+      "positive_return_assets": 0,
+      "positive_excess_assets": 5,
+      "median_transactions": 14.0,
+      "asset_count": 8
+    },
+    "ma_boll_fixed": {
+      "median_return": -42.546499999999995,
+      "median_excess_return": 9.956152614771678,
+      "positive_return_assets": 0,
+      "positive_excess_assets": 6,
+      "median_transactions": 118.5,
+      "asset_count": 8
+    }
+  }
+}

@@ -29,7 +29,7 @@ class StockSimulationRunner:
         self._trader_driver_factory = trader_driver_factory
         self._simulation_service = simulation_service
 
-    def run(all_actions: list, best_summaries: Optional[list] = None) -> None:
+    def run(self, all_actions: list, best_summaries: Optional[list] = None) -> None:
         """
         Run stock simulation only (daily candles).
 
@@ -70,17 +70,23 @@ class StockSimulationRunner:
             self._logger.info(f"\n\n# --- Simulating for Stock: {stock} --- #")
 
             try:
-                # Stock strategy evaluation uses a dedicated three-year daily history.
+                # Most assets use a dedicated three-year history. NFLX loads its
+                # frozen pre-test history so the monthly regime can be reconstructed.
                 end_date = datetime.now().strftime("%Y-%m-%d")
+                history_lookback_days = (
+                    NFLX_RUNTIME_HISTORY_LOOKBACK_DAYS
+                    if stock == "NFLX"
+                    else STOCK_HISTORY_LOOKBACK_DAYS
+                )
                 start_date = (
-                    datetime.now() - timedelta(days=STOCK_HISTORY_LOOKBACK_DAYS)
+                    datetime.now() - timedelta(days=history_lookback_days)
                 ).strftime("%Y-%m-%d")
                 data_stream = stock_client.get_historic_data(
                     stock, start=start_date, end=end_date
                 )
                 self._logger.info(
                     f"Retrieved {len(data_stream)} data points for {stock} "
-                    f"(last {STOCK_HISTORY_LOOKBACK_DAYS} days)"
+                    f"(last {history_lookback_days} days)"
                 )
 
                 # Validate data stream before creating trader driver
@@ -95,6 +101,26 @@ class StockSimulationRunner:
                         f"Insufficient historical data for stock {stock}: only {len(data_stream)} data points available"
                     )
                     continue
+
+                warmup_points = 0
+                performance_start_index = 0
+                reporting_data_stream = data_stream
+                if stock == "NFLX":
+                    if len(data_stream) <= NFLX_RUNTIME_EVALUATION_ROWS:
+                        self._logger.error(
+                            "Insufficient NFLX pre-test history for monthly SMA state "
+                            f"reconstruction: {len(data_stream)} rows"
+                        )
+                        continue
+                    performance_start_index = (
+                        len(data_stream) - NFLX_RUNTIME_EVALUATION_ROWS
+                    )
+                    warmup_points = performance_start_index - 1
+                    reporting_data_stream = data_stream[performance_start_index:]
+                    self._logger.info(
+                        f"[NFLX] Warmup rows: {warmup_points}; evaluation rows: "
+                        f"{len(reporting_data_stream)}"
+                    )
 
                 # For stock simulation, we'll use a fixed initial amount
                 # You can modify this based on your stock portfolio value
@@ -146,15 +172,23 @@ class StockSimulationRunner:
                     sell_pcts=SIM_SELL_PCTS,
                     btc_data_stream=btc_data_stream,
                 )
-                trader_driver.feed_data(data_stream)
+                trader_driver.feed_data(
+                    data_stream,
+                    warmup_points=warmup_points,
+                    performance_start_index=performance_start_index,
+                )
                 selection = self._simulation_service.select_and_record(
                     trader_driver=trader_driver,
                     asset_type="STOCK",
                     exchange="STOCK",
                     asset=stock,
-                    data_stream=data_stream,
+                    data_stream=reporting_data_stream,
                 )
-                best_t, signal = selection.trader, selection.signal
+                best_t, signal, best_info = (
+                    selection.trader,
+                    selection.signal,
+                    selection.best_info,
+                )
                 if best_summaries is not None:
                     # Signal frequency stats from the best trader's full trade history
                     th = getattr(best_t, "trade_history", []) or []
